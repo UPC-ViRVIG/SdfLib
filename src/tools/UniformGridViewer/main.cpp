@@ -23,6 +23,8 @@
 class MyScene : public Scene
 {
 public:
+    MyScene(std::string modelPath, float cellSize) : mModelPath(modelPath), mCellSize(cellSize) {}
+
 	void start() override
 	{
 		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
@@ -44,12 +46,12 @@ public:
 
 		mPlaneRenderer->setIndexData(plane->getIndices());
 
-		Mesh sphereMesh("../models/sphere.glb");
+		Mesh sphereMesh(mModelPath);
 		BoundingBox box = sphereMesh.getBoudingBox();
 		box.addMargin(0.5f);
 
 		Timer timer; timer.start();
-		UniformGridSdf sdfGrid(sphereMesh, box, 0.1f);
+		UniformGridSdf sdfGrid(sphereMesh, box, mCellSize);
 		SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 
 		mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getCenter()) *
@@ -67,7 +69,8 @@ public:
 		sphereMeshRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
 							}, sphereMesh.getVertices().data(), sphereMesh.getVertices().size());
-							
+
+        sphereMesh.computeNormals();
 		sphereMeshRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
 							}, sphereMesh.getNormals().data(), sphereMesh.getNormals().size());
@@ -148,71 +151,35 @@ private:
 
 	glm::mat4x4 mGizmoStartMatrix;
 	glm::mat4x4 mGizmoMatrix;
+
+    std::string mModelPath;
+    float mCellSize;
 };
 
-class TestScene : public Scene
-{
-	void start() override
-	{
-		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
-
-		auto camera = std::make_shared<NavigationCamera>();
-		camera->start();
-		setMainCamera(camera);
-		addSystem(camera);
-
-		std::shared_ptr<Mesh> cubeMesh = PrimitivesFactory::getCube();
-		mCubeRenderer = std::make_shared<RenderMesh>();
-		mCubeRenderer->start();
-		mCubeRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
-									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
-							}, cubeMesh->getVertices().data(), cubeMesh->getVertices().size());
-
-		cubeMesh->computeNormals();	
-		mCubeRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
-									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
-							}, cubeMesh->getNormals().data(), cubeMesh->getNormals().size());
-
-		mCubeRenderer->setIndexData(cubeMesh->getIndices());
-		mCubeRenderer->setShader(Shader<NormalsShader>::getInstance());
-		addSystem(mCubeRenderer);
-	}
-
-	void update(float deltaTime) override
-	{
-		Scene::update(deltaTime);
-
-		ImGuiIO& io = ImGui::GetIO();
-    	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-
-		if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_ALT))
-		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
-		}
-		else
-		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::TRANSLATE_Z, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
-		}
-		
-		mCubeRenderer->setTransform(mGizmoMatrix);
-	}
-
-private:
-	glm::mat4x4 mGizmoMatrix = glm::mat4(1.0f);
-	std::shared_ptr<RenderMesh> mCubeRenderer;
-};
-
-int main()
+int main(int argc, char** argv)
 {
 	spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
 
+    args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
+    args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
+    args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
+    args::Positional<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization");
 
-    MyScene scene;
-	// TestScene scene;
+    try
+    {
+        parser.ParseCLI(argc, argv);
+    }
+    catch(args::Help)
+    {
+        std::cerr << parser;
+        return 0;
+    }
+
+
+    MyScene scene(
+        (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb",
+        (cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+    );
     MainLoop loop;
     loop.start(scene);
 }
