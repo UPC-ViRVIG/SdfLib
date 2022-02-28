@@ -154,7 +154,7 @@ public:
 		
 		meshNormals->setDataMode(GL_LINES);
 		meshNormals->setShader(Shader<BasicShader>::getInstance());
-
+		meshNormals->drawSurface(false);
 		addSystem(meshNormals);
 	}
 
@@ -169,6 +169,10 @@ public:
 		bool drawGrid = mPlaneShader->isDrawingGrid();
 		ImGui::Checkbox("Print grid", &drawGrid);
 		mPlaneShader->drawGrid(drawGrid);
+
+		bool drawIsolines = mPlaneShader->isDrawingIsolines();
+		ImGui::Checkbox("Print Isolines", &drawIsolines);
+		mPlaneShader->drawIsolines(drawIsolines);
 
 		ImGuiIO& io = ImGui::GetIO();
     	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
@@ -240,8 +244,9 @@ int main(int argc, char** argv)
 
 
     MyScene scene(
-        (modelPathArg) ? args::get(modelPathArg) : "../models/monkey.glb",
-        (cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+        (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb",
+        // (cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+		(cellSizeArg) ? args::get(cellSizeArg) : 0.2f
     );
     MainLoop loop;
     loop.start(scene);

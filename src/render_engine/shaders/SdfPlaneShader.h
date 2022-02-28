@@ -14,7 +14,8 @@ public:
     {   
         // Get uniform locations
         worldToGridMatrixLocation = glGetUniformLocation(getProgramId(), "worldToGridMatrix");
-        worldToGridMatrix = glm::scale(glm::mat4x4(1.0f), 1.0f / sdfGrid.getGridBoundingBox().getSize()) * 
+        const glm::vec3 texUnit = 1.0f / glm::vec3(sdfGrid.getGridSize());
+        worldToGridMatrix = glm::scale(glm::mat4x4(1.0f), (1.0f - texUnit) / sdfGrid.getGridBoundingBox().getSize()) * 
                             glm::translate(glm::mat4x4(1.0f), -sdfGrid.getGridBoundingBox().min + glm::vec3(0.5f * sdfGrid.getGridCellSize()));        
 
         planeNormalLocation = glGetUniformLocation(getProgramId(), "planeNormal");
@@ -31,6 +32,9 @@ public:
 
         printGridLocation = glGetUniformLocation(getProgramId(), "printGrid");
         printGrid = true;
+
+        printIsolinesLocation = glGetUniformLocation(getProgramId(), "printIsolines");
+        printIsolines = true;
 
         // Set texture
         glGenTextures(1, &gpu3DTexture);
@@ -51,6 +55,9 @@ public:
     void drawGrid(bool draw) { printGrid = draw; }
     bool isDrawingGrid() { return printGrid; }
 
+    void drawIsolines(bool draw) { printIsolines = draw; }
+    bool isDrawingIsolines() { return printIsolines; }
+
     void bind() override
     {
         glBindTexture(GL_TEXTURE_3D, gpu3DTexture);
@@ -59,6 +66,7 @@ public:
         glUniform3f(gridSizeLocation, gridSize.x, gridSize.y, gridSize.z);
         glUniform3f(planeNormalLocation, planeNormal.x, planeNormal.y, planeNormal.z);
         glUniform1i(printGridLocation, printGrid);
+        glUniform1i(printIsolinesLocation, printIsolines);
     }
 
 private:
@@ -73,6 +81,8 @@ private:
     glm::vec3 planeNormal;
     unsigned int printGridLocation;
     bool printGrid;
+    unsigned int printIsolinesLocation;
+    bool printIsolines;
     
 };
 
