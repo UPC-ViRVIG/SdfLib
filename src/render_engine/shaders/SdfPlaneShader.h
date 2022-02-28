@@ -29,6 +29,9 @@ public:
         gridSizeLocation = glGetUniformLocation(getProgramId(), "gridSize");
         gridSize = glm::vec3(sdfGrid.getGridSize());
 
+        printGridLocation = glGetUniformLocation(getProgramId(), "printGrid");
+        printGrid = true;
+
         // Set texture
         glGenTextures(1, &gpu3DTexture);
         glBindTexture(GL_TEXTURE_3D, gpu3DTexture);
@@ -45,6 +48,9 @@ public:
 
     void setNormal(glm::vec3 normal) { planeNormal = normal; }
 
+    void drawGrid(bool draw) { printGrid = draw; }
+    bool isDrawingGrid() { return printGrid; }
+
     void bind() override
     {
         glBindTexture(GL_TEXTURE_3D, gpu3DTexture);
@@ -52,6 +58,7 @@ public:
         glUniform1f(gridValueRangeLocation, gridValueRange);
         glUniform3f(gridSizeLocation, gridSize.x, gridSize.y, gridSize.z);
         glUniform3f(planeNormalLocation, planeNormal.x, planeNormal.y, planeNormal.z);
+        glUniform1i(printGridLocation, printGrid);
     }
 
 private:
@@ -64,6 +71,8 @@ private:
     unsigned int gpu3DTexture;
     unsigned int planeNormalLocation;
     glm::vec3 planeNormal;
+    unsigned int printGridLocation;
+    bool printGrid;
     
 };
 

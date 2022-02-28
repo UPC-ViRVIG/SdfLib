@@ -65,6 +65,7 @@ public:
 		mPlaneRenderer->callDrawGui = false;
 
 		auto sphereMeshRenderer = std::make_shared<RenderMesh>();
+		sphereMeshRenderer->systemName = "Object Mesh";
 		sphereMeshRenderer->start();
 		sphereMeshRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
@@ -101,11 +102,73 @@ public:
 		mCubeRenderer->setTransform(glm::translate(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getCenter()) *
 					   				glm::scale(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getSize()));
 		addSystem(mCubeRenderer);
+
+		// Draw normals
+		auto meshNormals = std::make_shared<RenderMesh>();
+		meshNormals->systemName = "Mesh normals";
+		meshNormals->start();
+		std::vector<glm::vec3> normals;
+		int tIndex = 0;
+		for(TriangleUtils::TriangleData& triData : TriangleUtils::calculateMeshTriangleData(sphereMesh))
+		{
+			const glm::vec3 v1 = sphereMesh.getVertices()[sphereMesh.getIndices()[3 * tIndex]];
+			const glm::vec3 v2 = sphereMesh.getVertices()[sphereMesh.getIndices()[3 * tIndex + 1]];
+			const glm::vec3 v3 = sphereMesh.getVertices()[sphereMesh.getIndices()[3 * tIndex + 2]];
+
+			glm::mat3 trans = glm::inverse(triData.transform);
+
+			// Vertices normal
+			normals.push_back(v1);
+			normals.push_back(v1 + 0.25f * trans * glm::normalize(triData.verticesNormal[0]));
+
+			normals.push_back(v2);
+			normals.push_back(v2 + 0.25f * trans * glm::normalize(triData.verticesNormal[1]));
+
+			normals.push_back(v3);
+			normals.push_back(v3 + 0.25f * trans *glm::normalize(triData.verticesNormal[2]));
+
+			// Edges normal
+			glm::vec3 nPos = 0.5f * (v1 + v2);
+			normals.push_back(nPos);
+			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[0]));
+
+			nPos = 0.5f * (v2 + v3);
+			normals.push_back(nPos);
+			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[1]));
+
+			nPos = 0.5f * (v3 + v1);
+			normals.push_back(nPos);
+			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[2]));
+
+			// Triangle normal
+			nPos =  (v1 + v2 + v3) / 3.0f;
+			normals.push_back(nPos);
+			normals.push_back(nPos + 0.25f * glm::normalize(triData.getTriangleNormal()));
+
+			tIndex++;
+		}
+
+		meshNormals->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+									RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+								   }, normals.data(), normals.size());
+		
+		meshNormals->setDataMode(GL_LINES);
+		meshNormals->setShader(Shader<BasicShader>::getInstance());
+
+		addSystem(meshNormals);
 	}
 
 	void update(float deltaTime) override
 	{
 		Scene::update(deltaTime);
+
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Text("Scene Options");
+
+		bool drawGrid = mPlaneShader->isDrawingGrid();
+		ImGui::Checkbox("Print grid", &drawGrid);
+		mPlaneShader->drawGrid(drawGrid);
 
 		ImGuiIO& io = ImGui::GetIO();
     	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
@@ -177,7 +240,7 @@ int main(int argc, char** argv)
 
 
     MyScene scene(
-        (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb",
+        (modelPathArg) ? args::get(modelPathArg) : "../models/monkey.glb",
         (cellSizeArg) ? args::get(cellSizeArg) : 0.1f
     );
     MainLoop loop;

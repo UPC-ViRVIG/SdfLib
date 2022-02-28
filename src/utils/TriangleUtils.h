@@ -7,6 +7,7 @@
 #include <map>
 #include <unordered_map>
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include "Mesh.h"
 
 namespace TriangleUtils
@@ -84,7 +85,7 @@ namespace TriangleUtils
                 const uint32_t v3 = indices[i + ((k+2) % 3)];
                 std::pair<std::map<std::pair<uint32_t, uint32_t>, uint32_t>::iterator, bool> ret;
                 ret = edgesNormal.insert(std::make_pair(
-                                            std::make_pair(glm::min(v1, v2), glm::max(v1, v2)), i));
+                                            std::make_pair(glm::min(v1, v2), glm::max(v1, v2)), i + k));
                 if(!ret.second)
                 {
 					const uint32_t t2Index = ret.first->second / 3;
@@ -97,6 +98,11 @@ namespace TriangleUtils
                 const float angle = glm::acos(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])));
                 verticesNormal[v1] += angle * triangles[tIndex].getTriangleNormal();
             }
+        }
+
+        if(edgesNormal.size() > 0)
+        {
+            SPDLOG_ERROR("The mesh has {} non-maifold edges", edgesNormal.size());
         }
 
         for(int i = 0; i < indices.size(); i++)

@@ -40,7 +40,7 @@ protected:
     // Camera properties
     float mFov = 60.0;
 	float mZNear = 0.01f;
-	float mZFar = 5.0f;
+	float mZFar = 50.0f;
     float mAspectRatio = 1.0f;
 
     // Cached matrices

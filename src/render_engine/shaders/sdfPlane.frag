@@ -14,6 +14,8 @@ uniform vec3 gridSize;
 uniform float surfaceThickness = 0.004f;
 uniform float gridThickness = 0.05f;
 
+uniform bool printGrid = true;
+
 const int paletteNumColors = 7;
 const vec3 palette[7] = vec3[7](
 	vec3(0.0f, 0.0f, 1.0f), 
@@ -42,7 +44,7 @@ void main()
     float distToGrid = min(min((abs(planeNormal.x) < 0.95) ? distToGridAxis.x : 1.0, 
                                (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
                                (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
-    float gridColorWeight = clamp(1.0 - pow(distToGrid / gridThickness, 8), 0.0, 1.0);
+    float gridColorWeight = float(printGrid) * clamp(1.0 - pow(distToGrid / gridThickness, 8), 0.0, 1.0);
 
     dist = 0.5 + 0.5 * dist / gridValueRange;
     float index = clamp(dist * (paletteNumColors-1), 0.0, float(paletteNumColors-1) - 0.01);

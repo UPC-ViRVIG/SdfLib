@@ -12,15 +12,13 @@ RenderMesh::~RenderMesh()
 	{
 		glDeleteBuffers(1, &b.VBO);
 	}
-	glDeleteBuffers(1, &mEBO);
+	if(mHasElementBuffer) glDeleteBuffers(1, &mEBO);
 }
 
 void RenderMesh::start()
 {
     glGenVertexArrays(1, &mVAO);
 	glBindVertexArray(mVAO);
-	glGenBuffers(1, &mEBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
 	glBindVertexArray(0);
 }
 
@@ -39,7 +37,14 @@ void RenderMesh::draw(Camera* camera)
 		//draw
 		if (mDrawMode != GL_FILL) glPolygonMode(GL_FRONT_AND_BACK, mDrawMode);
 
-		glDrawElements(mIndicesFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
+		if(mHasElementBuffer)
+		{
+			glDrawElements(mFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
+		}
+		else
+		{
+			glDrawArrays(mFormat, 0, mDataArraySize);
+		}
 
 		if (mDrawMode != GL_FILL) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
@@ -61,7 +66,7 @@ void RenderMesh::draw(Camera* camera)
 		glDepthMask(GL_FALSE);
 		glDepthFunc(GL_LEQUAL);
 
-		glDrawElements(mIndicesFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
+		glDrawElements(mFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -92,6 +97,8 @@ int getSize(GLenum type) {
 
 uint32_t RenderMesh::setVertexData(std::vector<VertexParameterLayout> parameters, void* data, size_t numElements)
 {
+	mDataArraySize = numElements;
+
 	glBindVertexArray(mVAO);
 	unsigned int VBO;
 	glGenBuffers(1, &VBO);
@@ -118,11 +125,15 @@ uint32_t RenderMesh::setVertexData(std::vector<VertexParameterLayout> parameters
 
 	glBindVertexArray(0);
 
+	mMeshAllocated = true;
+
 	return mBuffersData.size() - 1;
 }
 
 void RenderMesh::setVertexData(uint32_t bufferId, void* data, size_t numElements)
 {
+	mDataArraySize = numElements;
+
 	glBindVertexArray(mVAO);
 
 	glBindBuffer(GL_ARRAY_BUFFER, mBuffersData[bufferId].VBO);
@@ -143,13 +154,19 @@ void RenderMesh::setIndexData(unsigned int* data, size_t numElements)
 
 void RenderMesh::setIndexData(unsigned int* data, size_t numElements, GLenum mode)
 {
-    mIndexArraySize = numElements;
-	mIndicesFormat = mode;
 	glBindVertexArray(mVAO);
+
+	if(!mHasElementBuffer)
+	{
+		glGenBuffers(1, &mEBO);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
+		mHasElementBuffer = true;
+	}
+
+    mIndexArraySize = numElements;
+	mFormat = mode;
 
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndexArraySize * sizeof(unsigned int), data, GL_STATIC_DRAW);
 
 	glBindVertexArray(0);
-
-	mMeshAllocated = true;
 }

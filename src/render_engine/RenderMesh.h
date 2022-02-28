@@ -28,6 +28,7 @@ public:
 	void setIndexData(unsigned int* data, size_t numElements);
 	void setIndexData(unsigned int* data, size_t numElements, GLenum mode);
 	void setDrawMode(GLenum mode) { mDrawMode = mode; }
+    void setDataMode(GLenum mode) { mFormat = mode; }
 	void setShader(IShader* shader) { mShader = shader; }
 	void drawWireframe(bool b) { mPrintWireframe = b; }
 	bool isDrawingWireframe() { return mPrintWireframe; }
@@ -49,16 +50,18 @@ private:
     bool mMeshAllocated = false;
     unsigned int mVAO;        
     std::vector<BufferData> mBuffersData;
+    bool mHasElementBuffer = false;
     unsigned int mEBO;
 
     uint32_t mNextAttributeIndex = 0;
 	
-    size_t mIndexArraySize; //number of inices
+    size_t mIndexArraySize = 0; // Number of inices
+    size_t mDataArraySize = 0;
 
     bool mPrintSurface = true;
     bool mPrintWireframe = false;
 
-    GLenum mIndicesFormat;
+    GLenum mFormat = GL_TRIANGLES;
     GLenum mDrawMode = GL_FILL;
 
     IShader* mShader;
