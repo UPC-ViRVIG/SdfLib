@@ -46,7 +46,6 @@ int main(int argc, char** argv)
     UniformGridSdf grid(meshSphere, box, cellSize);
     RealSdf sdf(meshSphere);
     
-    SPDLOG_INFO("Center distance: {}", grid.getDistance(glm::vec3(0.0f)));
     SPDLOG_INFO("Generation time: {}s", timer.getElapsedSeconds());
 
     auto getRandomVec3 = [] () -> glm::vec3

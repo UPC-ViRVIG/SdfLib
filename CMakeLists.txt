@@ -78,3 +78,6 @@ target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})
 
 add_executable(UniformGridViewer src/tools/UniformGridViewer/main.cpp)
 target_link_libraries(UniformGridViewer PUBLIC ${PROJECT_NAME})
+
+add_executable(GJKtest src/tools/GJKtest/main.cpp)
+target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
