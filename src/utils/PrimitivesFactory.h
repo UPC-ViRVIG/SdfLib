@@ -1,6 +1,7 @@
 #ifndef PRIMITIVES_FACTORY_H
 #define PRIMITIVES_FACTORY_H
 
+#include <memory>
 #include "Mesh.h"
 
 namespace PrimitivesFactory

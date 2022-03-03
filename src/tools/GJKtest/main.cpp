@@ -41,9 +41,9 @@ int main()
         quad[1] = glm::vec3(quad[0].x, quad[0].y, quad[7].z);
         quad[2] = glm::vec3(quad[0].x, quad[7].y, quad[0].z);
         quad[3] = glm::vec3(quad[0].x, quad[7].y, quad[7].z);
-        quad[4] = glm::vec3(quad[7].x, quad[0].y, quad[7].z);
-        quad[5] = glm::vec3(quad[7].x, quad[7].y, quad[0].z);
-        quad[6] = glm::vec3(quad[7].x, quad[7].y, quad[7].z);
+        quad[4] = glm::vec3(quad[7].x, quad[0].y, quad[0].z);
+        quad[5] = glm::vec3(quad[7].x, quad[0].y, quad[7].z);
+        quad[6] = glm::vec3(quad[7].x, quad[7].y, quad[0].z);
 
         std::vector<glm::vec3> point(1);
         point[0] = getRandomPoint();
@@ -51,6 +51,33 @@ int main()
         float expectedDist = distToQuad(point[0], quad[0], quad[7]);
         float gjkDist = GJK::getMinDistance(quad, point);
 
-        assert(glm::abs(expectedDist - gjkDist) < 0.001);
+		assert(glm::abs(expectedDist - gjkDist) < 0.001);
+    }
+
+    // Test quad with a triangle
+    for(size_t sample=0; sample < 1000; sample++)
+    {
+        std::vector<glm::vec3> quad(8);
+        const glm::vec3 p1 = getRandomPoint();
+        const glm::vec3 p2 = getRandomPoint();
+        quad[0] = glm::min(p1, p2);
+        quad[7] = glm::max(p1, p2);
+
+        quad[1] = glm::vec3(quad[0].x, quad[0].y, quad[7].z);
+        quad[2] = glm::vec3(quad[0].x, quad[7].y, quad[0].z);
+        quad[3] = glm::vec3(quad[0].x, quad[7].y, quad[7].z);
+        quad[4] = glm::vec3(quad[7].x, quad[0].y, quad[0].z);
+        quad[5] = glm::vec3(quad[7].x, quad[0].y, quad[7].z);
+        quad[6] = glm::vec3(quad[7].x, quad[7].y, quad[0].z);
+
+        std::vector<glm::vec3> triangle(3);
+        triangle[0] = getRandomPoint();
+        triangle[1] = getRandomPoint();
+        triangle[2] = getRandomPoint();
+        
+        float expectedDist = distToQuad(point[0], quad[0], quad[7]);
+        float gjkDist = GJK::getMinDistance(triangle, point);
+
+		assert(glm::abs(expectedDist - gjkDist) < 0.001);
     }
 }
