@@ -52,6 +52,7 @@ bool getTriangleOriginDirection(Simplex& simplex, glm::vec3& outDirection)
             // The origin is in the ac line
             simplex.type = SimplexType::LINE;
             simplex.points[1] = simplex.points[2];
+			outDirection = glm::cross(ac, glm::cross(ao, ac));
         }
         else
         {
@@ -189,7 +190,18 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
 
 float getMaxDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::vec3>& e2)
 {
-    return 0.0f;
+    float maxDist = 0.0f;
+
+    for(const glm::vec3& v1 : e1)
+    {
+        for(const glm::vec3& v2 : e2)
+        {
+            const glm::vec3 diff = v2 - v1;
+            maxDist = glm::max(maxDist, glm::dot(diff, diff));
+        }
+    }
+
+    return glm::sqrt(maxDist);
 }
 
 }

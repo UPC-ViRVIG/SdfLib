@@ -55,7 +55,7 @@ int main()
     }
 
     // Test quad with a triangle
-    for(size_t sample=0; sample < 1000; sample++)
+    for(size_t sample=0; sample < 100; sample++)
     {
         std::vector<glm::vec3> quad(8);
         const glm::vec3 p1 = getRandomPoint();
@@ -75,9 +75,27 @@ int main()
         triangle[1] = getRandomPoint();
         triangle[2] = getRandomPoint();
         
-        float expectedDist = distToQuad(point[0], quad[0], quad[7]);
-        float gjkDist = GJK::getMinDistance(triangle, point);
+        float expectedDist = INFINITY;
+        for(size_t i=0; i < 10000000; i++)
+        {
+            glm::vec3 c = 0.5f * (getRandomPoint() + 1.0f);
+            c = c / (c.x + c.y + c.z);
+            assert(glm::abs((c.x + c.y + c.z) - 1.0) < 0.001);
 
-		assert(glm::abs(expectedDist - gjkDist) < 0.001);
+            glm::vec3 p = triangle[0] * c.x + triangle[1] * c.y + triangle[2] * c.z;
+            expectedDist = glm::min(expectedDist, distToQuad(p, quad[0], quad[7]));
+        }
+
+		expectedDist = glm::min(expectedDist, distToQuad(triangle[0], quad[0], quad[7]));
+		expectedDist = glm::min(expectedDist, distToQuad(triangle[1], quad[0], quad[7]));
+		expectedDist = glm::min(expectedDist, distToQuad(triangle[2], quad[0], quad[7]));
+        
+        float gjkDist = GJK::getMinDistance(quad, triangle);
+
+        if(glm::abs(expectedDist - gjkDist) > 0.05)
+        {
+			float gjkDist1 = GJK::getMinDistance(quad, triangle);
+            assert(glm::abs(expectedDist - gjkDist) < 0.05);
+        }
     }
 }
