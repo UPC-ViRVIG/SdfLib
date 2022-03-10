@@ -135,3 +135,20 @@ if(NOT spdlog_lib_POPULATED)
 	FetchContent_Populate(spdlog_lib)
 	add_subdirectory(${spdlog_lib_SOURCE_DIR} ${spdlog_lib_BINARY_DIR})
 endif()
+
+# cereal
+FetchContent_Declare(cereal_lib
+  GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+  GIT_TAG ebef1e929807629befafbb2918ea1a08c7194554 # 1.3.2
+)
+
+FetchContent_GetProperties(cereal_lib)
+if(NOT cereal_lib_POPULATED)
+	FetchContent_Populate(cereal_lib)
+	set(BUILD_DOC OFF)
+	set(BUILD_SANDBOX  OFF)
+	set(BUILD_TESTS OFF)
+	set(CEREAL_INSTALL OFF)
+	set(SKIP_PERFORMANCE_COMPARISON ON)
+	add_subdirectory(${cereal_lib_SOURCE_DIR} ${cereal_lib_BINARY_DIR})
+endif()

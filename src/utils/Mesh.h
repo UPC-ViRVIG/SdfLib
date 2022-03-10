@@ -7,6 +7,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>      
 #include <assimp/postprocess.h>
+#include "utils/UsefullSerializations.h"
 
 struct BoundingBox
 {
@@ -32,6 +33,12 @@ struct BoundingBox
     {
         min -= glm::vec3(margin);
         max += glm::vec3(margin);
+    }
+
+     template<class Archive>
+    void serialize(Archive & archive)
+    {
+        archive(min, max); 
     }
 };
 

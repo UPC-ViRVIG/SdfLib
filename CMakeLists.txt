@@ -64,6 +64,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC glad)
 target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
+target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
 #target_link_libraries(${PROJECT_NAME} PUBLIC vulkan)
 
 # Add executable
@@ -79,8 +80,11 @@ target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})
 add_executable(UniformGridSdfOctreeTest src/tools/UniformGridSdfOctreeTest/main.cpp)
 target_link_libraries(UniformGridSdfOctreeTest PUBLIC ${PROJECT_NAME})
 
+add_executable(GJKtest src/tools/GJKtest/main.cpp)
+target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
+
 add_executable(UniformGridViewer src/tools/UniformGridViewer/main.cpp)
 target_link_libraries(UniformGridViewer PUBLIC ${PROJECT_NAME})
 
-add_executable(GJKtest src/tools/GJKtest/main.cpp)
-target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
+add_executable(SdfExporter src/tools/SdfExporter/main.cpp)
+target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
