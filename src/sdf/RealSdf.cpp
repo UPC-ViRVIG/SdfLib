@@ -1,9 +1,7 @@
 #include "RealSdf.h"
 
-RealSdf::RealSdf(Mesh& mesh)
+RealSdf::RealSdf(const Mesh& mesh)
 {
-    std::vector<uint32_t>& indices = mesh.getIndices();
-    std::vector<glm::vec3>& vertices = mesh.getVertices();
     mTriangles = std::move(TriangleUtils::calculateMeshTriangleData(mesh));
 }
 

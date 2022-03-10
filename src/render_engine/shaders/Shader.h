@@ -4,7 +4,7 @@
 #include "IShader.h"
 
 const std::string SHADER_PATH = "../src/render_engine/shaders/";
-//const std::string SHADER_PATH = "./shaders/";
+// const std::string SHADER_PATH = "./shaders/";
 
 template <class T>
 class Shader : public IShader 

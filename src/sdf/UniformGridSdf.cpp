@@ -4,7 +4,7 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 
-UniformGridSdf::UniformGridSdf(Mesh& mesh, BoundingBox box, float cellSize)
+UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, float cellSize, InitAlgorithm initAlgorithm)
     : mCellSize(cellSize)
 {
     mGridSize = glm::ivec3(glm::ceil((box.max - box.min) / cellSize)) + glm::ivec3(1);
@@ -18,6 +18,19 @@ UniformGridSdf::UniformGridSdf(Mesh& mesh, BoundingBox box, float cellSize)
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
 
+    switch(initAlgorithm)
+    {
+        case InitAlgorithm::BASIC:
+            basicInit(trianglesData);
+            break;
+        case InitAlgorithm::OCTREE:
+            octreeInit(mesh, trianglesData);
+            break;
+    }
+}
+
+void UniformGridSdf::basicInit(const std::vector<TriangleUtils::TriangleData>& trianglesData)
+{
     for(int z = 0; z < mGridSize.z; z++)
     {
         for(int y = 0; y < mGridSize.y; y++)

@@ -92,11 +92,17 @@ bool getTetrahedronOriginDirection(Simplex& simplex, glm::vec3& outDirection)
     glm::vec3 ad = simplex.points[3] - simplex.points[0];
     glm::vec3 ao = -simplex.points[0];
 
+    Simplex simplexCopy = simplex;
+    bool enterFirstFace = false;
+
     glm::vec3 n = glm::cross(ab, ac);
     if(glm::dot(n, ao) > 0.0f)
     {
         simplex.type = SimplexType::TRIANGLE;
-        return getTriangleOriginDirection(simplex, outDirection);
+        getTriangleOriginDirection(simplex, outDirection);
+        if(simplex.type == SimplexType::TRIANGLE) return false;
+        simplex = simplexCopy;
+        enterFirstFace = true;
     }
 
     n = glm::cross(ac, ad);
@@ -105,7 +111,9 @@ bool getTetrahedronOriginDirection(Simplex& simplex, glm::vec3& outDirection)
         simplex.type = SimplexType::TRIANGLE;
         simplex.points[1] = simplex.points[2];
         simplex.points[2] = simplex.points[3];
-        return getTriangleOriginDirection(simplex, outDirection);
+        getTriangleOriginDirection(simplex, outDirection);
+        if(simplex.type == SimplexType::TRIANGLE || enterFirstFace) return false;
+        simplex = simplexCopy;        
     }
 
     n = glm::cross(ad, ab);

@@ -35,6 +35,8 @@ Mesh::Mesh(std::string filePath)
 
     // Calculate bounding box
     computeBoundingBox();
+    SPDLOG_INFO("BB min: {}, {}, {}", mBBox.min.x, mBBox.min.y, mBBox.min.z);
+    SPDLOG_INFO("BB max: {}, {}, {}", mBBox.max.x, mBBox.max.y, mBBox.max.z);
 
     // Copy indices
     SPDLOG_INFO("Model num faces: {}", mesh->mNumFaces);
@@ -48,10 +50,17 @@ Mesh::Mesh(std::string filePath)
     }
 
     // Copy normals
-    mNormals.resize(mesh->mNumVertices);
-    const size_t normalSize = sizeof(decltype(mNormals[0]));
-    assert(normalSize == sizeof(decltype(mesh->mNormals[0])));
-    std::memcpy(mNormals.data(), mesh->mNormals, mesh->mNumVertices * normalSize);
+	if (mesh->HasNormals())
+	{
+		mNormals.resize(mesh->mNumVertices);
+		const size_t normalSize = sizeof(decltype(mNormals[0]));
+		assert(normalSize == sizeof(decltype(mesh->mNormals[0])));
+		std::memcpy(mNormals.data(), mesh->mNormals, mesh->mNumVertices * normalSize);
+	}
+	else
+	{
+		computeNormals();
+	}
 }
 
 void Mesh::computeBoundingBox()

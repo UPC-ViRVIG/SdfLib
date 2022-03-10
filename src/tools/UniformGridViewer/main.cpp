@@ -48,10 +48,12 @@ public:
 
 		Mesh sphereMesh(mModelPath);
 		BoundingBox box = sphereMesh.getBoudingBox();
+		const glm::vec3 modelBBSize = box.getSize();
+		//box.addMargin(0.05f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 		box.addMargin(0.5f);
 
 		Timer timer; timer.start();
-		UniformGridSdf sdfGrid(sphereMesh, box, mCellSize);
+		UniformGridSdf sdfGrid(sphereMesh, box, mCellSize, UniformGridSdf::InitAlgorithm::OCTREE);
 		SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 
 		mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getCenter()) *
@@ -244,9 +246,8 @@ int main(int argc, char** argv)
 
 
     MyScene scene(
-        (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb",
-        // (cellSizeArg) ? args::get(cellSizeArg) : 0.1f
-		(cellSizeArg) ? args::get(cellSizeArg) : 0.2f
+        (modelPathArg) ? args::get(modelPathArg) : "../models/frog.ply",
+        (cellSizeArg) ? args::get(cellSizeArg) : 1.5f
     );
     MainLoop loop;
     loop.start(scene);

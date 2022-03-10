@@ -76,6 +76,9 @@ target_link_libraries(TestScene PUBLIC ${PROJECT_NAME})
 add_executable(UniformGridSdfTest src/tools/UniformGridSdfTest/main.cpp)
 target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})
 
+add_executable(UniformGridSdfOctreeTest src/tools/UniformGridSdfOctreeTest/main.cpp)
+target_link_libraries(UniformGridSdfOctreeTest PUBLIC ${PROJECT_NAME})
+
 add_executable(UniformGridViewer src/tools/UniformGridViewer/main.cpp)
 target_link_libraries(UniformGridViewer PUBLIC ${PROJECT_NAME})
 

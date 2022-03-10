@@ -9,7 +9,7 @@
 class RealSdf : public SdfFunction
 {
 public:
-    RealSdf(Mesh& mesh);
+    RealSdf(const Mesh& mesh);
     float getDistance(glm::vec3 sample) const override;
 private:
     std::vector<TriangleUtils::TriangleData> mTriangles;
