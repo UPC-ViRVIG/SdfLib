@@ -3,6 +3,12 @@
 #include <fstream>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <filesystem>
+
+#define CHECK_DEBUG_DIRECTORY
+#ifdef CHECK_DEBUG_DIRECTORY
+const std::string SHADER_PATH_DEBUG = "../src/render_engine/shaders/";
+#endif
 
 IShader::IShader(const std::string& vertexShaderName, const std::string& fragmentShaderName)
 {
@@ -12,7 +18,14 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 
 	char* fileShader = loadFromFile(vertexShaderName, &length);
 	if (fileShader == nullptr) {
+#ifdef CHECK_DEBUG_DIRECTORY
+		std::filesystem::path p(vertexShaderName);
+		fileShader = loadFromFile(SHADER_PATH_DEBUG + p.filename().string(), &length);
+		if (fileShader == nullptr)
+			std::cout << "File " << vertexShaderName << " not found" << std::endl;
+#else
 		std::cout << "File " << vertexShaderName << " not found" << std::endl;
+#endif
 	}
 
 	glShaderSource(vertexShaderId, 1, &fileShader, NULL);
@@ -34,7 +47,14 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 
 	fileShader = loadFromFile(fragmentShaderName, &length);
 	if (fileShader == nullptr) {
+#ifdef CHECK_DEBUG_DIRECTORY
+		std::filesystem::path p(fragmentShaderName);
+		fileShader = loadFromFile(SHADER_PATH_DEBUG + p.filename().string(), &length);
+		if (fileShader == nullptr)
+			std::cout << "File " << fragmentShaderName << " not found" << std::endl;
+#else
 		std::cout << "File " << fragmentShaderName << " not found" << std::endl;
+#endif
 	}
 
 	glShaderSource(fragmentShaderId, 1, &fileShader, NULL);
