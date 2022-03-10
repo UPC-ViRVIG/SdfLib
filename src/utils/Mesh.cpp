@@ -103,3 +103,13 @@ void Mesh::computeNormals()
         n = glm::normalize(n);
     }
 }
+
+void Mesh::applyTransform(glm::mat4 trans)
+{
+    for(glm::vec3& vert : mVertices)
+    {
+        vert = glm::vec3(trans * glm::vec4(vert, 1.0));
+    }
+
+    computeBoundingBox();
+}

@@ -6,9 +6,12 @@ uniform mat4 modelMatrix;
 uniform mat4 worldToGridMatrix;
 
 out vec3 gridPosition;
+out float distToCamera;
 
 void main() 
 {
     gridPosition = (worldToGridMatrix * modelMatrix * vec4(position, 1.0)).xyz;
-	gl_Position = projectionViewModelMatrix * vec4(position, 1.0);
+    vec4 position = projectionViewModelMatrix * vec4(position, 1.0);
+    distToCamera = abs(position.z);
+	gl_Position = position;
 }

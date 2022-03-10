@@ -10,13 +10,14 @@
 class SdfPlaneShader : public Shader<SdfPlaneShader> 
 {
 public:
-    SdfPlaneShader(UniformGridSdf& sdfGrid) : Shader(SHADER_PATH + "sdfPlane.vert", SHADER_PATH + "sdfPlane.frag") 
+    SdfPlaneShader(UniformGridSdf& sdfGrid, const BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfPlane.vert", SHADER_PATH + "sdfPlane.frag") 
     {   
         // Get uniform locations
         worldToGridMatrixLocation = glGetUniformLocation(getProgramId(), "worldToGridMatrix");
         const glm::vec3 texUnit = 1.0f / glm::vec3(sdfGrid.getGridSize());
-        worldToGridMatrix = glm::scale(glm::mat4x4(1.0f), (1.0f - texUnit) / sdfGrid.getGridBoundingBox().getSize()) * 
-                            glm::translate(glm::mat4x4(1.0f), -sdfGrid.getGridBoundingBox().min + glm::vec3(0.5f * sdfGrid.getGridCellSize()));        
+        worldToGridMatrix = glm::translate(glm::mat4x4(1.0f), 0.5f * texUnit) *
+                            glm::scale(glm::mat4x4(1.0f), (1.0f - texUnit) / viewBB.getSize()) *
+                            glm::translate(glm::mat4x4(1.0f), -viewBB.min);
 
         planeNormalLocation = glGetUniformLocation(getProgramId(), "planeNormal");
 

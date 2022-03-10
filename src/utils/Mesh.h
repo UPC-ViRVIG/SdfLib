@@ -54,6 +54,7 @@ public:
 
     void computeBoundingBox();
     void computeNormals();
+    void applyTransform(glm::mat4 trans);
 private:
     std::vector<glm::vec3> mVertices;
     std::vector<uint32_t> mIndices;

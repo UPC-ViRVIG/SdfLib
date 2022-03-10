@@ -1,6 +1,7 @@
 #include <iostream>
 #include <random>
 #include <algorithm>
+#include <optional>
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
@@ -24,6 +25,7 @@ class MyScene : public Scene
 {
 public:
     MyScene(std::string modelPath, float cellSize) : mModelPath(modelPath), mCellSize(cellSize) {}
+	MyScene(std::string modelPath, uint32_t depth) : mModelPath(modelPath), mDepth(depth) {}
 
 	void start() override
 	{
@@ -48,20 +50,33 @@ public:
 
 		Mesh sphereMesh(mModelPath);
 		BoundingBox box = sphereMesh.getBoudingBox();
+		{
+			// Normalize model units
+			const glm::vec3 boxSize = box.getSize();
+			sphereMesh.applyTransform(	glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+										glm::translate(glm::mat4(1.0), -box.getCenter()));
+			box = sphereMesh.getBoudingBox();
+		}
+
+
 		const glm::vec3 modelBBSize = box.getSize();
-		//box.addMargin(0.05f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-		box.addMargin(0.5f);
+		box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
 		Timer timer; timer.start();
-		UniformGridSdf sdfGrid(sphereMesh, box, mCellSize, UniformGridSdf::InitAlgorithm::OCTREE);
+		UniformGridSdf sdfGrid = (mCellSize.has_value()) ? 
+									UniformGridSdf(sphereMesh, box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
+									UniformGridSdf(sphereMesh, box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
 		SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 
-		mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getCenter()) *
-							glm::scale(glm::mat4x4(1.0f), 2.0f * sdfGrid.getGridBoundingBox().getSize());
+		glm::vec3 bbRatio = sdfGrid.getGridBoundingBox().getSize() / sdfGrid.getGridBoundingBox().getSize().x;
+		BoundingBox viewBB(-bbRatio, bbRatio);
+
+		mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), viewBB.getCenter()) *
+							glm::scale(glm::mat4x4(1.0f), 2.0f * viewBB.getSize());
 		mGizmoMatrix = mGizmoStartMatrix;
 		mPlaneRenderer->setTransform(mGizmoMatrix);
 
-		mPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid));
+		mPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
 		mPlaneRenderer->setShader(mPlaneShader.get());
 		addSystem(mPlaneRenderer);
 		mPlaneRenderer->callDrawGui = false;
@@ -80,6 +95,10 @@ public:
 
 		sphereMeshRenderer->setIndexData(sphereMesh.getIndices());
 		sphereMeshRenderer->setShader(Shader<NormalsShader>::getInstance());
+		sphereMeshRenderer->setTransform(
+			glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
+			glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+		);
 		addSystem(sphereMeshRenderer);
 		sphereMeshRenderer->drawSurface(false);
 
@@ -101,8 +120,8 @@ public:
 
 		mCubeRenderer->setShader(mCubeShader.get());
 
-		mCubeRenderer->setTransform(glm::translate(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getCenter()) *
-					   				glm::scale(glm::mat4x4(1.0f), sdfGrid.getGridBoundingBox().getSize()));
+		mCubeRenderer->setTransform(glm::translate(glm::mat4x4(1.0f), viewBB.getCenter()) *
+					   				glm::scale(glm::mat4x4(1.0f), viewBB.getSize()));
 		addSystem(mCubeRenderer);
 
 		// Draw normals
@@ -121,31 +140,31 @@ public:
 
 			// Vertices normal
 			normals.push_back(v1);
-			normals.push_back(v1 + 0.25f * trans * glm::normalize(triData.verticesNormal[0]));
+			normals.push_back(v1 + 0.008f * trans * glm::normalize(triData.verticesNormal[0]));
 
 			normals.push_back(v2);
-			normals.push_back(v2 + 0.25f * trans * glm::normalize(triData.verticesNormal[1]));
+			normals.push_back(v2 + 0.008f * trans * glm::normalize(triData.verticesNormal[1]));
 
 			normals.push_back(v3);
-			normals.push_back(v3 + 0.25f * trans *glm::normalize(triData.verticesNormal[2]));
+			normals.push_back(v3 + 0.008f * trans *glm::normalize(triData.verticesNormal[2]));
 
 			// Edges normal
 			glm::vec3 nPos = 0.5f * (v1 + v2);
 			normals.push_back(nPos);
-			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[0]));
+			normals.push_back(nPos + 0.008f * trans * glm::normalize(triData.edgesNormal[0]));
 
 			nPos = 0.5f * (v2 + v3);
 			normals.push_back(nPos);
-			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[1]));
+			normals.push_back(nPos + 0.008f * trans * glm::normalize(triData.edgesNormal[1]));
 
 			nPos = 0.5f * (v3 + v1);
 			normals.push_back(nPos);
-			normals.push_back(nPos + 0.25f * trans * glm::normalize(triData.edgesNormal[2]));
+			normals.push_back(nPos + 0.008f * trans * glm::normalize(triData.edgesNormal[2]));
 
 			// Triangle normal
 			nPos =  (v1 + v2 + v3) / 3.0f;
 			normals.push_back(nPos);
-			normals.push_back(nPos + 0.25f * glm::normalize(triData.getTriangleNormal()));
+			normals.push_back(nPos + 0.008f * glm::normalize(triData.getTriangleNormal()));
 
 			tIndex++;
 		}
@@ -157,6 +176,10 @@ public:
 		meshNormals->setDataMode(GL_LINES);
 		meshNormals->setShader(Shader<BasicShader>::getInstance());
 		meshNormals->drawSurface(false);
+		meshNormals->setTransform(
+			glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
+			glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+		);
 		addSystem(meshNormals);
 	}
 
@@ -222,7 +245,8 @@ private:
 	glm::mat4x4 mGizmoMatrix;
 
     std::string mModelPath;
-    float mCellSize;
+    std::optional<float> mCellSize;
+	std::optional<uint32_t> mDepth;
 };
 
 int main(int argc, char** argv)
@@ -232,7 +256,8 @@ int main(int argc, char** argv)
     args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
-    args::Positional<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization");
+	args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {'c', "cell_size"});
+    args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {'d', "depth"});
 
     try
     {
@@ -244,11 +269,23 @@ int main(int argc, char** argv)
         return 0;
     }
 
-
-    MyScene scene(
-        (modelPathArg) ? args::get(modelPathArg) : "../models/frog.ply",
-        (cellSizeArg) ? args::get(cellSizeArg) : 1.5f
-    );
-    MainLoop loop;
-    loop.start(scene);
+	const std::string defaultModel = "../models/frog.ply";
+	if(cellSizeArg)
+	{
+		MyScene scene(
+			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
+			(cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+		);
+		MainLoop loop;
+		loop.start(scene);
+	}
+	else
+	{
+		MyScene scene(
+			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
+			(depthArg) ? args::get(depthArg) : 6
+		);
+		MainLoop loop;
+		loop.start(scene);
+	}
 }

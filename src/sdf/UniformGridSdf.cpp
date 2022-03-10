@@ -4,6 +4,34 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 
+UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, 
+                   InitAlgorithm initAlgorithm)
+{
+    mGridSize = glm::ivec3(1 << depth);
+    SPDLOG_INFO("Uniform grid size: {}, {}, {}", mGridSize.x, mGridSize.y, mGridSize.z);
+
+    const glm::vec3 bbSize = box.getSize();
+    mCellSize = glm::max(glm::max(bbSize.x, bbSize.y), bbSize.z) / static_cast<float>(mGridSize.x);
+
+    mBox.min = box.min;
+    mBox.max = box.min + mCellSize * glm::vec3(mGridSize - glm::ivec3(1));
+
+    mGrid = std::vector<float>(mGridSize.x * mGridSize.y * mGridSize.z);
+    mGridXY = mGridSize.x * mGridSize.y;
+
+    std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
+
+    switch(initAlgorithm)
+    {
+        case InitAlgorithm::BASIC:
+            basicInit(trianglesData);
+            break;
+        case InitAlgorithm::OCTREE:
+            octreeInit(mesh, trianglesData);
+            break;
+    }
+}
+
 UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, float cellSize, InitAlgorithm initAlgorithm)
     : mCellSize(cellSize)
 {
