@@ -14,6 +14,7 @@
 #include "utils/TriangleUtils.h"
 #include "utils/PrimitivesFactory.h"
 #include "utils/Timer.h"
+#include "utils/GJK.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
@@ -47,16 +48,15 @@ public:
 
 		// Create unifrom grid
 		UniformGridSdf sdfGrid;
-		std::optional<Mesh> mesh;
 		if(mModelPath.has_value())
 		{
-			mesh = Mesh(mModelPath.value());
+			mMesh = Mesh(mModelPath.value());
 			if(mNormalizeModel)
 			{
 				// Normalize model units
-				const glm::vec3 boxSize = mesh.value().getBoudingBox().getSize();
-				mesh.value().applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-											 glm::translate(glm::mat4(1.0), -mesh.value().getBoudingBox().getCenter()));
+				const glm::vec3 boxSize = mMesh.value().getBoudingBox().getSize();
+				mMesh.value().applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+											 glm::translate(glm::mat4(1.0), -mMesh.value().getBoudingBox().getCenter()));
 			}
 		}
 
@@ -74,18 +74,23 @@ public:
 		else
 		{
 			assert(mModelPath.has_value());
-			BoundingBox box = mesh.value().getBoudingBox();
+			BoundingBox box = mMesh.value().getBoudingBox();
 			const glm::vec3 modelBBSize = box.getSize();
 			box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 			Timer timer; timer.start();
 			sdfGrid = (mCellSize.has_value()) ? 
-							UniformGridSdf(mesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
-							UniformGridSdf(mesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
+							UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
+							UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
 
-		glm::vec3 bbRatio = sdfGrid.getGridBoundingBox().getSize() / sdfGrid.getGridBoundingBox().getSize().x;
-			BoundingBox viewBB(-bbRatio, bbRatio);
+		
+		mSelectArea = sdfGrid.getGridBoundingBox();
+		mGridSize = sdfGrid.getGridCellSize();
+
+		// glm::vec3 bbRatio = sdfGrid.getGridBoundingBox().getSize() / sdfGrid.getGridBoundingBox().getSize().x;
+		// BoundingBox viewBB(-bbRatio, bbRatio);
+		BoundingBox viewBB = sdfGrid.getGridBoundingBox();
 
 		// Create sdf plane
 		{
@@ -112,27 +117,28 @@ public:
 			mPlaneRenderer->callDrawGui = false;
 		}
 
-		if(mesh.has_value())
+		if(mMesh.has_value())
 		{
-			auto sphereMeshRenderer = std::make_shared<RenderMesh>();
-			sphereMeshRenderer->systemName = "Object Mesh";
-			sphereMeshRenderer->start();
-			sphereMeshRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+			mModelRenderer = std::make_shared<RenderMesh>();
+			mModelRenderer->systemName = "Object Mesh";
+			mModelRenderer->start();
+			mModelRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
-								}, mesh.value().getVertices().data(), mesh.value().getVertices().size());
+								}, mMesh.value().getVertices().data(), mMesh.value().getVertices().size());
 
-			sphereMeshRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+			mModelRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
-								}, mesh.value().getNormals().data(), mesh.value().getNormals().size());
+								}, mMesh.value().getNormals().data(), mMesh.value().getNormals().size());
 
-			sphereMeshRenderer->setIndexData(mesh.value().getIndices());
-			sphereMeshRenderer->setShader(Shader<NormalsShader>::getInstance());
-			sphereMeshRenderer->setTransform(
+			mModelRenderer->setIndexData(mMesh.value().getIndices());
+			mModelRenderer->setShader(Shader<NormalsShader>::getInstance());
+			mModelRenderer->setTransform(
+				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
 				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
 				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
 			);
-			addSystem(sphereMeshRenderer);
-			sphereMeshRenderer->drawSurface(false);
+			addSystem(mModelRenderer);
+			mModelRenderer->drawSurface(false);
 		}
 
 		// Create model BB cube
@@ -157,21 +163,22 @@ public:
 
 			mCubeRenderer->setTransform(glm::translate(glm::mat4x4(1.0f), viewBB.getCenter()) *
 										glm::scale(glm::mat4x4(1.0f), viewBB.getSize()));
+			mCubeRenderer->callDrawGui = false;
 			addSystem(mCubeRenderer);
 		}
 
-		// Create mesh representing thhe model normals
-		if(mesh.has_value()){
+		// Create mMesh representing thhe model normals
+		if(mMesh.has_value()){
 			auto meshNormals = std::make_shared<RenderMesh>();
 			meshNormals->systemName = "Mesh normals";
 			meshNormals->start();
 			std::vector<glm::vec3> normals;
 			int tIndex = 0;
-			for(TriangleUtils::TriangleData& triData : TriangleUtils::calculateMeshTriangleData(mesh.value()))
+			for(TriangleUtils::TriangleData& triData : TriangleUtils::calculateMeshTriangleData(mMesh.value()))
 			{
-				const glm::vec3 v1 = mesh.value().getVertices()[mesh.value().getIndices()[3 * tIndex]];
-				const glm::vec3 v2 = mesh.value().getVertices()[mesh.value().getIndices()[3 * tIndex + 1]];
-				const glm::vec3 v3 = mesh.value().getVertices()[mesh.value().getIndices()[3 * tIndex + 2]];
+				const glm::vec3 v1 = mMesh.value().getVertices()[mMesh.value().getIndices()[3 * tIndex]];
+				const glm::vec3 v2 = mMesh.value().getVertices()[mMesh.value().getIndices()[3 * tIndex + 1]];
+				const glm::vec3 v3 = mMesh.value().getVertices()[mMesh.value().getIndices()[3 * tIndex + 2]];
 
 				glm::mat3 trans = glm::inverse(triData.transform);
 
@@ -219,6 +226,30 @@ public:
 			);
 			addSystem(meshNormals);
 		}
+
+		// Create selection cube
+		{
+			std::shared_ptr<Mesh> cubeMesh = PrimitivesFactory::getCube();
+			mSelectionCube = std::make_shared<RenderMesh>();
+			mSelectionCube->start();
+			mSelectionCube->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+								}, cubeMesh->getVertices().data(), cubeMesh->getVertices().size());
+
+			cubeMesh->computeNormals();	
+			mSelectionCube->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+								}, cubeMesh->getNormals().data(), cubeMesh->getNormals().size());
+
+			mSelectionCube->setIndexData(cubeMesh->getIndices());
+
+			mSelectionCube->setShader(Shader<BasicShader>::getInstance());
+
+			mSelectionCube->callDrawGui = false;
+			mSelectionCube->drawSurface(false);
+			mSelectionCube->drawWireframe(false);
+			addSystem(mSelectionCube);
+		}
 	}
 
 	void update(float deltaTime) override
@@ -240,6 +271,7 @@ public:
 		ImGuiIO& io = ImGui::GetIO();
     	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
+		// Short keys to change cube cuts
 		if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_1))
 		{
 			mGizmoMatrix = mGizmoStartMatrix;
@@ -271,16 +303,114 @@ public:
 		glm::vec3 planePoint = glm::vec3(mGizmoMatrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 		mCubeShader->setCutPlane(glm::vec4(planeNormal.x, planeNormal.y, planeNormal.z, -glm::dot(planeNormal, planePoint)));
 		mPlaneShader->setNormal(planeNormal);
+
+
+		// Selection option
+		if(!mMesh.has_value()) return;
+		bool lastSelectZone = mSelectZone;
+		ImGui::Checkbox("Visualize zone", &mSelectZone);
+		if(mSelectZone) 
+		{
+			ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
+			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
+			{
+				glm::vec3 cameraPos = getMainCamera()->getPosition();
+				glm::vec3 cameraDir = glm::vec3(glm::inverse(getMainCamera()->getViewMatrix()) * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+				float t = glm::dot(planePoint - cameraPos, planeNormal) / glm::dot(cameraDir, planeNormal);
+				glm::vec3 selPoint = cameraPos + cameraDir * t;
+				const float size = mGridSize * static_cast<float>(1 << mSelectedDepth);
+
+				glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min + 0.5f * mGridSize) / size) * size - 0.5f * mGridSize + 0.5f * size;
+
+				mSelectionCube->setTransform( 
+					glm::translate(glm::mat4(1.0f), centerPoint) * 
+					glm::scale(glm::mat4(1.0f), glm::vec3(size))
+				);
+				mSelectionCube->drawWireframe(true);
+
+				std::vector<uint32_t> newIndices;
+				const std::vector<uint32_t>& indices = mMesh.value().getIndices();
+				const std::vector<glm::vec3>& vertices = mMesh.value().getVertices();
+
+				std::vector<std::pair<float, uint32_t>> triangles;
+
+				std::vector<glm::vec3> triangle(3);
+    			std::vector<glm::vec3> quad(8);
+
+				quad[0] = -glm::vec3(0.5f*size);
+				quad[1] = glm::vec3(0.5f*size, -0.5f*size, -0.5f*size);
+				quad[2] = glm::vec3(-0.5f*size, 0.5f*size, -0.5f*size);
+				quad[3] = glm::vec3(0.5f*size, 0.5f*size, -0.5f*size);
+
+				quad[4] = glm::vec3(-0.5f*size, -0.5f*size, 0.5f*size);
+				quad[5] = glm::vec3(0.5f*size, -0.5f*size, 0.5f*size);
+				quad[6] = glm::vec3(-0.5f*size, 0.5f*size, 0.5f*size);
+				quad[7] = glm::vec3(0.5f*size);
+
+				float minMaxDist = INFINITY;
+
+				for(uint32_t i=0; i < indices.size(); i += 3)
+				{
+					triangle[0] = vertices[indices[i]] - centerPoint;
+					triangle[1] = vertices[indices[i + 1]] - centerPoint;
+					triangle[2] = vertices[indices[i + 2]] - centerPoint;
+
+					float minDist = GJK::getMinDistance(quad, triangle);
+					float maxDist = minDist > 0.00001f ? GJK::getMaxDistance(quad, triangle) : INFINITY;
+					minMaxDist = glm::min(minMaxDist, maxDist);
+
+					if(minDist <= minMaxDist)
+					{
+						triangles.push_back(std::make_pair(minDist, i));
+					}
+				}
+
+				std::sort(triangles.begin(), triangles.end());
+
+				int s=0;
+				for(; s < triangles.size() && triangles[s].first <= minMaxDist; s++);
+
+				triangles.resize(s);
+
+				for(const std::pair<float, uint32_t>& p : triangles)
+				{
+					newIndices.push_back(indices[p.second]);
+					newIndices.push_back(indices[p.second + 1]);
+					newIndices.push_back(indices[p.second + 2]);
+				}
+
+				mModelRenderer->setIndexData(newIndices);
+
+				SPDLOG_INFO("Number of selected triangles: {}", triangles.size());
+			}
+		}
+		else
+		{
+			if(lastSelectZone)
+			{
+				mSelectionCube->drawWireframe(false);
+				mModelRenderer->setIndexData(mMesh.value().getIndices());
+			}
+		}
 	}
 private:
 	std::unique_ptr<SdfPlaneShader> mPlaneShader;
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
 
+	std::shared_ptr<RenderMesh> mModelRenderer;
 	std::shared_ptr<RenderMesh> mPlaneRenderer; 
 	std::shared_ptr<RenderMesh> mCubeRenderer;
+	std::shared_ptr<RenderMesh> mSelectionCube;
 
 	glm::mat4x4 mGizmoStartMatrix;
 	glm::mat4x4 mGizmoMatrix;
+
+	bool mSelectZone = false;
+	uint32_t mSelectedDepth = 0;
+	BoundingBox mSelectArea;
+	float mGridSize;
+
+	std::optional<Mesh> mMesh;
 
 	// Input parameters
     std::optional<std::string> mModelPath;
@@ -312,7 +442,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-	const std::string defaultModel = "../models/sphere.glb";
+	const std::string defaultModel = "../models/frog.ply";
 
 	if(sdfPathArg)
 	{

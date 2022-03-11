@@ -18,7 +18,7 @@ int main(int argc, char** argv)
     args::ArgumentParser parser("UniformGridSdfOctreeTest test the result with the basic one", "");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
-    args::Positional<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization");
+    args::Positional<uint32_t> depthArg(parser, "depth", "The octree depth");
 
     try
     {
@@ -31,24 +31,22 @@ int main(int argc, char** argv)
     }
 
     std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
-    float cellSize = (cellSizeArg) ? args::get(cellSizeArg) : 0.05f;
+    uint32_t depth = (depthArg) ? args::get(depthArg) : 5;
 
     Mesh meshSphere(modelPath);
     
     BoundingBox box = meshSphere.getBoudingBox();
-    SPDLOG_INFO("BB min: {}, {}, {}", box.min.x, box.min.y, box.min.z);
-    SPDLOG_INFO("BB max: {}, {}, {}", box.max.x, box.max.y, box.max.z);
-
-    box.addMargin(1.0f);
+    const glm::vec3 modelBBSize = box.getSize();
+    box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;
     timer.start();
-    UniformGridSdf uniformGridBasic(meshSphere, box, cellSize, UniformGridSdf::InitAlgorithm::BASIC);
+    UniformGridSdf uniformGridBasic(meshSphere, box, depth, UniformGridSdf::InitAlgorithm::BASIC);
     
     SPDLOG_INFO("Basic algorithm time: {}s", timer.getElapsedSeconds());
 
     timer.start();
-    UniformGridSdf uniformGridOctree(meshSphere, box, cellSize, UniformGridSdf::InitAlgorithm::OCTREE);
+    UniformGridSdf uniformGridOctree(meshSphere, box, depth, UniformGridSdf::InitAlgorithm::OCTREE);
     SPDLOG_INFO("Octree algorithm time {}s", timer.getElapsedSeconds());
 
     const std::vector<float>& grid1 = uniformGridBasic.getGrid();

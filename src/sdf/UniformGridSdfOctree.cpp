@@ -176,12 +176,14 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 numVoxelsCalculated++;
             }
 
-            if(numVoxelsCalculated & 0x100000)
+            if(numVoxelsCalculated & 0x10000)
             {
                 const uint32_t p = (numVoxelsCalculated * 100) / numVoxelsToCalculate;
-                if(p > lastPercentatge + 4)
-                    SPDLOG_INFO("Done {}%", p);
-                lastPercentatge = p;
+				if (p > lastPercentatge + 4)
+				{
+					SPDLOG_INFO("Done {}%", p);
+					lastPercentatge = p;
+				}
             }
         }
 

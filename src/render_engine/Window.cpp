@@ -39,7 +39,7 @@ bool Window::start() {
 	glEnable(GL_DEPTH_TEST);
 
 	// Enable the back face culling process
-	glEnable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glCullFace(GL_BACK);
 
