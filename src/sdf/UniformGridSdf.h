@@ -40,7 +40,7 @@ public:
     {
         archive(mBox, mGridSize, mGrid);
 
-        glm::vec3 cellSize = mBox.getSize() / glm::vec3(mGridSize);
+        glm::vec3 cellSize = mBox.getSize() / glm::vec3(mGridSize - 1);
         assert(
             glm::abs(cellSize.x - cellSize.y) < 0.00001f &&
             glm::abs(cellSize.x - cellSize.z) < 0.00001f &&

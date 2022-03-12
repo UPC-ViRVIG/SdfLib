@@ -14,7 +14,7 @@ UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, uint32_t depth
     mCellSize = glm::max(glm::max(bbSize.x, bbSize.y), bbSize.z) / static_cast<float>(mGridSize.x);
 
     mBox.min = box.min;
-    mBox.max = box.min + mCellSize * glm::vec3(mGridSize - glm::ivec3(1));
+    mBox.max = box.min + mCellSize * glm::vec3(mGridSize - 1);
 
     mGrid = std::vector<float>(mGridSize.x * mGridSize.y * mGridSize.z);
     mGridXY = mGridSize.x * mGridSize.y;
@@ -39,7 +39,7 @@ UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, float cellSize
     SPDLOG_INFO("Uniform grid size: {}, {}, {}", mGridSize.x, mGridSize.y, mGridSize.z);
 
     mBox.min = box.min;
-    mBox.max = box.min + mCellSize * glm::vec3(mGridSize - glm::ivec3(1));
+    mBox.max = box.min + mCellSize * glm::vec3(mGridSize - 1);
 
     mGrid = std::vector<float>(mGridSize.x * mGridSize.y * mGridSize.z);
     mGridXY = mGridSize.x * mGridSize.y;
