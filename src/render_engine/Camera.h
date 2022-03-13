@@ -20,6 +20,7 @@ public:
     void setOrientation(glm::quat orientation) { mOrientation = orientation; recalculateViewMatrix(); }
 
     float getFov() const { return mFov; }
+    float getRatio() const { return mAspectRatio; }
     float getZFar() const { return mZFar; }
 	float getZNear() const { return mZNear; }
     glm::vec3 getPosition() const { return mPosition; } 

@@ -316,7 +316,19 @@ public:
 			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
 			{
 				glm::vec3 cameraPos = getMainCamera()->getPosition();
-				glm::vec3 cameraDir = glm::vec3(glm::inverse(getMainCamera()->getViewMatrix()) * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+				glm::vec3 cameraDir(0.0f);
+				{
+					glm::vec2 w = Window::getCurrentWindow().getWindowSize();
+					glm::vec2 m = Window::getCurrentWindow().getMousePosition();
+					float realWidth = glm::tan(glm::radians(getMainCamera()->getFov() / 2.0f));
+					glm::vec3 wPos (
+						glm::clamp(m.x / w.x, 0.0f, 1.0f) * getMainCamera()->getRatio() * realWidth * 2.0f - realWidth * getMainCamera()->getRatio(),
+						-glm::clamp(m.y / w.y, 0.0f, 1.0f) * realWidth * 2.0f + realWidth,
+						-1.0f
+					);
+
+					cameraDir = glm::vec3(glm::inverse(getMainCamera()->getViewMatrix()) * glm::vec4(wPos, 0.0f));
+				}
 				float t = glm::dot(planePoint - cameraPos, planeNormal) / glm::dot(cameraDir, planeNormal);
 				glm::vec3 selPoint = cameraPos + cameraDir * t;
 				const float size = mGridSize * static_cast<float>(1 << mSelectedDepth);

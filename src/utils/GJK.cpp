@@ -173,7 +173,7 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
     simplex.points[0] = findFurthestPoint(e1, e2, glm::vec3(1.0, 0.0, 0.0));
 
     glm::vec3 direction = -simplex.points[0];
-
+    uint32_t iter = 0;
     do {
         glm::vec3 p = findFurthestPoint(e1, e2, direction);
 
@@ -190,7 +190,9 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
         simplex.points[1] = simplex.points[0];
         simplex.points[0] = p;
 
-    } while(!getOriginDirection(simplex, direction));
+    } while(!getOriginDirection(simplex, direction) && ++iter < 100);
+
+    assert(iter < 100);
 
     // It does not have next origin direction because the origin is inside the simplex
     return 0.0f;
