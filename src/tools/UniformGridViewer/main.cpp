@@ -221,6 +221,7 @@ public:
 			meshNormals->setShader(Shader<BasicShader>::getInstance());
 			meshNormals->drawSurface(false);
 			meshNormals->setTransform(
+				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
 				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
 				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
 			);
@@ -442,7 +443,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-	const std::string defaultModel = "../models/frog.ply";
+	const std::string defaultModel = "../models/quad.ply";
 
 	if(sdfPathArg)
 	{

@@ -102,7 +102,93 @@ namespace TriangleUtils
 
         if(edgesNormal.size() > 0)
         {
-            SPDLOG_ERROR("The mesh has {} non-maifold edges", edgesNormal.size());
+            SPDLOG_INFO("The mesh has {} non-maifold edges, trying to merge near vertices", edgesNormal.size());
+            std::map<uint32_t, uint32_t> verticesMap;
+            auto findVertexParent = [&] (uint32_t vId) -> uint32_t
+            {
+                auto it = verticesMap.find(vId);
+                while(it != verticesMap.end() && it->second != vId)
+                {
+                    vId = it->second;
+                    it = verticesMap.find(vId);
+                }
+                return vId;
+            };
+
+            std::vector<uint32_t> nonManifoldVertices(2 * edgesNormal.size());
+            uint32_t index = 0;
+            for(auto& elem : edgesNormal)
+            {
+                nonManifoldVertices[index++] = elem.first.first;
+                nonManifoldVertices[index++] = elem.first.second;
+            }
+
+            std::sort(nonManifoldVertices.begin(), nonManifoldVertices.end());
+            auto newEnd = std::unique(nonManifoldVertices.begin(), nonManifoldVertices.end());
+            nonManifoldVertices.erase(newEnd, nonManifoldVertices.end());
+
+            // Generate a possible vertex mapping
+            for(uint32_t i=0; i < nonManifoldVertices.size(); i++)
+            {
+                const glm::vec3& v1 = vertices[nonManifoldVertices[i]];
+                for(uint32_t ii=i+1; ii < nonManifoldVertices.size(); ii++)
+                {
+                    const glm::vec3& diff = v1 - vertices[nonManifoldVertices[ii]];
+                    if(glm::dot(diff, diff) < 0.000001f)
+                    {
+                        uint32_t p1 = findVertexParent(nonManifoldVertices[i]);
+                        uint32_t p2 = findVertexParent(nonManifoldVertices[ii]);
+
+                        if(nonManifoldVertices[i] == p1) verticesMap[p1] = p1;
+                        verticesMap[p2] = p1;
+                        break;
+                    }
+                }
+            }
+
+            std::map<std::pair<uint32_t, uint32_t>, uint32_t> newEdgesNormals;
+            auto it = edgesNormal.begin();
+            for(; it != edgesNormal.end(); it++)
+            {
+                const uint32_t v1 = findVertexParent(it->first.first);
+                const uint32_t v2 = findVertexParent(it->first.second);
+
+                std::pair<std::map<std::pair<uint32_t, uint32_t>, uint32_t>::iterator, bool> ret;
+                ret = newEdgesNormals.insert(std::make_pair(
+                                            std::make_pair(glm::min(v1, v2), glm::max(v1, v2)), it->second));
+                if(!ret.second)
+                {
+                    const uint32_t tIndex = it->second / 3;
+					const uint32_t t2Index = ret.first->second / 3;
+                    glm::vec3 edgeNormal = triangles[tIndex].getTriangleNormal() + triangles[t2Index].getTriangleNormal();
+                    triangles[tIndex].edgesNormal[it->second % 3] = triangles[tIndex].transform * edgeNormal;
+                    triangles[t2Index].edgesNormal[ret.first->second % 3] = triangles[t2Index].transform * edgeNormal;
+                    newEdgesNormals.erase(ret.first);
+                }
+            }
+
+            // Calculate parent real normals
+            for(uint32_t vId : nonManifoldVertices)
+            {
+                uint32_t p = findVertexParent(vId);
+                if(p != vId) verticesNormal[p] += verticesNormal[vId];
+            }
+
+            // Propagate parent normals
+            for(uint32_t vId : nonManifoldVertices)
+            {
+                uint32_t p = findVertexParent(vId);
+                verticesNormal[vId] = verticesNormal[p];
+            }
+
+            if(newEdgesNormals.size() > 0)
+            {
+                SPDLOG_ERROR("The mesh has {} non-maifold edges that cannot be merged", edgesNormal.size());
+            }
+            else
+            {
+                SPDLOG_INFO("All the non-manifold vertices merged correctly");
+            }
         }
 
         for(int i = 0; i < indices.size(); i++)
