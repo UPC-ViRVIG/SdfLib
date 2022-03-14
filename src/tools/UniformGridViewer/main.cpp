@@ -9,6 +9,7 @@
 #include "render_engine/shaders/SdfPlaneShader.h"
 #include "render_engine/shaders/BasicShader.h"
 #include "render_engine/shaders/NormalsSplitPlaneShader.h"
+#include "render_engine/shaders/ColorsShader.h"
 #include "render_engine/Window.h"
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
@@ -247,9 +248,34 @@ public:
 			mSelectionCube->setShader(Shader<BasicShader>::getInstance());
 
 			mSelectionCube->callDrawGui = false;
+			mSelectionCube->callDraw = false;
 			mSelectionCube->drawSurface(false);
-			mSelectionCube->drawWireframe(false);
+			mSelectionCube->drawWireframe(true);
 			addSystem(mSelectionCube);
+		}
+
+		// Create colored mesh
+		{
+			mColoredModelRenderer = std::make_shared<RenderMesh>();
+			mColoredModelRenderer->start();
+			mColoredModelRendererBufferId =
+				mColoredModelRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+														RenderMesh::VertexParameterLayout(GL_FLOAT, 3),
+														RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+													}, nullptr, 0);
+
+			mColoredModelRenderer->setDrawMode(GL_TRIANGLES);
+			mColoredModelRenderer->setShader(Shader<ColorsShader>::getInstance());
+			mColoredModelRenderer->drawSurface(true);
+			mColoredModelRenderer->drawWireframe(true);
+			mColoredModelRenderer->setTransform(
+				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
+				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
+				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+			);
+			//mColoredModelRenderer->callDrawGui = false;
+			mColoredModelRenderer->callDraw = false;
+			addSystem(mColoredModelRenderer);
 		}
 	}
 
@@ -312,9 +338,15 @@ public:
 		ImGui::Checkbox("Visualize zone", &mSelectZone);
 		if(mSelectZone) 
 		{
+			ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
+			if(mPrintTrianglesInfluence)
+			{
+				ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
+			}
 			ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
 			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
 			{
+				// Get selected point and selected region
 				glm::vec3 cameraPos = getMainCamera()->getPosition();
 				glm::vec3 cameraDir(0.0f);
 				{
@@ -335,13 +367,14 @@ public:
 
 				glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min + 0.5f * mGridSize) / size) * size - 0.5f * mGridSize + 0.5f * size;
 
+				// Position cube
 				mSelectionCube->setTransform( 
 					glm::translate(glm::mat4(1.0f), centerPoint) * 
 					glm::scale(glm::mat4(1.0f), glm::vec3(size))
 				);
-				mSelectionCube->drawWireframe(true);
+				mSelectionCube->callDraw = true;
 
-				std::vector<uint32_t> newIndices;
+				// Serach triangles influencing the selected zone
 				const std::vector<uint32_t>& indices = mMesh.value().getIndices();
 				const std::vector<glm::vec3>& vertices = mMesh.value().getVertices();
 
@@ -359,6 +392,8 @@ public:
 				quad[5] = glm::vec3(0.5f*size, -0.5f*size, 0.5f*size);
 				quad[6] = glm::vec3(-0.5f*size, 0.5f*size, 0.5f*size);
 				quad[7] = glm::vec3(0.5f*size);
+				
+				const float voxelDiagonal = glm::sqrt(3.0f); // Voxel diagonal when the voxels has size one
 
 				float minMaxDist = INFINITY;
 
@@ -369,7 +404,7 @@ public:
 					triangle[2] = vertices[indices[i + 2]] - centerPoint;
 
 					float minDist = GJK::getMinDistance(quad, triangle);
-					float maxDist = minDist > 0.00001f ? GJK::getMaxDistance(quad, triangle) : INFINITY;
+					float maxDist = glm::min(GJK::getMaxDistance(quad, triangle), minDist + voxelDiagonal * size);
 					minMaxDist = glm::min(minMaxDist, maxDist);
 
 					if(minDist <= minMaxDist)
@@ -385,14 +420,105 @@ public:
 
 				triangles.resize(s);
 
+				std::vector<std::pair<TriangleUtils::TriangleData, uint32_t>> trianglesData;
+				trianglesData.reserve(triangles.size());
+				std::vector<uint32_t> newIndices;
+				newIndices.reserve(3 * triangles.size());
+
 				for(const std::pair<float, uint32_t>& p : triangles)
 				{
 					newIndices.push_back(indices[p.second]);
 					newIndices.push_back(indices[p.second + 1]);
 					newIndices.push_back(indices[p.second + 2]);
+
+					trianglesData.push_back(std::make_pair(TriangleUtils::TriangleData(
+						vertices[indices[p.second]],
+						vertices[indices[p.second + 1]],
+						vertices[indices[p.second + 2]]
+					), 0));
 				}
 
 				mModelRenderer->setIndexData(newIndices);
+
+				if(mPrintTrianglesInfluence)
+				{
+
+					auto getRandomVec3 = [&] () -> glm::vec3
+					{
+						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+										 static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+										 static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+						return centerPoint + (p - 0.5f) * size;
+					};
+					for(uint32_t s=0; s < mInfluenceNumSamples; s++)
+					{
+						glm::vec3 sample = getRandomVec3();
+						float minDist = INFINITY;
+						uint32_t nearestTriangle = 0;
+						for(uint32_t t=0; t < trianglesData.size(); t++)
+						{
+							const float dist = 
+								TriangleUtils::getSqDistPointAndTriangle(sample, trianglesData[t].first);
+							if (dist < minDist)
+							{
+								nearestTriangle = t;
+								minDist = dist;
+							}
+						}
+
+						trianglesData[nearestTriangle].second += 1;
+					}
+
+					uint32_t maxValue = 0;
+					for(const std::pair<TriangleUtils::TriangleData, uint32_t>& p : trianglesData)
+					{
+						maxValue = glm::max(maxValue, p.second);
+					}
+				
+					std::vector<glm::vec3> newVertices;
+					newVertices.reserve(6 * triangles.size());
+					const float maxValueF = static_cast<float>(maxValue);
+					std::array<glm::vec3, 4> colorsPalette = {
+						glm::vec3(1.0f, 1.0f, 1.0f), 
+						glm::vec3(1.0f, 1.0f, 0.0f), 
+						glm::vec3(1.0f, 0.5f, 0.0f), 
+						glm::vec3(1.0f, 0.0f, 0.0f)
+					};
+
+					for(uint32_t t=0; t < trianglesData.size(); t++)
+					{
+						// Calculate triangle color
+						const float value = static_cast<float>(trianglesData[t].second) / maxValueF;
+						const float colorIndex = glm::clamp(value * static_cast<float>(colorsPalette.size() - 1), 
+															0.0f, static_cast<float>(colorsPalette.size() - 1) - 0.01f);
+						const glm::vec3 color = glm::mix(colorsPalette[static_cast<int>(colorIndex)], 
+														 colorsPalette[static_cast<int>(colorIndex) + 1],
+														 glm::fract(colorIndex));
+
+						// Add triangle
+						const std::pair<float, uint32_t>& p = triangles[t];
+						newVertices.push_back(vertices[indices[p.second]]);
+						newVertices.push_back(color);
+						newVertices.push_back(vertices[indices[p.second + 1]]);
+						newVertices.push_back(color);
+						newVertices.push_back(vertices[indices[p.second + 2]]);
+						newVertices.push_back(color);
+					}
+
+					mColoredModelRenderer->setVertexData(mColoredModelRendererBufferId, 
+														 newVertices.data(), 
+														 newVertices.size() / 2);
+
+					mModelRenderer->drawSurface(false);
+					mModelRenderer->drawWireframe(false);
+					mColoredModelRenderer->callDraw = true;
+				}
+				else
+				{
+					mModelRenderer->drawWireframe(true);
+					mModelRenderer->drawWireframe(true);
+					mColoredModelRenderer->callDraw = false;
+				}
 
 				SPDLOG_INFO("Number of selected triangles: {}", triangles.size());
 			}
@@ -401,7 +527,8 @@ public:
 		{
 			if(lastSelectZone)
 			{
-				mSelectionCube->drawWireframe(false);
+				mSelectionCube->callDraw = false;
+				mColoredModelRenderer->callDraw = false;
 				mModelRenderer->setIndexData(mMesh.value().getIndices());
 			}
 		}
@@ -411,6 +538,8 @@ private:
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
 
 	std::shared_ptr<RenderMesh> mModelRenderer;
+	std::shared_ptr<RenderMesh> mColoredModelRenderer;
+	uint32_t mColoredModelRendererBufferId;
 	std::shared_ptr<RenderMesh> mPlaneRenderer; 
 	std::shared_ptr<RenderMesh> mCubeRenderer;
 	std::shared_ptr<RenderMesh> mSelectionCube;
@@ -419,6 +548,8 @@ private:
 	glm::mat4x4 mGizmoMatrix;
 
 	bool mSelectZone = false;
+	bool mPrintTrianglesInfluence = false;
+	uint32_t mInfluenceNumSamples = 10000;
 	uint32_t mSelectedDepth = 0;
 	BoundingBox mSelectArea;
 	float mGridSize;
@@ -455,7 +586,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-	const std::string defaultModel = "../models/quad.ply";
+	const std::string defaultModel = "../models/sphere.glb";
 
 	if(sdfPathArg)
 	{

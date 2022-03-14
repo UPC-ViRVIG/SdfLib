@@ -63,14 +63,19 @@ void RenderMesh::draw(Camera* camera)
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-		glDepthMask(GL_FALSE);
 		glDepthFunc(GL_LEQUAL);
 
-		glDrawElements(mFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
+		if(mHasElementBuffer)
+		{
+			glDrawElements(mFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);
+		}
+		else
+		{
+			glDrawArrays(mFormat, 0, mDataArraySize);
+		}
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-		glDepthMask(GL_TRUE);
 		glDepthFunc(GL_LESS);
 	}
 	

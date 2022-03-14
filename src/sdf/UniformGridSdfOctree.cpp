@@ -79,6 +79,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 
     const std::vector<glm::vec3>& vertices = mesh.getVertices();
     const std::vector<uint32_t>& indices = mesh.getIndices();
+    const float voxelDiagonal = glm::sqrt(3.0f); // Voxel diagonal when the voxels has size one
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
     verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
@@ -116,7 +117,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 triangle[2] = vertices[indices[3 * p.second + 2]] - node.center;
 
                 float minDist = GJK::getMinDistance(quad, triangle);
-                float maxDist = minDist > 0.00001f ? GJK::getMaxDistance(quad, triangle) : INFINITY;
+                float maxDist = glm::min(GJK::getMaxDistance(quad, triangle), minDist + voxelDiagonal * 2.0f * node.size);
                 minMaxDist = glm::min(minMaxDist, maxDist);
 
                 if(minDist <= minMaxDist)

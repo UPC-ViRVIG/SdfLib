@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/frog.ply";
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
     Mesh mesh(modelPath);
@@ -56,7 +56,7 @@ int main(int argc, char** argv)
     timer.start();
     UniformGridSdf uniformGridOctree = (cellSizeArg) ? 
                     UniformGridSdf(mesh, box, args::get(cellSizeArg), UniformGridSdf::InitAlgorithm::OCTREE) :
-                    UniformGridSdf(mesh, box, (depthArg) ? args::get(depthArg) : 5, UniformGridSdf::InitAlgorithm::OCTREE);
+                    UniformGridSdf(mesh, box, (depthArg) ? args::get(depthArg) : 6, UniformGridSdf::InitAlgorithm::OCTREE);
 
     SPDLOG_INFO("Computation time {}s", timer.getElapsedSeconds());
     
