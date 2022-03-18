@@ -380,18 +380,7 @@ public:
 
 				std::vector<std::pair<float, uint32_t>> triangles;
 
-				std::vector<glm::vec3> triangle(3);
-    			std::vector<glm::vec3> quad(8);
-
-				quad[0] = -glm::vec3(0.5f*size);
-				quad[1] = glm::vec3(0.5f*size, -0.5f*size, -0.5f*size);
-				quad[2] = glm::vec3(-0.5f*size, 0.5f*size, -0.5f*size);
-				quad[3] = glm::vec3(0.5f*size, 0.5f*size, -0.5f*size);
-
-				quad[4] = glm::vec3(-0.5f*size, -0.5f*size, 0.5f*size);
-				quad[5] = glm::vec3(0.5f*size, -0.5f*size, 0.5f*size);
-				quad[6] = glm::vec3(-0.5f*size, 0.5f*size, 0.5f*size);
-				quad[7] = glm::vec3(0.5f*size);
+				std::array<glm::vec3, 3> triangle;
 				
 				const float voxelDiagonal = glm::sqrt(3.0f); // Voxel diagonal when the voxels has size one
 
@@ -403,8 +392,8 @@ public:
 					triangle[1] = vertices[indices[i + 1]] - centerPoint;
 					triangle[2] = vertices[indices[i + 2]] - centerPoint;
 
-					float minDist = GJK::getMinDistance(quad, triangle);
-					float maxDist = glm::min(GJK::getMaxDistance(quad, triangle), minDist + voxelDiagonal * size);
+					float minDist = GJK::getMinDistance(glm::vec3(0.5f * size), triangle);
+					float maxDist = glm::min(GJK::getMaxDistance(glm::vec3(0.5f * size), triangle), minDist + voxelDiagonal * size);
 					minMaxDist = glm::min(minMaxDist, maxDist);
 
 					if(minDist <= minMaxDist)

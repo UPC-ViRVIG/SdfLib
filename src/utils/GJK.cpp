@@ -85,24 +85,18 @@ bool getTriangleOriginDirection(Simplex& simplex, glm::vec3& outDirection)
     return false;
 }
 
-bool getTetrahedronOriginDirection(Simplex& simplex, glm::vec3& outDirection)
+bool getTetrahedronOriginDirectionCase1(Simplex& simplex, glm::vec3& outDirection)
 {
     glm::vec3 ab = simplex.points[1] - simplex.points[0];
     glm::vec3 ac = simplex.points[2] - simplex.points[0];
     glm::vec3 ad = simplex.points[3] - simplex.points[0];
     glm::vec3 ao = -simplex.points[0];
 
-    Simplex simplexCopy = simplex;
-    bool enterFirstFace = false;
-
     glm::vec3 n = glm::cross(ab, ac);
     if(glm::dot(n, ao) > 0.0f)
     {
         simplex.type = SimplexType::TRIANGLE;
-        getTriangleOriginDirection(simplex, outDirection);
-        if(simplex.type == SimplexType::TRIANGLE) return false;
-        simplex = simplexCopy;
-        enterFirstFace = true;
+        return getTriangleOriginDirection(simplex, outDirection);
     }
 
     n = glm::cross(ac, ad);
@@ -111,9 +105,7 @@ bool getTetrahedronOriginDirection(Simplex& simplex, glm::vec3& outDirection)
         simplex.type = SimplexType::TRIANGLE;
         simplex.points[1] = simplex.points[2];
         simplex.points[2] = simplex.points[3];
-        getTriangleOriginDirection(simplex, outDirection);
-        if(simplex.type == SimplexType::TRIANGLE || enterFirstFace) return false;
-        simplex = simplexCopy;        
+        return getTriangleOriginDirection(simplex, outDirection);
     }
 
     n = glm::cross(ad, ab);
@@ -128,7 +120,103 @@ bool getTetrahedronOriginDirection(Simplex& simplex, glm::vec3& outDirection)
     return true;
 }
 
-bool getOriginDirection(Simplex& simplex, glm::vec3& outDirection)
+bool getTetrahedronOriginDirectionCase2(Simplex& simplex, glm::vec3& outDirection)
+{
+    glm::vec3 ab = simplex.points[1] - simplex.points[0];
+    glm::vec3 ac = simplex.points[2] - simplex.points[0];
+    glm::vec3 ad = simplex.points[3] - simplex.points[0];
+    glm::vec3 ao = -simplex.points[0];
+
+    glm::vec3 abc = glm::cross(ab, ac);
+    glm::vec3 acd = glm::cross(ac, ad);
+    glm::vec3 adb = glm::cross(ad, ab);
+
+    bool enter = false;
+
+    bool acOutAbc = glm::dot(glm::cross(abc, ac), ao) > 0.0f;
+    bool acOutAcd = glm::dot(glm::cross(ac, acd), ao) > 0.0f;
+
+    if(acOutAbc && acOutAcd)
+    {
+        // Edge ac
+        if(glm::dot(ac, ao) > 0.0f)
+        {
+            simplex.type = SimplexType::LINE;
+            simplex.points[1] = simplex.points[2];
+            outDirection = glm::cross(ac, glm::cross(ao, ac));
+            return false;
+        }
+        enter = true;
+    }
+
+    bool abOutAbc = glm::dot(glm::cross(ab, abc), ao) > 0.0f;
+    bool abOutAdb = glm::dot(glm::cross(adb, ab), ao) > 0.0f;
+
+    if(abOutAbc && abOutAdb)
+    {
+        // Edge ab
+        if(glm::dot(ab, ao) > 0.0f)
+        {
+            simplex.type = SimplexType::LINE;
+            outDirection = glm::cross(ab, glm::cross(ao, ab));
+            return false;
+        }
+        enter = true;
+    }
+
+    if(glm::dot(abc, ao) > 0.0f && !acOutAbc && !abOutAbc)
+    {
+        // Triangle abc
+        simplex.type = SimplexType::TRIANGLE;
+        outDirection = abc;
+        return false;
+    }
+
+    bool adOutAcd = glm::dot(glm::cross(acd, ad), ao) > 0.0f;
+    bool adOutAdb = glm::dot(glm::cross(ad, adb), ao) > 0.0f;
+    if(adOutAcd && adOutAdb)
+    {
+        // Edge ad
+        if(glm::dot(ad, ao) > 0.0f)
+        {
+            simplex.type = SimplexType::LINE;
+            simplex.points[1] = simplex.points[3];
+            outDirection = glm::cross(ad, glm::cross(ao, ad));
+            return false;
+        }
+        enter = true;
+    }
+
+    if(glm::dot(acd, ao) > 0.0f && !acOutAcd && !adOutAcd)
+    {
+        simplex.type = SimplexType::TRIANGLE;
+        simplex.points[1] = simplex.points[2];
+        simplex.points[2] = simplex.points[3];
+        outDirection = acd;
+        return false;
+    }
+
+    if(glm::dot(adb, ao) > 0.0f && !adOutAdb && !abOutAdb)
+    {
+        // Triangle adb
+        simplex.type = SimplexType::TRIANGLE;
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[3];
+        outDirection = adb;
+        return false;
+    }
+
+    if(enter)
+    {
+        simplex.type = SimplexType::POINT;
+        outDirection = ao;
+        return false;
+    }
+
+    return true;
+}
+
+bool getOriginDirection(Simplex& simplex, glm::vec3& outDirection, float dotLastEnterPoint)
 {
     switch(simplex.type)
     {
@@ -137,7 +225,11 @@ bool getOriginDirection(Simplex& simplex, glm::vec3& outDirection)
         case SimplexType::TRIANGLE:
             return getTriangleOriginDirection(simplex, outDirection);
         case SimplexType::TETRAHEDRON:
-            return getTetrahedronOriginDirection(simplex, outDirection);
+            return getTetrahedronOriginDirectionCase2(simplex, outDirection);
+            // if(dotLastEnterPoint > 0.0f)
+            //     return getTetrahedronOriginDirectionCase1(simplex, outDirection);
+            // else
+                
     }
 
     assert(false);
@@ -173,11 +265,14 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
     simplex.points[0] = findFurthestPoint(e1, e2, glm::vec3(1.0, 0.0, 0.0));
 
     glm::vec3 direction = -simplex.points[0];
+    float dotLastEnterPoint = 0.0f;
     uint32_t iter = 0;
     do {
+        direction = glm::normalize(direction);
         glm::vec3 p = findFurthestPoint(e1, e2, direction);
 
-        if(glm::dot(p, direction) - glm::dot(simplex.points[0], direction) <= 0.0001f)
+        dotLastEnterPoint = glm::dot(p, direction);
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
         {
             return glm::dot(p, glm::normalize(-direction));
             // return glm::length(direction);
@@ -190,7 +285,7 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
         simplex.points[1] = simplex.points[0];
         simplex.points[0] = p;
 
-    } while(!getOriginDirection(simplex, direction) && ++iter < 100);
+    } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
 
     assert(iter < 100);
 
@@ -211,6 +306,75 @@ float getMaxDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
         }
     }
 
+    return glm::sqrt(maxDist);
+}
+
+inline glm::vec3 findFurthestPoint(const glm::vec3& quadSize, const std::array<glm::vec3, 3>& triangle, const glm::vec3& direction)
+{
+    const float d1 = glm::dot(triangle[0], direction);
+    const float d2 = glm::dot(triangle[1], direction);
+    const float d3 = glm::dot(triangle[2], direction);
+
+    const glm::vec3 quadPos = glm::sign(-direction) * quadSize;
+
+    if(d1 > d2)
+    {
+        return (d1 > d3) ? triangle[0] - quadPos : triangle[2] - quadPos;
+    }
+    else
+    {
+        return (d2 > d3) ? triangle[1] - quadPos : triangle[2] - quadPos;
+    }
+}
+
+float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle)
+{
+    Simplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPoint(quadSize, triangle, glm::vec3(1.0, 0.0, 0.0));
+
+    glm::vec3 direction = -simplex.points[0];
+    float dotLastEnterPoint = 0.0f;
+    uint32_t iter = 0;
+    do {
+        direction = glm::normalize(direction);
+        glm::vec3 p = findFurthestPoint(quadSize, triangle, direction);
+        
+        dotLastEnterPoint = glm::dot(p, direction);
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
+        //if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-3f)
+        {
+            return glm::dot(p, glm::normalize(-direction));
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+    } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
+
+    assert(iter < 100);
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return 0.0f;
+}
+
+inline float sqMaxDistToQuad(const glm::vec3& point, const glm::vec3& quadSize)
+{    
+    glm::vec3 aux = point - glm::sign(-point) * quadSize;
+    return glm::dot(aux, aux);
+}
+
+float getMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle)
+{
+    const float maxDist = glm::max(glm::max(
+        sqMaxDistToQuad(triangle[0], quadSize),
+        sqMaxDistToQuad(triangle[1], quadSize)),
+        sqMaxDistToQuad(triangle[2], quadSize)
+    );
     return glm::sqrt(maxDist);
 }
 

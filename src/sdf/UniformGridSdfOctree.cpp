@@ -74,8 +74,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
         }
     }
 
-    std::vector<glm::vec3> triangle(3);
-    std::vector<glm::vec3> quad(8);
+    std::array<glm::vec3, 3> triangle;
 
     const std::vector<glm::vec3>& vertices = mesh.getVertices();
     const std::vector<uint32_t>& indices = mesh.getIndices();
@@ -99,16 +98,6 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
         {
             triangles[node.depth].resize(0);
             float minMaxDist = INFINITY;
-            
-            quad[0] = -glm::vec3(node.size);
-            quad[1] = glm::vec3(node.size, -node.size, -node.size);
-            quad[2] = glm::vec3(-node.size, node.size, -node.size);
-            quad[3] = glm::vec3(node.size, node.size, -node.size);
-
-            quad[4] = glm::vec3(-node.size, -node.size, node.size);
-            quad[5] = glm::vec3(node.size, -node.size, node.size);
-            quad[6] = glm::vec3(-node.size, node.size, node.size);
-            quad[7] = glm::vec3(node.size);
 
             for(const std::pair<float, uint32_t>& p : triangles[node.depth-1])
             {
@@ -116,8 +105,8 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 triangle[1] = vertices[indices[3 * p.second + 1]] - node.center;
                 triangle[2] = vertices[indices[3 * p.second + 2]] - node.center;
 
-                float minDist = GJK::getMinDistance(quad, triangle);
-                float maxDist = glm::min(GJK::getMaxDistance(quad, triangle), minDist + voxelDiagonal * 2.0f * node.size);
+                float minDist = GJK::getMinDistance(glm::vec3(node.size), triangle);
+                float maxDist = glm::min(GJK::getMaxDistance(glm::vec3(node.size), triangle), minDist + voxelDiagonal * 2.0f * node.size);
                 minMaxDist = glm::min(minMaxDist, maxDist);
 
                 if(minDist <= minMaxDist)
