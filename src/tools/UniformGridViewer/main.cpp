@@ -342,6 +342,7 @@ public:
 			if(mPrintTrianglesInfluence)
 			{
 				ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
+				ImGui::Checkbox("Print If has some influence", &mPrintIfSomeInfluence);
 			}
 			ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
 			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
@@ -477,12 +478,20 @@ public:
 					for(uint32_t t=0; t < trianglesData.size(); t++)
 					{
 						// Calculate triangle color
-						const float value = static_cast<float>(trianglesData[t].second) / maxValueF;
-						const float colorIndex = glm::clamp(value * static_cast<float>(colorsPalette.size() - 1), 
-															0.0f, static_cast<float>(colorsPalette.size() - 1) - 0.01f);
-						const glm::vec3 color = glm::mix(colorsPalette[static_cast<int>(colorIndex)], 
-														 colorsPalette[static_cast<int>(colorIndex) + 1],
-														 glm::fract(colorIndex));
+						glm::vec3 color(0.0);
+						if(mPrintIfSomeInfluence)
+						{
+							color = (trianglesData[t].second > 0) ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(1.0f);
+						}
+						else
+						{
+							const float value = static_cast<float>(trianglesData[t].second) / maxValueF;
+							const float colorIndex = glm::clamp(value * static_cast<float>(colorsPalette.size() - 1), 
+																0.0f, static_cast<float>(colorsPalette.size() - 1) - 0.01f);
+							color = glm::mix(colorsPalette[static_cast<int>(colorIndex)], 
+															colorsPalette[static_cast<int>(colorIndex) + 1],
+															glm::fract(colorIndex));
+						}
 
 						// Add triangle
 						const std::pair<float, uint32_t>& p = triangles[t];
@@ -538,6 +547,7 @@ private:
 
 	bool mSelectZone = false;
 	bool mPrintTrianglesInfluence = false;
+	bool mPrintIfSomeInfluence = false;
 	uint32_t mInfluenceNumSamples = 10000;
 	uint32_t mSelectedDepth = 0;
 	BoundingBox mSelectArea;
