@@ -1,5 +1,7 @@
 #include "GJK.h"
 
+#include <spdlog/spdlog.h>
+
 namespace GJK
 {
 
@@ -341,8 +343,7 @@ float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangl
         glm::vec3 p = findFurthestPoint(quadSize, triangle, direction);
         
         dotLastEnterPoint = glm::dot(p, direction);
-        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
-        //if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-3f)
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f * glm::abs(dotLastEnterPoint))
         {
             return glm::dot(p, glm::normalize(-direction));
         }
@@ -357,6 +358,10 @@ float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangl
     } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
 
     assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
 
     // It does not have next origin direction because the origin is inside the simplex
     return 0.0f;
