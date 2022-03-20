@@ -68,8 +68,10 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 
     std::stack<OctreeNode> nodes;
     {
-        BoundingBox b(mBox.min - 0.5f * mCellSize, mBox.min - 0.5f * mCellSize + glm::vec3(octreeSize * mCellSize));
-        const float newSize = 0.5f * b.getSize().x * glm::pow(0.5f, START_OCTREE_DEPTH);
+        BoundingBox b(mBox.min, mBox.min + glm::vec3((octreeSize - 1) * mCellSize));
+        float newSize = 0.5f * b.getSize().x;
+        for(uint32_t i = 0; i < START_OCTREE_DEPTH; i++) newSize = 0.5f * (newSize - 0.5f * mCellSize);
+        const float voxelSpacing = 2.0f * newSize + mCellSize;
         const glm::vec3 startCenter = b.min + newSize;
         const uint32_t voxlesPerAxis = 1 << START_OCTREE_DEPTH;
 
@@ -79,7 +81,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
             {
                 for(uint32_t i=0; i < voxlesPerAxis; i++)
                 {
-                    nodes.push(OctreeNode(START_OCTREE_DEPTH, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
+                    nodes.push(OctreeNode(START_OCTREE_DEPTH, startCenter + glm::vec3(i, j, k) * voxelSpacing, newSize));
                 }
             }
         }
@@ -142,16 +144,16 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 
             triangles[rDepth].resize(s);
 
-            const float newSize = 0.5 * node.size;
+            const float newSize = 0.5f * (node.size - 0.5f * mCellSize);
             for(glm::vec3& c : childrens)
             {
-                nodes.push(OctreeNode(node.depth + 1, node.center + c * newSize, newSize));
+                nodes.push(OctreeNode(node.depth + 1, node.center + c * (newSize + 0.5f * mCellSize), newSize));
             }
         }
         else
         {
-			const float newSize = 0.5 * node.size;
-            glm::vec3 fracPart = (node.center - mBox.min) / mCellSize;
+			const float newSize = 0.5f * (node.size - 0.5f * mCellSize);
+            glm::vec3 fracPart = (node.center - newSize - mBox.min) / mCellSize;
             glm::ivec3 arrayPos = glm::floor(fracPart);
 
 			std::array<float, 8> minDists = { INFINITY, INFINITY, INFINITY, INFINITY,
@@ -165,7 +167,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 const uint32_t idx = triangles[rDepth-1][i].second;
                 for(uint32_t n=0; n < 8; n++)
                 {
-                    aux = TriangleUtils::getSqDistPointAndTriangle(node.center + childrens[n] * newSize, trianglesData[idx]);
+                    aux = TriangleUtils::getSqDistPointAndTriangle(node.center + childrens[n] * (0.5f * mCellSize), trianglesData[idx]);
                     if(aux < minDists[n])
                     {
                         minDists[n] = aux; 
@@ -179,7 +181,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 if((arrayPos.x + (n & 0b01)) >= mGridSize.x || (arrayPos.y + ((n >> 1) & 0b01)) >= mGridSize.y || (arrayPos.z + (n >> 2)) >= mGridSize.z) continue;
 				
 				mGrid[(arrayPos.z + (n >> 2)) * mGridXY + (arrayPos.y + ((n >> 1) & 0b01)) * mGridSize.x + arrayPos.x + (n & 0b01)] =
-					    TriangleUtils::getSignedDistPointAndTriangle(node.center + childrens[n] * newSize, trianglesData[minIndices[n]]);
+					    TriangleUtils::getSignedDistPointAndTriangle(node.center + childrens[n] * (0.5f * mCellSize), trianglesData[minIndices[n]]);
 
                 numVoxelsCalculated++;
             }
