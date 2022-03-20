@@ -383,4 +383,14 @@ float getMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangl
     return glm::sqrt(maxDist);
 }
 
+float getMinMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle)
+{
+    const float maxDist = glm::min(glm::min(
+        sqMaxDistToQuad(triangle[0], quadSize),
+        sqMaxDistToQuad(triangle[1], quadSize)),
+        sqMaxDistToQuad(triangle[2], quadSize)
+    );
+    return glm::sqrt(maxDist);
+}
+
 }

@@ -124,7 +124,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
                 triangle[2] = vertices[indices[3 * p.second + 2]] - node.center;
 
                 float minDist = GJK::getMinDistance(glm::vec3(node.size), triangle);
-                float maxDist = glm::min(GJK::getMaxDistance(glm::vec3(node.size), triangle), minDist + voxelDiagonal * 2.0f * node.size);
+                float maxDist = glm::min(GJK::getMinMaxDistance(glm::vec3(node.size), triangle), minDist + voxelDiagonal * 2.0f * node.size);
                 minMaxDist = glm::min(minMaxDist, maxDist);
 
                 if(minDist <= minMaxDist)

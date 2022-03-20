@@ -394,7 +394,7 @@ public:
 					triangle[2] = vertices[indices[i + 2]] - centerPoint;
 
 					float minDist = GJK::getMinDistance(glm::vec3(0.5f * size), triangle);
-					float maxDist = glm::min(GJK::getMaxDistance(glm::vec3(0.5f * size), triangle), minDist + voxelDiagonal * size);
+					float maxDist = glm::min(GJK::getMinMaxDistance(glm::vec3(0.5f * size), triangle), minDist + voxelDiagonal * size);
 					minMaxDist = glm::min(minMaxDist, maxDist);
 
 					if(minDist <= minMaxDist)

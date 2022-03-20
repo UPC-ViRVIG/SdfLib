@@ -13,6 +13,9 @@ namespace GJK
     // Triangle quad specialization
     float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
     float getMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
+
+    // Returns the minimum of the maximum distance between the vertices triangles and the quad
+    float getMinMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
 }
 
 #endif
