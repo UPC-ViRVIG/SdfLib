@@ -1,6 +1,7 @@
 #include "UniformGridSdf.h"
 #include "utils/TriangleUtils.h"
 #include "utils/GJK.h"
+#include "utils/Timer.h"
 #include <stack>
 #include <algorithm>
 
@@ -35,6 +36,8 @@ struct OctreeNode
     float size;
 };
 
+constexpr uint32_t START_OCTREE_DEPTH = 1;
+
 void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
 {
     // Calculate octree properties
@@ -43,7 +46,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 	octreeSize = 1 << maxDepth;
 
     const uint32_t numTriangles = trianglesData.size();
-    std::vector<std::vector<std::pair<float, uint32_t>>> triangles(maxDepth);
+    std::vector<std::vector<std::pair<float, uint32_t>>> triangles(maxDepth - START_OCTREE_DEPTH + 1);
 	triangles[0].resize(numTriangles);
     for(uint32_t i=0; i < numTriangles; i++)
     {
@@ -66,11 +69,19 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
     std::stack<OctreeNode> nodes;
     {
         BoundingBox b(mBox.min - 0.5f * mCellSize, mBox.min - 0.5f * mCellSize + glm::vec3(octreeSize * mCellSize));
-        glm::vec3 center = b.getCenter();
-        float newSize = 0.25f * b.getSize().x;
-        for(glm::vec3& c : childrens)
+        const float newSize = 0.5f * b.getSize().x * glm::pow(0.5f, START_OCTREE_DEPTH);
+        const glm::vec3 startCenter = b.min + newSize;
+        const uint32_t voxlesPerAxis = 1 << START_OCTREE_DEPTH;
+
+        for(uint32_t k=0; k < voxlesPerAxis; k++)
         {
-            nodes.push(OctreeNode(1, center + c * newSize, newSize));
+            for(uint32_t j=0; j < voxlesPerAxis; j++)
+            {
+                for(uint32_t i=0; i < voxlesPerAxis; i++)
+                {
+                    nodes.push(OctreeNode(START_OCTREE_DEPTH, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
+                }
+            }
         }
     }
 
@@ -83,23 +94,30 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
     verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
 
+    std::vector<float> elapsedTime(maxDepth);
+    std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
+    Timer timer;
+
     uint32_t numVoxelsCalculated = 0;
     uint32_t lastPercentatge = 0;
     uint32_t numVoxelsToCalculate = mGrid.size();
 
     while(!nodes.empty())
     {
+        timer.start();
         const OctreeNode node = nodes.top();
         nodes.pop();
 
         if(glm::any(glm::greaterThan(node.center - glm::vec3(node.size), mBox.max))) continue;
+
+        const uint32_t rDepth = node.depth - START_OCTREE_DEPTH + 1;
         
         if(node.depth + 1 < maxDepth)
         {
-            triangles[node.depth].resize(0);
+            triangles[rDepth].resize(0);
             float minMaxDist = INFINITY;
 
-            for(const std::pair<float, uint32_t>& p : triangles[node.depth-1])
+            for(const std::pair<float, uint32_t>& p : triangles[rDepth-1])
             {
                 triangle[0] = vertices[indices[3 * p.second]] - node.center;
                 triangle[1] = vertices[indices[3 * p.second + 1]] - node.center;
@@ -111,18 +129,18 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 
                 if(minDist <= minMaxDist)
                 {
-                    triangles[node.depth].push_back(std::make_pair(minDist, p.second));
+                    triangles[rDepth].push_back(std::make_pair(minDist, p.second));
                 }
             }
 
-            std::sort(triangles[node.depth].begin(), triangles[node.depth].end());
+            std::sort(triangles[rDepth].begin(), triangles[rDepth].end());
 
             int s=0;
-            for(; s < triangles[node.depth].size() && triangles[node.depth][s].first <= minMaxDist; s++);
+            for(; s < triangles[rDepth].size() && triangles[rDepth][s].first <= minMaxDist; s++);
 
             assert(s > 0);
 
-            triangles[node.depth].resize(s);
+            triangles[rDepth].resize(s);
 
             const float newSize = 0.5 * node.size;
             for(glm::vec3& c : childrens)
@@ -141,10 +159,10 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
             std::array<int, 8> minIndices;
         
             float aux;
-            const uint32_t size = triangles[node.depth-1].size();
+            const uint32_t size = triangles[rDepth-1].size();
             for(uint32_t i=0; i < size; i++)
             {
-                const uint32_t idx = triangles[node.depth-1][i].second;
+                const uint32_t idx = triangles[rDepth-1][i].second;
                 for(uint32_t n=0; n < 8; n++)
                 {
                     aux = TriangleUtils::getSqDistPointAndTriangle(node.center + childrens[n] * newSize, trianglesData[idx]);
@@ -177,14 +195,29 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
             }
         }
 
-        verticesStatistics[node.depth].first += triangles[node.depth].size();
+        verticesStatistics[node.depth].first += triangles[rDepth].size();
         verticesStatistics[node.depth].second += 1;
+        elapsedTime[node.depth] += timer.getElapsedSeconds();
+        numTrianglesEvaluated[node.depth] += triangles[rDepth-1].size();
     }
 
     SPDLOG_INFO("Used an octree of depth {}", maxDepth);
     for(uint32_t d=0; d < maxDepth; d++)
     {
-        const float mean = static_cast<float>(verticesStatistics[d].first) / static_cast<float>(verticesStatistics[d].second);
-        SPDLOG_INFO("Depth {}, mean of triangles per node: {}", d, mean);
+        const float mean = static_cast<float>(verticesStatistics[d].first) / 
+                           static_cast<float>(glm::max(1u, verticesStatistics[d].second));
+        SPDLOG_INFO("Depth {}, mean of triangles per node: {} [{}s]", d, mean, elapsedTime[d]);
+        if(numTrianglesEvaluated[d] < 1000)
+        {
+            SPDLOG_INFO("Depth {}, number of evaluations: {}", d, numTrianglesEvaluated[d]);
+        }
+        else if(numTrianglesEvaluated[d] < 1000000)
+        {
+            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}K", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-3);
+        }
+        else
+        {
+            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
+        }
     }
 }
