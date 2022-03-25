@@ -20,9 +20,9 @@ public:
 
     UniformGridSdf() {}
     UniformGridSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, 
-                   InitAlgorithm initAlgorithm = InitAlgorithm::BASIC);
+                   InitAlgorithm initAlgorithm = InitAlgorithm::OCTREE);
     UniformGridSdf(const Mesh& mesh, BoundingBox box, float cellSize, 
-                   InitAlgorithm initAlgorithm = InitAlgorithm::BASIC);
+                   InitAlgorithm initAlgorithm = InitAlgorithm::OCTREE);
     float getDistance(glm::vec3 sample) const override;
     const BoundingBox& getGridBoundingBox() const { return mBox; }
     float getGridCellSize() const { return mCellSize; }
@@ -54,7 +54,7 @@ private:
     BoundingBox mBox;
     float mCellSize = 0.0;
 
-    glm::ivec3 mGridSize = glm::ivec3(0.0);
+    glm::ivec3 mGridSize = glm::ivec3(0);
     int mGridXY = 0;
     std::vector<float> mGrid;
 

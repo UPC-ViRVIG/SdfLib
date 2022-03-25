@@ -357,7 +357,7 @@ float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangl
 
     } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
 
-    assert(iter < 100);
+    //assert(iter < 100);
     if(iter >= 100)
     {
         SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");

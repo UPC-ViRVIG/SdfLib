@@ -7,6 +7,7 @@
 #include "render_engine/RenderMesh.h"
 #include "render_engine/shaders/NormalsShader.h"
 #include "render_engine/shaders/SdfPlaneShader.h"
+#include "render_engine/shaders/SdfOctreePlaneShader.h"
 #include "render_engine/shaders/BasicShader.h"
 #include "render_engine/shaders/NormalsSplitPlaneShader.h"
 #include "render_engine/shaders/ColorsShader.h"
@@ -49,6 +50,8 @@ public:
 
 		// Create unifrom grid
 		UniformGridSdf sdfGrid;
+		OctreeSdf octreeSdf;
+
 		if(mModelPath.has_value())
 		{
 			mMesh = Mesh(mModelPath.value());
@@ -79,9 +82,10 @@ public:
 			const glm::vec3 modelBBSize = box.getSize();
 			box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 			Timer timer; timer.start();
-			sdfGrid = (mCellSize.has_value()) ? 
-							UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
-							UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
+			// sdfGrid = (mCellSize.has_value()) ? 
+			// 				UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
+			// 				UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
+			octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), 1);
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
 
@@ -91,7 +95,8 @@ public:
 
 		// glm::vec3 bbRatio = sdfGrid.getGridBoundingBox().getSize() / sdfGrid.getGridBoundingBox().getSize().x;
 		// BoundingBox viewBB(-bbRatio, bbRatio);
-		BoundingBox viewBB = sdfGrid.getGridBoundingBox();
+		//BoundingBox viewBB = sdfGrid.getGridBoundingBox();
+		BoundingBox viewBB = octreeSdf.getGridBoundingBox();
 
 		// Create sdf plane
 		{
@@ -112,7 +117,8 @@ public:
 			mGizmoMatrix = mGizmoStartMatrix;
 			mPlaneRenderer->setTransform(mGizmoMatrix);
 
-			mPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
+			//mPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
+			mPlaneShader = std::unique_ptr<SdfOctreePlaneShader> (new SdfOctreePlaneShader(octreeSdf, viewBB));
 			mPlaneRenderer->setShader(mPlaneShader.get());
 			addSystem(mPlaneRenderer);
 			mPlaneRenderer->callDrawGui = false;
@@ -532,7 +538,8 @@ public:
 		}
 	}
 private:
-	std::unique_ptr<SdfPlaneShader> mPlaneShader;
+	//std::unique_ptr<SdfPlaneShader> mPlaneShader;
+	std::unique_ptr<SdfOctreePlaneShader> mPlaneShader;
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
 
 	std::shared_ptr<RenderMesh> mModelRenderer;
@@ -610,7 +617,7 @@ int main(int argc, char** argv)
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 6
+			(depthArg) ? args::get(depthArg) : 5
 		);
 		MainLoop loop;
 		loop.start(scene);

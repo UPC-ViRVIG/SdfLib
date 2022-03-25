@@ -80,6 +80,9 @@ target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})
 add_executable(UniformGridSdfOctreeTest src/tools/UniformGridSdfOctreeTest/main.cpp)
 target_link_libraries(UniformGridSdfOctreeTest PUBLIC ${PROJECT_NAME})
 
+add_executable(SdfOctreeTest src/tools/SdfOctreeTest/main.cpp)
+target_link_libraries(SdfOctreeTest PUBLIC ${PROJECT_NAME})
+
 add_executable(GJKtest src/tools/GJKtest/main.cpp)
 target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
 

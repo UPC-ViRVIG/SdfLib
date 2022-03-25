@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/frog.ply";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
     Mesh mesh(modelPath);
