@@ -29,8 +29,15 @@
 class MyScene : public Scene
 {
 public:
-    MyScene(std::string modelPath, float cellSize) : mModelPath(modelPath), mCellSize(cellSize), mNormalizeModel(true) {}
-	MyScene(std::string modelPath, uint32_t depth) : mModelPath(modelPath), mDepth(depth), mNormalizeModel(true) {}
+	enum SdfFormat
+	{
+		OCTREE,
+		GRID
+	};
+
+    MyScene(std::string modelPath, float cellSize) : mSdfFormat(SdfFormat::GRID), mModelPath(modelPath), mCellSize(cellSize), mNormalizeModel(true) {}
+	MyScene(std::string modelPath, uint32_t maxDepth) : mSdfFormat(SdfFormat::GRID), mModelPath(modelPath), mDepth(maxDepth), mNormalizeModel(true) {}
+	MyScene(std::string modelPath, uint32_t maxDepth, uint32_t startDepth) : mSdfFormat(SdfFormat::OCTREE), mModelPath(modelPath), mDepth(maxDepth), mNormalizeModel(true) {}
 	MyScene(std::string sdfPath, std::optional<std::string> modelPath = std::optional<std::string>(), bool normalizeModel = false) :
 		mSdfPath(sdfPath),
 		mModelPath(modelPath),
@@ -51,6 +58,9 @@ public:
 		// Create unifrom grid
 		UniformGridSdf sdfGrid;
 		OctreeSdf octreeSdf;
+
+		BoundingBox sdfBB;
+		BoundingBox viewBB;
 
 		if(mModelPath.has_value())
 		{
@@ -74,6 +84,9 @@ public:
 			}
 			cereal::PortableBinaryInputArchive archive(is);
 			archive(sdfGrid);
+			sdfBB = sdfGrid.getGridBoundingBox();
+			viewBB = sdfGrid.getGridBoundingBox();
+			mGridSize = sdfGrid.getGridCellSize();
 		}
 		else
 		{
@@ -82,21 +95,25 @@ public:
 			const glm::vec3 modelBBSize = box.getSize();
 			box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 			Timer timer; timer.start();
-			// sdfGrid = (mCellSize.has_value()) ? 
-			// 				UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
-			// 				UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
-			octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), 1);
+			switch(mSdfFormat)
+			{
+				case SdfFormat::GRID:
+					sdfGrid = (mCellSize.has_value()) ? 
+							UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
+							UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
+					sdfBB = sdfGrid.getGridBoundingBox();
+					viewBB = sdfGrid.getGridBoundingBox();
+					mGridSize = sdfGrid.getGridCellSize();
+					break;
+				case SdfFormat::OCTREE:
+					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), 1);
+					sdfBB = octreeSdf.getGridBoundingBox();
+					viewBB = octreeSdf.getGridBoundingBox();
+					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, mDepth.value());
+					break;
+			}
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
-
-		
-		mSelectArea = sdfGrid.getGridBoundingBox();
-		mGridSize = sdfGrid.getGridCellSize();
-
-		// glm::vec3 bbRatio = sdfGrid.getGridBoundingBox().getSize() / sdfGrid.getGridBoundingBox().getSize().x;
-		// BoundingBox viewBB(-bbRatio, bbRatio);
-		//BoundingBox viewBB = sdfGrid.getGridBoundingBox();
-		BoundingBox viewBB = octreeSdf.getGridBoundingBox();
 
 		// Create sdf plane
 		{
@@ -117,9 +134,17 @@ public:
 			mGizmoMatrix = mGizmoStartMatrix;
 			mPlaneRenderer->setTransform(mGizmoMatrix);
 
-			//mPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
-			mPlaneShader = std::unique_ptr<SdfOctreePlaneShader> (new SdfOctreePlaneShader(octreeSdf, viewBB));
-			mPlaneRenderer->setShader(mPlaneShader.get());
+			switch(mSdfFormat)
+			{
+				case SdfFormat::GRID:
+					mGridPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
+					mPlaneRenderer->setShader(mGridPlaneShader.get());
+					break;
+				case SdfFormat::OCTREE:
+					mOctreePlaneShader = std::unique_ptr<SdfOctreePlaneShader> (new SdfOctreePlaneShader(octreeSdf, viewBB));
+					mPlaneRenderer->setShader(mOctreePlaneShader.get());
+					break;
+			}
 			addSystem(mPlaneRenderer);
 			mPlaneRenderer->callDrawGui = false;
 		}
@@ -141,8 +166,8 @@ public:
 			mModelRenderer->setShader(Shader<NormalsShader>::getInstance());
 			mModelRenderer->setTransform(
 				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
-				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
-				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfBB.getSize()) *
+				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
 			);
 			addSystem(mModelRenderer);
 			mModelRenderer->drawSurface(false);
@@ -229,8 +254,8 @@ public:
 			meshNormals->drawSurface(false);
 			meshNormals->setTransform(
 				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
-				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
-				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfBB.getSize()) *
+				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
 			);
 			addSystem(meshNormals);
 		}
@@ -276,8 +301,8 @@ public:
 			mColoredModelRenderer->drawWireframe(true);
 			mColoredModelRenderer->setTransform(
 				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
-				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfGrid.getGridBoundingBox().getSize()) *
-				glm::translate(glm::mat4(1.0f), -sdfGrid.getGridBoundingBox().getCenter())
+				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfBB.getSize()) *
+				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
 			);
 			//mColoredModelRenderer->callDrawGui = false;
 			mColoredModelRenderer->callDraw = false;
@@ -293,13 +318,23 @@ public:
 		ImGui::Separator();
 		ImGui::Text("Scene Options");
 
-		bool drawGrid = mPlaneShader->isDrawingGrid();
-		ImGui::Checkbox("Print grid", &drawGrid);
-		mPlaneShader->drawGrid(drawGrid);
+		bool drawGrid;
+		bool drawIsolines;
+		switch(mSdfFormat)
+		{
+			case SdfFormat::GRID:
+				drawGrid = mGridPlaneShader->isDrawingGrid();
+				drawIsolines = mGridPlaneShader->isDrawingIsolines();
+				break;
+			case SdfFormat::OCTREE:
+				drawGrid = mOctreePlaneShader->isDrawingGrid();
+				drawIsolines = mOctreePlaneShader->isDrawingIsolines();
+				break;
+		}
 
-		bool drawIsolines = mPlaneShader->isDrawingIsolines();
+		ImGui::Checkbox("Print grid", &drawGrid);
+
 		ImGui::Checkbox("Print Isolines", &drawIsolines);
-		mPlaneShader->drawIsolines(drawIsolines);
 
 		ImGuiIO& io = ImGui::GetIO();
     	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
@@ -335,8 +370,20 @@ public:
 		glm::vec3 planeNormal = glm::normalize(glm::vec3(mGizmoMatrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
 		glm::vec3 planePoint = glm::vec3(mGizmoMatrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 		mCubeShader->setCutPlane(glm::vec4(planeNormal.x, planeNormal.y, planeNormal.z, -glm::dot(planeNormal, planePoint)));
-		mPlaneShader->setNormal(planeNormal);
-
+		
+		switch(mSdfFormat)
+		{
+			case SdfFormat::GRID:
+				mGridPlaneShader->setNormal(planeNormal);
+				mGridPlaneShader->drawGrid(drawGrid);
+				mGridPlaneShader->drawIsolines(drawIsolines);
+				break;
+			case SdfFormat::OCTREE:
+				mOctreePlaneShader->setNormal(planeNormal);
+				mOctreePlaneShader->drawGrid(drawGrid);
+				mOctreePlaneShader->drawIsolines(drawIsolines);
+				break;
+		}
 
 		// Selection option
 		if(!mMesh.has_value()) return;
@@ -538,8 +585,8 @@ public:
 		}
 	}
 private:
-	//std::unique_ptr<SdfPlaneShader> mPlaneShader;
-	std::unique_ptr<SdfOctreePlaneShader> mPlaneShader;
+	std::unique_ptr<SdfPlaneShader> mGridPlaneShader;
+	std::unique_ptr<SdfOctreePlaneShader> mOctreePlaneShader;
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
 
 	std::shared_ptr<RenderMesh> mModelRenderer;
@@ -563,9 +610,11 @@ private:
 	std::optional<Mesh> mMesh;
 
 	// Input parameters
+	SdfFormat mSdfFormat;
     std::optional<std::string> mModelPath;
     std::optional<float> mCellSize;
 	std::optional<uint32_t> mDepth;
+	std::optional<uint32_t> mStartDepth;
 	std::optional<std::string> mSdfPath;
 	bool mNormalizeModel;
 };
@@ -581,6 +630,8 @@ int main(int argc, char** argv)
 	args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
 	args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {"cell_size"});
     args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {"depth"});
+	args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
+	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree or grid", {"sdf_format"});
 
     try
     {
@@ -592,6 +643,13 @@ int main(int argc, char** argv)
         return 0;
     }
 
+	if(sdfFormatArg && args::get(sdfFormatArg) != "octree" && args::get(sdfFormatArg) != "grid")
+	{
+		std::cerr << "The sdf_format can only be octree or grid";
+		return 0;
+	}
+
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
 	const std::string defaultModel = "../models/sphere.glb";
 
 	if(sdfPathArg)
@@ -604,22 +662,35 @@ int main(int argc, char** argv)
 		MainLoop loop;
 		loop.start(scene);
 	}
-	else if(cellSizeArg)
+	else if(sdfFormat == "grid")
+	{
+		if(cellSizeArg)
+		{
+			MyScene scene(
+				(modelPathArg) ? args::get(modelPathArg) : defaultModel,
+				(cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+			);
+			MainLoop loop;
+			loop.start(scene);
+		}
+		else
+		{
+			MyScene scene(
+				(modelPathArg) ? args::get(modelPathArg) : defaultModel,
+				(depthArg) ? args::get(depthArg) : 5
+			);
+			MainLoop loop;
+			loop.start(scene);
+		}
+	}
+	else if(sdfFormat == "octree")
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(cellSizeArg) ? args::get(cellSizeArg) : 0.1f
+			(depthArg) ? args::get(depthArg) : 5,
+			(startDepthArg) ? args::get(startDepthArg) : 1
 		);
 		MainLoop loop;
 		loop.start(scene);
-	}
-	else
-	{
-		MyScene scene(
-			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 5
-		);
-		MainLoop loop;
-		loop.start(scene);
-	}
+	}	
 }

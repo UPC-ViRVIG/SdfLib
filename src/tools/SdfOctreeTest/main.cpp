@@ -4,11 +4,6 @@
 #include "sdf/OctreeSdf.h"
 #include "utils/Timer.h"
 
-
-
-
-
-
 int main(int argc, char** argv)
 {
     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
@@ -48,12 +43,13 @@ int main(int argc, char** argv)
 
     SPDLOG_INFO("Octree algorithm time {}s", timer.getElapsedSeconds());
 
+	BoundingBox modelBox = meshSphere.getBoudingBox();
     auto getRandomVec3 = [&] () -> glm::vec3
     {
         glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
                             static_cast<float>(rand())/static_cast<float>(RAND_MAX),
                             static_cast<float>(rand())/static_cast<float>(RAND_MAX));
-        return box.min + p * box.getSize();
+        return modelBox.min + p * modelBox.getSize();
     };
 
     for(uint32_t sample=0; sample < 1000; sample++)
