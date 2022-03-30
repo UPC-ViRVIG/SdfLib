@@ -111,6 +111,12 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         glm::vec3(1.0f, 0.0f, 1.0f),
         glm::vec3(0.0f, 1.0f, 1.0f),
     };
+
+    // Create the grid
+    {
+        const uint32_t voxlesPerAxis = 1 << startDepth;
+        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
+    }
     
     std::stack<NodeInfo> nodes;
     {
@@ -124,8 +130,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             {
                 for(uint32_t i=0; i < voxlesPerAxis; i++)
                 {
-                    mOctreeData.push_back(OctreeNode());
-                    nodes.push(NodeInfo(mOctreeData.size() - 1, startOctreeDepth, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
+                    nodes.push(NodeInfo(std::numeric_limits<uint32_t>::max(), startOctreeDepth, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
                     NodeInfo& n = nodes.top();
                     std::array<glm::vec3, 8> inPos;
                     for(uint32_t c=0; c < 8; c++)
@@ -161,8 +166,16 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         const NodeInfo node = nodes.top();
         nodes.pop();
 
-		assert(node.nodeIndex < mOctreeData.size());
-        OctreeNode& octreeNode = mOctreeData[node.nodeIndex];
+        OctreeNode* octreeNode = (node.nodeIndex < std::numeric_limits<uint32_t>::max()) 
+                                    ? &mOctreeData[node.nodeIndex]
+                                    : nullptr;
+
+        if(node.depth == startDepth)
+        {
+            assert(octreeNode == nullptr);
+            glm::ivec3 startArrayPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+            octreeNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
+        }
 
         const uint32_t rDepth = node.depth - startOctreeDepth + 1;
 
@@ -212,10 +225,11 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 				// Generate new childrens
 				const float newSize = 0.5f * node.size;
 
-				uint32_t childIndex = mOctreeData.size();
-				octreeNode.setValues(false, childIndex);
+				uint32_t childIndex = (node.depth >= startDepth) ? mOctreeData.size() : std::numeric_limits<uint32_t>::max();
+                uint32_t childOffsetMask = (node.depth >= startDepth) ? ~0 : 0;
+				if(octreeNode != nullptr) octreeNode->setValues(false, childIndex);
 
-				mOctreeData.resize(mOctreeData.size() + 8);
+				if(node.depth >= startDepth) mOctreeData.resize(mOctreeData.size() + 8);
 
 				// Low Z children
 				nodes.push(NodeInfo(childIndex, node.depth + 1, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
@@ -231,7 +245,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[9];
 				}
 
-				nodes.push(NodeInfo(childIndex + 1, node.depth + 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				nodes.push(NodeInfo(childIndex + (childOffsetMask & 1), node.depth + 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[0];
@@ -244,7 +258,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[10];
 				}
 
-                nodes.push(NodeInfo(childIndex + 2, node.depth + 1, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 2), node.depth + 1, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[1];
@@ -257,7 +271,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[12];
 				}
 
-                nodes.push(NodeInfo(childIndex + 3, node.depth + 1, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 3), node.depth + 1, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[2];
@@ -271,7 +285,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 				}
 
                 // High Z children
-                nodes.push(NodeInfo(childIndex + 4, node.depth + 1, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 4), node.depth + 1, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[5];
@@ -284,7 +298,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[16];
 				}
 
-                nodes.push(NodeInfo(childIndex + 5, node.depth + 1, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 5), node.depth + 1, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[6];
@@ -297,7 +311,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[17];
 				}
 
-                nodes.push(NodeInfo(childIndex + 6, node.depth + 1, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 6), node.depth + 1, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[8];
@@ -310,7 +324,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.distanceToVertices[7] = minDistToPoints[18];
 				}
 
-                nodes.push(NodeInfo(childIndex + 7, node.depth + 1, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodes.push(NodeInfo(childIndex + (childOffsetMask & 7), node.depth + 1, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
 					NodeInfo& child = nodes.top();
 					child.distanceToVertices[0] = minDistToPoints[9];
@@ -335,8 +349,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         }
         else
         {
+            assert(node.depth >= startDepth);
             uint32_t childIndex = mOctreeData.size();
-			octreeNode.setValues(true, childIndex);
+			octreeNode->setValues(true, childIndex);
 
             mOctreeData.resize(mOctreeData.size() + 8);
 

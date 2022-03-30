@@ -12,6 +12,7 @@ int main(int argc, char** argv)
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
     args::Positional<uint32_t> depthArg(parser, "depth", "The octree depth");
+    args::Positional<uint32_t> startDepthArg(parser, "start_depth", "The resulting octree start depth");
 
     try
     {
@@ -25,6 +26,7 @@ int main(int argc, char** argv)
 
     std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
     uint32_t depth = (depthArg) ? args::get(depthArg) : 5;
+    uint32_t startDepth = (startDepthArg) ? args::get(startDepthArg) : 1;
 
     Mesh meshSphere(modelPath);
 
@@ -39,9 +41,10 @@ int main(int argc, char** argv)
     SPDLOG_INFO("Uniform Grid algorithm time {}s", timer.getElapsedSeconds());
 
     timer.start();
-    OctreeSdf octreeSdf(meshSphere, box, depth, 1);
+    OctreeSdf octreeSdf(meshSphere, box, depth, startDepth);
 
     SPDLOG_INFO("Octree algorithm time {}s", timer.getElapsedSeconds());
+    SPDLOG_INFO("Octree size: {} nodes", octreeSdf.getOctreeData().size());
 
 	BoundingBox modelBox = meshSphere.getBoudingBox();
     auto getRandomVec3 = [&] () -> glm::vec3
