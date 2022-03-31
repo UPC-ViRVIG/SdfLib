@@ -37,7 +37,16 @@ public:
 
     MyScene(std::string modelPath, float cellSize) : mSdfFormat(SdfFormat::GRID), mModelPath(modelPath), mCellSize(cellSize), mNormalizeModel(true) {}
 	MyScene(std::string modelPath, uint32_t maxDepth) : mSdfFormat(SdfFormat::GRID), mModelPath(modelPath), mDepth(maxDepth), mNormalizeModel(true) {}
-	MyScene(std::string modelPath, uint32_t maxDepth, uint32_t startDepth) : mSdfFormat(SdfFormat::OCTREE), mModelPath(modelPath), mDepth(maxDepth), mNormalizeModel(true) {}
+	MyScene(std::string modelPath, uint32_t maxDepth, uint32_t startDepth,
+			float terminationThreshold = 1e-3,
+			OctreeSdf::TerminationRule terminationRule = OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE) : 
+		mSdfFormat(SdfFormat::OCTREE), 
+		mModelPath(modelPath), 
+		mDepth(maxDepth), 
+		mStartDepth(startDepth),
+		mTerminationThreshold(terminationThreshold),
+		mTerminationRule(terminationRule),
+		mNormalizeModel(true) {}
 	MyScene(std::string sdfPath, std::optional<std::string> modelPath = std::optional<std::string>(), bool normalizeModel = false) :
 		mSdfPath(sdfPath),
 		mModelPath(modelPath),
@@ -76,17 +85,33 @@ public:
 
 		if(mSdfPath.has_value())
 		{
-			std::ifstream is(mSdfPath.value(), std::ios::binary);
-			if(!is.is_open())
+			std::unique_ptr<SdfFunction> sdfFunc = SdfFunction::loadFromFile(mSdfPath.value());
+			if(!sdfFunc)
 			{
-				SPDLOG_ERROR("Cannot open file {}", mSdfPath.value());
 				assert(false);
+				return;
 			}
-			cereal::PortableBinaryInputArchive archive(is);
-			archive(sdfGrid);
-			sdfBB = sdfGrid.getGridBoundingBox();
-			viewBB = sdfGrid.getGridBoundingBox();
-			mGridSize = sdfGrid.getGridCellSize();
+
+			switch(sdfFunc->getFormat())
+			{
+				case SdfFunction::SdfFormat::GRID:
+					mSdfFormat = SdfFormat::GRID;
+					sdfGrid = std::move(*reinterpret_cast<UniformGridSdf*>(sdfFunc.get()));
+					sdfBB = sdfGrid.getGridBoundingBox();
+					viewBB = sdfGrid.getGridBoundingBox();
+					mGridSize = sdfGrid.getGridCellSize();
+					break;
+				case SdfFunction::SdfFormat::OCTREE:
+					mSdfFormat = SdfFormat::OCTREE;
+					octreeSdf = std::move(*reinterpret_cast<OctreeSdf*>(sdfFunc.get()));
+					sdfBB = octreeSdf.getGridBoundingBox();
+					viewBB = octreeSdf.getGridBoundingBox();
+					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, octreeSdf.getOctreeMaxDepth());
+					break;
+				default:
+					assert(false);
+					return;
+			}
 		}
 		else
 		{
@@ -106,7 +131,8 @@ public:
 					mGridSize = sdfGrid.getGridCellSize();
 					break;
 				case SdfFormat::OCTREE:
-					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), 1);
+					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), mStartDepth.value(), 
+										  mTerminationThreshold.value(), mTerminationRule.value());
 					sdfBB = octreeSdf.getGridBoundingBox();
 					viewBB = octreeSdf.getGridBoundingBox();
 					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, mDepth.value());
@@ -616,6 +642,8 @@ private:
 	std::optional<uint32_t> mDepth;
 	std::optional<uint32_t> mStartDepth;
 	std::optional<std::string> mSdfPath;
+	std::optional<float> mTerminationThreshold;
+	std::optional<OctreeSdf::TerminationRule> mTerminationRule;
 	bool mNormalizeModel;
 };
 
@@ -631,6 +659,8 @@ int main(int argc, char** argv)
 	args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {"cell_size"});
     args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {"depth"});
 	args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
+	args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "Octree generation termination rule", {"termination_rule"});
+	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
 	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree or grid", {"sdf_format"});
 
     try
@@ -649,7 +679,19 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
+	std::optional<OctreeSdf::TerminationRule> terminationRule;
+	if(terminationRuleArg)
+	{
+		terminationRule = OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg));
+
+		if(!terminationRule.has_value())
+		{
+			std::cerr << args::get(terminationRuleArg) << " is not a valid termination rule";
+			return 0;
+		}
+	}
+
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
 	const std::string defaultModel = "../models/sphere.glb";
 
 	if(sdfPathArg)
@@ -687,8 +729,10 @@ int main(int argc, char** argv)
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 5,
-			(startDepthArg) ? args::get(startDepthArg) : 1
+			(depthArg) ? args::get(depthArg) : 7,
+			(startDepthArg) ? args::get(startDepthArg) : 3,
+			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3,
+			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;
 		loop.start(scene);

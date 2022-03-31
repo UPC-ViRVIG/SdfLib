@@ -10,7 +10,7 @@
 
 #include <cereal/types/vector.hpp>
 
-class UniformGridSdf : SdfFunction
+class UniformGridSdf : public SdfFunction
 {
 public:
     enum InitAlgorithm {
@@ -23,7 +23,10 @@ public:
                    InitAlgorithm initAlgorithm = InitAlgorithm::OCTREE);
     UniformGridSdf(const Mesh& mesh, BoundingBox box, float cellSize, 
                    InitAlgorithm initAlgorithm = InitAlgorithm::OCTREE);
+    
     float getDistance(glm::vec3 sample) const override;
+    SdfFormat getFormat() const override { return SdfFormat::GRID; }
+
     const BoundingBox& getGridBoundingBox() const { return mBox; }
     float getGridCellSize() const { return mCellSize; }
     glm::ivec3 getGridSize() const { return mGridSize; }
@@ -46,7 +49,7 @@ public:
             glm::abs(cellSize.x - cellSize.z) < 0.00001f &&
             glm::abs(cellSize.y - cellSize.z) < 0.00001f
         );
-        mCellSize = (cellSize.x + cellSize.y + cellSize.z) / 3.0;
+        mCellSize = (cellSize.x + cellSize.y + cellSize.z) / 3.0f;
         mGridXY = mGridSize.x * mGridSize.y;
     } 
 
