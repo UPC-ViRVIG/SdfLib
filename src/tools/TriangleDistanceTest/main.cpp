@@ -57,5 +57,7 @@ int main()
 	for(const glm::vec3& sample : samplePoints)
 	{
 		assert(glm::abs(TriangleUtils::getSqDistPointAndTriangle(sample, v1, v2, v3) - TriangleUtils::getSqDistPointAndTriangle(sample, triData)) < 0.001f);
+		const float aux = TriangleUtils::getSignedDistPointAndTriangle(sample, triData);
+		assert(glm::abs(aux * aux - TriangleUtils::getSqDistPointAndTriangle(sample, triData)) < 0.001f);
 	}
 }

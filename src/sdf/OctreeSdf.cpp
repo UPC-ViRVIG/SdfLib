@@ -265,8 +265,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 				maxMinDist = glm::max(maxMinDist, glm::abs(node.distanceToVertices[i]));
             }
             
-			float minMaxDist = INFINITY;
-            float minMinDist = INFINITY; // DEBUG
             for(const uint32_t& idx : triangles[rDepth-1])
             {
                 triangle[0] = vertices[indices[3 * idx]] - node.center;
@@ -274,8 +272,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 triangle[2] = vertices[indices[3 * idx + 2]] - node.center;
 
                 const float minDist = GJK::getMinDistance(glm::vec3(node.size), triangle);
-                minMinDist = glm::min(minMinDist, minDist);
-				minMaxDist = glm::min(minMaxDist, GJK::getMinMaxDistance(glm::vec3(node.size), triangle));
 
                 if(minDist <= maxMinDist)
                 {
@@ -442,6 +438,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         {
             assert(node.depth >= startDepth);
             uint32_t childIndex = mOctreeData.size();
+            assert(octreeNode != nullptr);
 			octreeNode->setValues(true, childIndex);
 
             mOctreeData.resize(mOctreeData.size() + 8);

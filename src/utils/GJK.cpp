@@ -343,7 +343,7 @@ float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangl
         glm::vec3 p = findFurthestPoint(quadSize, triangle, direction);
         
         dotLastEnterPoint = glm::dot(p, direction);
-        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f * glm::abs(dotLastEnterPoint))
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 5.0e-5f * glm::abs(dotLastEnterPoint))
         {
             return glm::dot(p, glm::normalize(-direction));
         }

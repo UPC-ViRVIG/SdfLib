@@ -72,7 +72,7 @@ add_executable(TestScene src/tools/TestScene/main.cpp)
 target_link_libraries(TestScene PUBLIC ${PROJECT_NAME})
 
 add_executable(TriangleDistanceTest src/tools/TriangleDistanceTest/main.cpp)
-target_link_libraries(TestScene PUBLIC ${PROJECT_NAME})
+target_link_libraries(TriangleDistanceTest PUBLIC ${PROJECT_NAME})
 
 add_executable(UniformGridSdfTest src/tools/UniformGridSdfTest/main.cpp)
 target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})

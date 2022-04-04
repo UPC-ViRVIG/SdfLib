@@ -95,7 +95,7 @@ namespace TriangleUtils
                     edgesNormal.erase(ret.first);
                 }
 
-                const float angle = glm::acos(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])));
+                const float angle = glm::acos(glm::clamp(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])), -1.0f, 1.0f));
                 verticesNormal[v1] += angle * triangles[tIndex].getTriangleNormal();
             }
         }
