@@ -103,7 +103,10 @@ public:
         mStartGridXY = mStartGridSize * mStartGridSize;
     } 
 
+
 private:
+    static constexpr bool DELAY_NODE_TERMINATION = false;
+
     BoundingBox mBox;
 
     float mValueRange;
@@ -117,6 +120,8 @@ private:
 
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                     float terminationThreshold, TerminationRule terminationRule);
+    
+    void initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth); // For testing propouses
 };
 
 #endif
