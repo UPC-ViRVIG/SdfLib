@@ -28,6 +28,7 @@ int main(int argc, char** argv)
 	args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "Octree generation termination rule", {"termination_rule"});
 	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
 	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree or grid", {"sdf_format"});
+    args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: df_uniform, df, bf", {"algorithm"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
 
     try
@@ -73,18 +74,32 @@ int main(int argc, char** argv)
         std::optional<OctreeSdf::TerminationRule> terminationRule((terminationRuleArg) ? 
                     OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg)) : 
                     std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE));
+
         if(!terminationRule.has_value())
         {
-            std::cerr << args::get(terminationRuleArg) << " is not a valid termination rule";
+            std::cerr << args::get(terminationRuleArg) << " is not a valid termination rule" << std::endl;
             return 0;
         }
+
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "df";
+        OctreeSdf::InitAlgorithm initAlgorithm;
+        if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
+        else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
+        else if(initAlgorithmStr == "bf") initAlgorithm = OctreeSdf::InitAlgorithm::BF_ADAPTATIVE;
+        else
+        {
+            std::cerr << initAlgorithmStr << " is not a valid supported octree generation algorithm" << std::endl;
+            return 0;
+        }
+
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 6,
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
-            terminationRule.value()));
+            terminationRule.value(),
+            initAlgorithm));
     }
     else
     {
