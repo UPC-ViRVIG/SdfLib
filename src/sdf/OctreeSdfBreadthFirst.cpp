@@ -5,6 +5,8 @@
 #include <array>
 #include <stack>
 
+namespace 
+{
 struct NodeInfo
 {
     NodeInfo() {}
@@ -25,6 +27,7 @@ struct NodeInfo
     std::vector<uint32_t>* parentTriangles;
     std::vector<uint32_t> triangles;
 };
+}
 
 inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, const std::array<uint32_t, 6>& parentNeighbours, std::array<uint32_t, 6>& outNeighbours)
 {

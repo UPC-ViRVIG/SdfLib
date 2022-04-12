@@ -5,6 +5,8 @@
 #include <array>
 #include <stack>
 
+namespace 
+{
 struct NodeInfo
 {
     NodeInfo(uint32_t nodeIndex, uint16_t depth, glm::vec3 center, float size, bool isTerminalNode = false)
@@ -16,6 +18,7 @@ struct NodeInfo
     bool isTerminalNode;
     std::array<float, 8> distanceToVertices;
 };
+}
 
 void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                            float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
