@@ -23,6 +23,18 @@ public:
 
     struct OctreeNode
     {
+        static inline OctreeNode getLeafNode()
+        {
+            OctreeNode n; n.childrenIndex = IS_LEAF_MASK;
+            return n;
+        }
+
+        static inline OctreeNode getInnerNode()
+        {
+            OctreeNode n; n.childrenIndex = 0;
+            return n;
+        }
+
         static constexpr uint32_t IS_LEAF_MASK = 1 << 31;
         static constexpr uint32_t CHILDREN_INDEX_MASK = ~IS_LEAF_MASK;
         union
@@ -83,7 +95,7 @@ public:
     OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
               float terminationThreshold = 1e-3,
               TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE,
-              InitAlgorithm initAlgorithm = InitAlgorithm::DF_ADAPTATIVE);
+              InitAlgorithm initAlgorithm = InitAlgorithm::BF_ADAPTATIVE);
 
     // Returns the maximum distance in absulute value contained by the octree
     float getOctreeValueRange() const { return mValueRange; }
@@ -114,7 +126,7 @@ public:
 
 private:
     // Option to delay the node termination and recyle the distances already calculated
-    static constexpr bool DELAY_NODE_TERMINATION = false;
+    static constexpr bool DELAY_NODE_TERMINATION = true;
 
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
