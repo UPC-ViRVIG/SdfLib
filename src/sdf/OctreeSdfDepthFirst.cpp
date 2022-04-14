@@ -5,7 +5,7 @@
 #include <array>
 #include <stack>
 
-namespace
+namespace OctreeDepthFirstData
 {
 	struct NodeInfo
 	{
@@ -19,6 +19,8 @@ namespace
 		std::array<float, 8> distanceToVertices;
 	};
 }
+
+using namespace OctreeDepthFirstData;
 
 void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                            float terminationThreshold, OctreeSdf::TerminationRule terminationRule)

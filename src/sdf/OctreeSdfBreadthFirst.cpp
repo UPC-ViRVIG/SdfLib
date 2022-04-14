@@ -5,12 +5,12 @@
 #include <array>
 #include <stack>
 
-namespace
+namespace OctreeBreadthFirstData
 {
-	struct NodeInfo1
+	struct NodeInfo
 	{
-		NodeInfo1() {}
-		NodeInfo1(uint32_t parentChildrenIndex, uint8_t childIndex, glm::vec3 center, float size, bool isTerminalNode = false)
+		NodeInfo() {}
+		NodeInfo(uint32_t parentChildrenIndex, uint8_t childIndex, glm::vec3 center, float size, bool isTerminalNode = false)
 			: parentChildrenIndex(parentChildrenIndex), childIndex(childIndex), center(center), size(size), isTerminalNode(isTerminalNode) {}
 		uint32_t parentChildrenIndex;
 		uint8_t childIndex;
@@ -28,6 +28,8 @@ namespace
 		std::vector<uint32_t> triangles;
 	};
 }
+
+using namespace OctreeBreadthFirstData;
 
 inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, const std::array<uint32_t, 6>& parentNeighbours, std::array<uint32_t, 6>& outNeighbours)
 {
@@ -160,8 +162,8 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 
     uint8_t currentBuffer = 0;
     uint8_t nextBuffer = 1;
-    std::array<std::vector<NodeInfo1>, 3> nodesBuffer;
-	nodesBuffer.fill(std::vector<NodeInfo1>());
+    std::array<std::vector<NodeInfo>, 3> nodesBuffer;
+	nodesBuffer.fill(std::vector<NodeInfo>());
 
     const uint32_t numTriangles = trianglesData.size();
     std::vector<uint32_t> startTriangles(numTriangles);
@@ -182,7 +184,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         const glm::vec3 startCenter = mBox.min + newSize;
         const uint32_t voxelsPerAxis = 1 << startOctreeDepth;
 
-        std::vector<NodeInfo1>& nodes = nodesBuffer[currentBuffer];
+        std::vector<NodeInfo>& nodes = nodesBuffer[currentBuffer];
 
         for(uint32_t k=0; k < voxelsPerAxis; k++)
         {
@@ -190,8 +192,8 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
             {
                 for(uint32_t i=0; i < voxelsPerAxis; i++)
                 {
-                    nodes.push_back(NodeInfo1(k * mStartGridXY + j * mStartGridSize + i, 0, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
-                    NodeInfo1& n = nodes.back();
+                    nodes.push_back(NodeInfo(k * mStartGridXY + j * mStartGridSize + i, 0, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
+                    NodeInfo& n = nodes.back();
                     n.parentTriangles = &startTriangles;
 
                     n.distanceToVertices.fill(INFINITY);
@@ -233,7 +235,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     for(uint32_t currentDepth=startOctreeDepth; currentDepth <= maxDepth; currentDepth++)
     {
         // Iter 1
-        for(NodeInfo1& node : nodesBuffer[currentBuffer])
+        for(NodeInfo& node : nodesBuffer[currentBuffer])
         {
             OctreeNode* octreeNode = &mOctreeData[node.parentChildrenIndex + node.childIndex];
 
@@ -354,9 +356,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     nodeStartGridPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
 
 				// Low Z children
-				nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToVertices[0]; child.distanceToVertices[1] = node.distanceToMidPoints[0]; 
                     child.distanceToVertices[2] = node.distanceToMidPoints[1]; child.distanceToVertices[3] = node.distanceToMidPoints[2];
@@ -366,9 +368,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(0, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-				nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[0]; child.distanceToVertices[1] = node.distanceToVertices[1];
 					child.distanceToVertices[2] = node.distanceToMidPoints[2]; child.distanceToVertices[3] = node.distanceToMidPoints[3];
@@ -378,9 +380,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(1, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 2, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 2, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[1]; child.distanceToVertices[1] = node.distanceToMidPoints[2];
 					child.distanceToVertices[2] = node.distanceToVertices[2]; child.distanceToVertices[3] = node.distanceToMidPoints[4];
@@ -390,9 +392,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(2, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 3, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 3, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[2]; child.distanceToVertices[1] = node.distanceToMidPoints[3];
 					child.distanceToVertices[2] = node.distanceToMidPoints[4]; child.distanceToVertices[3] = node.distanceToVertices[3];
@@ -403,9 +405,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				}
 
                 // High Z children
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 4, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 4, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[5]; child.distanceToVertices[1] = node.distanceToMidPoints[6];
 					child.distanceToVertices[2] = node.distanceToMidPoints[8]; child.distanceToVertices[3] = node.distanceToMidPoints[9];
@@ -415,9 +417,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(4, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 5, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 5, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[6]; child.distanceToVertices[1] = node.distanceToMidPoints[7];
 					child.distanceToVertices[2] = node.distanceToMidPoints[9]; child.distanceToVertices[3] = node.distanceToMidPoints[10];
@@ -427,9 +429,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(5, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 6, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 6, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[8]; child.distanceToVertices[1] = node.distanceToMidPoints[9];
 					child.distanceToVertices[2] = node.distanceToMidPoints[11]; child.distanceToVertices[3] = node.distanceToMidPoints[12];
@@ -439,9 +441,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(6, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo1(childIndex, 7, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 7, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo1& child = nodesBuffer[nextBuffer].back();
+					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
 					child.distanceToVertices[0] = node.distanceToMidPoints[9]; child.distanceToVertices[1] = node.distanceToMidPoints[10];
 					child.distanceToVertices[2] = node.distanceToMidPoints[12]; child.distanceToVertices[3] = node.distanceToMidPoints[13];

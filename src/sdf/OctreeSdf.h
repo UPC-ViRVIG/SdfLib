@@ -95,7 +95,7 @@ public:
     OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
               float terminationThreshold = 1e-3,
               TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE,
-              InitAlgorithm initAlgorithm = InitAlgorithm::DF_ADAPTATIVE);
+              InitAlgorithm initAlgorithm = InitAlgorithm::BF_ADAPTATIVE);
 
     // Returns the maximum distance in absulute value contained by the octree
     float getOctreeValueRange() const { return mValueRange; }

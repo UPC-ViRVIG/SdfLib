@@ -772,9 +772,9 @@ int main(int argc, char** argv)
 		}
 	}
 
-	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
-	//const std::string defaultModel = "../models/sphere.glb";
-	const std::string defaultModel = "../models/frog.ply";
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
+	const std::string defaultModel = "../models/sphere.glb";
+	// const std::string defaultModel = "../models/frog.ply";
 
 	if(sdfPathArg)
 	{
