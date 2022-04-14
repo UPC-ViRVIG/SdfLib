@@ -31,35 +31,35 @@ int main()
 	};
 
 	//Test quad with a point
-	for(size_t sample=0; sample < 2000000; sample++)
-	{
-		std::vector<glm::vec3> quad(8);
-		const glm::vec3 p1 = getRandomPoint();
-		const glm::vec3 p2 = getRandomPoint();
-		quad[0] = glm::min(p1, p2);
-		quad[7] = glm::max(p1, p2);
+	// for(size_t sample=0; sample < 2000000; sample++)
+	// {
+	// 	std::vector<glm::vec3> quad(8);
+	// 	const glm::vec3 p1 = getRandomPoint();
+	// 	const glm::vec3 p2 = getRandomPoint();
+	// 	quad[0] = glm::min(p1, p2);
+	// 	quad[7] = glm::max(p1, p2);
 
-		quad[1] = glm::vec3(quad[0].x, quad[0].y, quad[7].z);
-		quad[2] = glm::vec3(quad[0].x, quad[7].y, quad[0].z);
-		quad[3] = glm::vec3(quad[0].x, quad[7].y, quad[7].z);
-		quad[4] = glm::vec3(quad[7].x, quad[0].y, quad[0].z);
-		quad[5] = glm::vec3(quad[7].x, quad[0].y, quad[7].z);
-		quad[6] = glm::vec3(quad[7].x, quad[7].y, quad[0].z);
+	// 	quad[1] = glm::vec3(quad[0].x, quad[0].y, quad[7].z);
+	// 	quad[2] = glm::vec3(quad[0].x, quad[7].y, quad[0].z);
+	// 	quad[3] = glm::vec3(quad[0].x, quad[7].y, quad[7].z);
+	// 	quad[4] = glm::vec3(quad[7].x, quad[0].y, quad[0].z);
+	// 	quad[5] = glm::vec3(quad[7].x, quad[0].y, quad[7].z);
+	// 	quad[6] = glm::vec3(quad[7].x, quad[7].y, quad[0].z);
 
-		std::vector<glm::vec3> point(1);
-		point[0] = getRandomPoint();
+	// 	std::vector<glm::vec3> point(1);
+	// 	point[0] = getRandomPoint();
       
-		float expectedDist = distToQuad(point[0], quad[0], quad[7]);
-		float gjkDist = GJK::getMinDistance(quad, point);
+	// 	float expectedDist = distToQuad(point[0], quad[0], quad[7]);
+	// 	float gjkDist = GJK::getMinDistance(quad, point);
 
-		if (glm::abs(expectedDist - gjkDist) > 0.001)
-		{
-			float expectedDist1 = distToQuad(point[0], quad[0], quad[7]);
-			float gjkDist1 = GJK::getMinDistance(quad, point);
-			assert(false);
-		}
-		assert(glm::abs(expectedDist - gjkDist) < 0.001);
-	}
+	// 	if (glm::abs(expectedDist - gjkDist) > 0.001)
+	// 	{
+	// 		float expectedDist1 = distToQuad(point[0], quad[0], quad[7]);
+	// 		float gjkDist1 = GJK::getMinDistance(quad, point);
+	// 		assert(false);
+	// 	}
+	// 	assert(glm::abs(expectedDist - gjkDist) < 0.001);
+	// }
 
 	// // Test quad with a triangle
 	// for(size_t sample=0; sample < 1000; sample++)
@@ -155,6 +155,15 @@ int main()
 		{
 			float gjkDist11 = GJK::getMinDistance(quad, triangle);
 			float newGjkDist1 = GJK::getMinDistance(quadSize, triangleArray);
+			assert(false);
+		}
+		assert(glm::abs(gjkDist1 - newGjkDist) < 0.001);
+
+		newGjkDist = GJK::getMinDistanceNewMethod(quadSize, triangleArray);
+		if (glm::abs(gjkDist1 - newGjkDist) > 0.001)
+		{
+			float gjkDist11 = GJK::getMinDistance(quadSize, triangleArray);
+			float newGjkDist1 = GJK::getMinDistanceNewMethod(quadSize, triangleArray);
 			assert(false);
 		}
 		assert(glm::abs(gjkDist1 - newGjkDist) < 0.001);

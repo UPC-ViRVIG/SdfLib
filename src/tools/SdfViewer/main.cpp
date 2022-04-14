@@ -141,6 +141,8 @@ public:
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
 
+		mSelectArea = viewBB;
+
 		// Create sdf plane
 		{
 			mPlaneRenderer = std::make_shared<RenderMesh>();
@@ -417,6 +419,7 @@ public:
 		ImGui::Checkbox("Visualize zone", &mSelectZone);
 		if(mSelectZone) 
 		{
+			ImGui::Checkbox("Calculate Minimal Influence", &mComputeMinimalInfluence);
 			ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
 			if(mPrintTrianglesInfluence)
 			{
@@ -478,7 +481,7 @@ public:
 
 					if(minDist <= minMaxDist)
 					{
-						triangles.push_back(std::make_pair(minDist, i));
+						triangles.push_back(std::make_pair(minDist, i/3));
 					}
 				}
 
@@ -489,6 +492,83 @@ public:
 
 				triangles.resize(s);
 
+				const std::array<glm::vec3, 8> childrens = 
+				{
+					glm::vec3(-1.0f, -1.0f, -1.0f),
+					glm::vec3(1.0f, -1.0f, -1.0f),
+					glm::vec3(-1.0f, 1.0f, -1.0f),
+					glm::vec3(1.0f, 1.0f, -1.0f),
+
+					glm::vec3(-1.0f, -1.0f, 1.0f),
+					glm::vec3(1.0f, -1.0f, 1.0f),
+					glm::vec3(-1.0f, 1.0f, 1.0f),
+					glm::vec3(1.0f, 1.0f, 1.0f)
+				};
+
+				if(mComputeMinimalInfluence) 
+				{
+					std::vector<TriangleUtils::TriangleData> trianglesInfo = TriangleUtils::calculateMeshTriangleData(mMesh.value());
+					std::vector<std::array<float, 8>> trianglesDist(triangles.size());
+
+					uint32_t index = 0;
+					for(std::pair<float, uint32_t>& p : triangles)
+					{
+						for(uint32_t j=0; j < 8; j++)
+						{
+							trianglesDist[index][j] = glm::abs(TriangleUtils::getSignedDistPointAndTriangle(centerPoint + 0.5f * childrens[j] * size, trianglesInfo[p.second]));
+						}
+						index++;
+					}
+
+					std::vector<std::pair<float, uint32_t>> newTriangles;
+					std::vector<std::pair<glm::vec3, float>> spheresQuad(8);
+
+					uint32_t outIndex = 0;
+					for(std::pair<float, uint32_t>& p : triangles)
+					{
+						triangle[0] = vertices[indices[3 * p.second]] - centerPoint;
+						triangle[1] = vertices[indices[3 * p.second + 1]] - centerPoint;
+						triangle[2] = vertices[indices[3 * p.second + 2]] - centerPoint;
+						
+						bool inside = true;
+						index = 0;
+						for(std::pair<float, uint32_t>& p1 : triangles)
+						{
+							if (outIndex != index)
+							{
+								for (uint32_t i = 0; i < 8; i++)
+								{
+									spheresQuad[i] = std::make_pair(childrens[i] * 0.5f * size, trianglesDist[index][i]);
+								}
+
+								bool insideRegion = GJK::isInsideConvexHull(spheresQuad, triangle);
+								if (!insideRegion)
+								{
+									inside = false;
+									//break;
+								}
+								else
+								{
+									int a = 22;
+									a++;
+								}
+							}
+							index++;
+						}
+
+						if (inside)
+						{
+							newTriangles.push_back(p);
+						}
+						outIndex++;
+					}
+
+					SPDLOG_INFO("Triangles with new method {} // with all method {}", newTriangles.size(), triangles.size());
+
+					triangles = std::move(newTriangles);
+				}
+
+
 				std::vector<std::pair<TriangleUtils::TriangleData, uint32_t>> trianglesData;
 				trianglesData.reserve(triangles.size());
 				std::vector<uint32_t> newIndices;
@@ -496,14 +576,14 @@ public:
 
 				for(const std::pair<float, uint32_t>& p : triangles)
 				{
-					newIndices.push_back(indices[p.second]);
-					newIndices.push_back(indices[p.second + 1]);
-					newIndices.push_back(indices[p.second + 2]);
+					newIndices.push_back(indices[3 * p.second]);
+					newIndices.push_back(indices[3 * p.second + 1]);
+					newIndices.push_back(indices[3 * p.second + 2]);
 
 					trianglesData.push_back(std::make_pair(TriangleUtils::TriangleData(
-						vertices[indices[p.second]],
-						vertices[indices[p.second + 1]],
-						vertices[indices[p.second + 2]]
+						vertices[indices[3 * p.second]],
+						vertices[indices[3 * p.second + 1]],
+						vertices[indices[3 * p.second + 2]]
 					), 0));
 				}
 
@@ -574,11 +654,11 @@ public:
 
 						// Add triangle
 						const std::pair<float, uint32_t>& p = triangles[t];
-						newVertices.push_back(vertices[indices[p.second]]);
+						newVertices.push_back(vertices[indices[3 * p.second]]);
 						newVertices.push_back(color);
-						newVertices.push_back(vertices[indices[p.second + 1]]);
+						newVertices.push_back(vertices[indices[3 * p.second + 1]]);
 						newVertices.push_back(color);
-						newVertices.push_back(vertices[indices[p.second + 2]]);
+						newVertices.push_back(vertices[indices[3 * p.second + 2]]);
 						newVertices.push_back(color);
 					}
 
@@ -628,6 +708,7 @@ private:
 	bool mSelectZone = false;
 	bool mPrintTrianglesInfluence = false;
 	bool mPrintIfSomeInfluence = false;
+	bool mComputeMinimalInfluence = false;
 	uint32_t mInfluenceNumSamples = 10000;
 	uint32_t mSelectedDepth = 0;
 	BoundingBox mSelectArea;
@@ -691,8 +772,9 @@ int main(int argc, char** argv)
 		}
 	}
 
-	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
-	const std::string defaultModel = "../models/sphere.glb";
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
+	//const std::string defaultModel = "../models/sphere.glb";
+	const std::string defaultModel = "../models/frog.ply";
 
 	if(sdfPathArg)
 	{
@@ -729,8 +811,8 @@ int main(int argc, char** argv)
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 7,
-			(startDepthArg) ? args::get(startDepthArg) : 3,
+			(depthArg) ? args::get(depthArg) : 6,
+			(startDepthArg) ? args::get(startDepthArg) : 4,
 			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3,
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);

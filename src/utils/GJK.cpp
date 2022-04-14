@@ -15,14 +15,53 @@ enum SimplexType
 
 struct Simplex
 {
+    typedef glm::vec3 Point;
     std::array<glm::vec3, 4> points;
     SimplexType type;
+
+    inline glm::vec3 operator [](uint32_t idx) const { return points[idx]; }
 };
 
-bool getLineOriginDirection(Simplex& simplex, glm::vec3& outDirection)
+struct TrackedSimplex
 {
-    const glm::vec3 ab = simplex.points[1] - simplex.points[0];
-    const glm::vec3 ao = -simplex.points[0];
+    struct Point
+    {
+        glm::vec3 value;
+        std::pair<uint32_t, uint32_t> shapePoints;
+    };
+    std::array<Point, 4> points;
+    SimplexType type;
+
+    inline glm::vec3 operator [](uint32_t idx) const { return points[idx].value; }
+
+    bool contains(const Point& p)
+    {
+        bool res = false;
+        switch(type)
+        {
+            case SimplexType::TETRAHEDRON:
+                res = res || (p.shapePoints.first == points[3].shapePoints.first &&
+                              p.shapePoints.second == points[3].shapePoints.second);
+            case SimplexType::TRIANGLE:
+                res = res || (p.shapePoints.first == points[2].shapePoints.first &&
+                             p.shapePoints.second == points[2].shapePoints.second);
+            case SimplexType::LINE:
+                res = res || (p.shapePoints.first == points[1].shapePoints.first &&
+                             p.shapePoints.second == points[1].shapePoints.second);
+            case SimplexType::POINT:
+                res = res || (p.shapePoints.first == points[0].shapePoints.first &&
+                             p.shapePoints.second == points[0].shapePoints.second);
+        }
+
+        return res;
+    }
+};
+
+template<typename S>
+bool getLineOriginDirection(S& simplex, glm::vec3& outDirection)
+{
+    const glm::vec3 ab = simplex[1] - simplex[0];
+    const glm::vec3 ao = -simplex[0];
 
     if(glm::dot(ab, ao) > 0.0f)
     {
@@ -39,11 +78,12 @@ bool getLineOriginDirection(Simplex& simplex, glm::vec3& outDirection)
     return false;
 }
 
-bool getTriangleOriginDirection(Simplex& simplex, glm::vec3& outDirection)
+template<typename S>
+bool getTriangleOriginDirection(S& simplex, glm::vec3& outDirection)
 {
-    glm::vec3 ab = simplex.points[1] - simplex.points[0];
-    glm::vec3 ac = simplex.points[2] - simplex.points[0];
-    glm::vec3 ao = -simplex.points[0];
+    glm::vec3 ab = simplex[1] - simplex[0];
+    glm::vec3 ac = simplex[2] - simplex[0];
+    glm::vec3 ao = -simplex[0];
 
     glm::vec3 n = glm::cross(ab, ac);
 
@@ -78,7 +118,7 @@ bool getTriangleOriginDirection(Simplex& simplex, glm::vec3& outDirection)
         }
         else
         {
-            glm::vec3 aux = simplex.points[1];
+            S::Point aux = simplex.points[1];
             simplex.points[1] = simplex.points[2];
             simplex.points[2] = aux;
             outDirection = -n;
@@ -87,12 +127,13 @@ bool getTriangleOriginDirection(Simplex& simplex, glm::vec3& outDirection)
     return false;
 }
 
-bool getTetrahedronOriginDirectionCase1(Simplex& simplex, glm::vec3& outDirection)
+template<typename S>
+bool getTetrahedronOriginDirectionCase1(S& simplex, glm::vec3& outDirection)
 {
-    glm::vec3 ab = simplex.points[1] - simplex.points[0];
-    glm::vec3 ac = simplex.points[2] - simplex.points[0];
-    glm::vec3 ad = simplex.points[3] - simplex.points[0];
-    glm::vec3 ao = -simplex.points[0];
+    glm::vec3 ab = simplex[1] - simplex[0];
+    glm::vec3 ac = simplex[2] - simplex[0];
+    glm::vec3 ad = simplex[3] - simplex[0];
+    glm::vec3 ao = -simplex[0];
 
     glm::vec3 n = glm::cross(ab, ac);
     if(glm::dot(n, ao) > 0.0f)
@@ -122,12 +163,13 @@ bool getTetrahedronOriginDirectionCase1(Simplex& simplex, glm::vec3& outDirectio
     return true;
 }
 
-bool getTetrahedronOriginDirectionCase2(Simplex& simplex, glm::vec3& outDirection)
+template<typename S>
+bool getTetrahedronOriginDirectionCase2(S& simplex, glm::vec3& outDirection)
 {
-    glm::vec3 ab = simplex.points[1] - simplex.points[0];
-    glm::vec3 ac = simplex.points[2] - simplex.points[0];
-    glm::vec3 ad = simplex.points[3] - simplex.points[0];
-    glm::vec3 ao = -simplex.points[0];
+    glm::vec3 ab = simplex[1] - simplex[0];
+    glm::vec3 ac = simplex[2] - simplex[0];
+    glm::vec3 ad = simplex[3] - simplex[0];
+    glm::vec3 ao = -simplex[0];
 
     glm::vec3 abc = glm::cross(ab, ac);
     glm::vec3 acd = glm::cross(ac, ad);
@@ -218,7 +260,8 @@ bool getTetrahedronOriginDirectionCase2(Simplex& simplex, glm::vec3& outDirectio
     return true;
 }
 
-bool getOriginDirection(Simplex& simplex, glm::vec3& outDirection, float dotLastEnterPoint)
+template<typename S>
+bool getOriginDirection(S& simplex, glm::vec3& outDirection, float dotLastEnterPoint)
 {
     switch(simplex.type)
     {
@@ -231,7 +274,6 @@ bool getOriginDirection(Simplex& simplex, glm::vec3& outDirection, float dotLast
             // if(dotLastEnterPoint > 0.0f)
             //     return getTetrahedronOriginDirectionCase1(simplex, outDirection);
             // else
-                
     }
 
     assert(false);
@@ -274,7 +316,7 @@ float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
         glm::vec3 p = findFurthestPoint(e1, e2, direction);
 
         dotLastEnterPoint = glm::dot(p, direction);
-        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 5.0e-7f)
         {
             return glm::dot(p, glm::normalize(-direction));
             // return glm::length(direction);
@@ -329,21 +371,99 @@ inline glm::vec3 findFurthestPoint(const glm::vec3& quadSize, const std::array<g
     }
 }
 
-float getMinDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle)
+inline glm::vec3 fsign(glm::vec3 a)
 {
+	return glm::vec3(
+		(a.x > 0.0f) ? 1.0f : -1.0f,
+		(a.y > 0.0f) ? 1.0f : -1.0f,
+		(a.z > 0.0f) ? 1.0f : -1.0f
+		);
+}
+
+inline TrackedSimplex::Point findFurthestPointAndIndices(const glm::vec3& quadSize, const std::array<glm::vec3, 3>& triangle, const glm::vec3& direction)
+{
+    const float d1 = glm::dot(triangle[0], direction);
+    const float d2 = glm::dot(triangle[1], direction);
+    const float d3 = glm::dot(triangle[2], direction);
+
+    const glm::vec3 quadPos = fsign(-direction) * quadSize;
+    const uint32_t quadIndex = ((direction.z < 0) ? 4 : 0) + 
+                               ((direction.y < 0) ? 2 : 0) + 
+                               ((direction.x < 0) ? 1 : 0);
+
+    if(d1 > d2)
+    {
+        return (d1 > d3) 
+                ? TrackedSimplex::Point{triangle[0] - quadPos, std::make_pair(0, quadIndex)}
+                : TrackedSimplex::Point{triangle[2] - quadPos, std::make_pair(2, quadIndex)};
+    }
+    else
+    {
+        return (d2 > d3) 
+                ? TrackedSimplex::Point{triangle[1] - quadPos, std::make_pair(1, quadIndex)} 
+                : TrackedSimplex::Point{triangle[2] - quadPos, std::make_pair(2, quadIndex)};
+    }
+}
+
+float getMinDistanceNewMethod(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle)
+{
+    TrackedSimplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPointAndIndices(quadSize, triangle, glm::vec3(1.0, 0.0, 0.0));
+
+    glm::vec3 direction = -simplex[0];
+    glm::vec3 lastDirection;
+    uint32_t iter = 0;
+    do {
+        direction = glm::normalize(direction);
+        TrackedSimplex::Point p = findFurthestPointAndIndices(quadSize, triangle, direction);
+        
+        if(simplex.contains(p) || glm::abs(glm::dot(direction, lastDirection) - 1.0f) < 1e-6)
+        {
+            return glm::dot(p.value, glm::normalize(-direction));
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+		lastDirection = direction;
+
+    } while(!getOriginDirection(simplex, direction, 0.0f) && ++iter < 100);
+
+    //assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return 0.0f;
+}
+
+float getMinDistance(glm::vec3 quadSize, 
+                     const std::array<glm::vec3, 3>& triangle,
+                     uint32_t* pIter)
+{
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+
     Simplex simplex;
     simplex.type = SimplexType::POINT;
     simplex.points[0] = findFurthestPoint(quadSize, triangle, glm::vec3(1.0, 0.0, 0.0));
 
     glm::vec3 direction = -simplex.points[0];
     float dotLastEnterPoint = 0.0f;
-    uint32_t iter = 0;
     do {
         direction = glm::normalize(direction);
         glm::vec3 p = findFurthestPoint(quadSize, triangle, direction);
         
         dotLastEnterPoint = glm::dot(p, direction);
-        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 5.0e-5f * glm::abs(dotLastEnterPoint))
+        if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
         {
             return glm::dot(p, glm::normalize(-direction));
         }
@@ -391,6 +511,81 @@ float getMinMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& tria
         sqMaxDistToQuad(triangle[2], quadSize)
     );
     return glm::sqrt(maxDist);
+}
+
+glm::vec3 findFurthestPoint(const std::vector<std::pair<glm::vec3, float>>& spheresShape, const glm::vec3& direction)
+{
+    float maxValue = glm::dot(spheresShape[0].first, direction) + spheresShape[0].second;
+    int maxIndex = 0;
+    for(int i=1; i < spheresShape.size(); i++)
+    {
+        const float value = glm::dot(spheresShape[i].first, direction) + spheresShape[i].second;
+        if(value > maxValue)
+        {
+            maxValue = value;
+            maxIndex = i;
+        }
+    }
+
+    return spheresShape[maxIndex].first + spheresShape[maxIndex].second * direction;
+}
+
+glm::vec3 findFurthestPoint(const std::array<glm::vec3, 3>& triangle, const glm::vec3& direction)
+{
+    const float d1 = glm::dot(triangle[0], direction);
+    const float d2 = glm::dot(triangle[1], direction);
+    const float d3 = glm::dot(triangle[2], direction);
+
+    if(d1 > d2) return (d1 > d3) ? triangle[0] : triangle[2];
+    else return (d2 > d3) ? triangle[1] : triangle[2];
+}
+
+glm::vec3 findFurthestPoint(const std::vector<std::pair<glm::vec3, float>>& spheresShape, 
+                            const std::array<glm::vec3, 3>& triangle,
+                            const glm::vec3& direction)
+{
+    return findFurthestPoint(spheresShape, direction) - findFurthestPoint(triangle, -direction);
+}
+
+bool isInsideConvexHull(const std::vector<std::pair<glm::vec3, float>>& spheresShape, 
+                        const std::array<glm::vec3, 3>& triangle,
+                        uint32_t* pIter)
+{
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+
+    Simplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPoint(spheresShape, triangle, glm::vec3(1.0, 0.0, 0.0));
+
+    glm::vec3 direction = -simplex.points[0];
+    do {
+        direction = glm::normalize(direction);
+        glm::vec3 p = findFurthestPoint(spheresShape, triangle, direction);
+        
+        if(glm::dot(p, direction) <= 0.0f)
+        {
+            return false;
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+    } while(!getOriginDirection(simplex, direction, 0.0f) && ++iter < 100);
+
+    //assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return true;
 }
 
 }
