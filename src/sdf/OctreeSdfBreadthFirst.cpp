@@ -154,12 +154,6 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         0b00000000000000000001  // [_,+,+]
     };
 
-    // Create the grid
-    {
-        const uint32_t voxlesPerAxis = 1 << startDepth;
-        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
-    }
-
     uint8_t currentBuffer = 0;
     uint8_t nextBuffer = 1;
     std::array<std::vector<NodeInfo>, 3> nodesBuffer;
@@ -172,15 +166,15 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         startTriangles[i] = i;
     }
 
+    // Create the grid
     {
         const uint32_t voxlesPerAxis = 1 << startDepth;
-        const uint32_t numVoxels = voxlesPerAxis * voxlesPerAxis * voxlesPerAxis;
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
     }
 
     // Create first start nodes
     {        
-        float newSize = 0.5f * mBox.getSize().x * glm::pow(0.5f, startDepth);
+        float newSize = 0.5f * mBox.getSize().x * glm::pow(0.5f, startOctreeDepth);
         const glm::vec3 startCenter = mBox.min + newSize;
         const uint32_t voxelsPerAxis = 1 << startOctreeDepth;
 
@@ -192,13 +186,14 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
             {
                 for(uint32_t i=0; i < voxelsPerAxis; i++)
                 {
-                    nodes.push_back(NodeInfo(k * mStartGridXY + j * mStartGridSize + i, 0, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
+                    nodes.push_back(NodeInfo(std::numeric_limits<uint32_t>::max(), 0, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
                     NodeInfo& n = nodes.back();
                     n.parentTriangles = &startTriangles;
 
                     n.distanceToVertices.fill(INFINITY);
                     std::array<uint32_t, 8> minIndex;
 
+                    // Calculate minumum distance to verices
                     for(uint32_t t=0; t < trianglesData.size(); t++)
                     {
                         for(uint32_t i=0; i < 8; i++)
@@ -237,7 +232,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         // Iter 1
         for(NodeInfo& node : nodesBuffer[currentBuffer])
         {
-            OctreeNode* octreeNode = &mOctreeData[node.parentChildrenIndex + node.childIndex];
+            OctreeNode* octreeNode = (currentDepth > startDepth) 
+                                        ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
+                                        : nullptr;
 
             if(!node.isTerminalNode && currentDepth < maxDepth)
             {
@@ -263,8 +260,8 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                 }
 
                 // Get current neighbours
-                uint32_t samplesMask = 0;
-                if(!node.isTerminalNode && currentDepth != startOctreeDepth)
+                uint32_t samplesMask = 0; // Calculate which sample points must be interpolated
+                if(currentDepth > startDepth)
                 {
                     for(uint8_t neighbour = 1; neighbour <= 6; neighbour++)
                     {
@@ -345,15 +342,25 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                 // Generate new childrens
 				const float newSize = 0.5f * node.size;
 
-				uint32_t childIndex = mOctreeData.size();
-				octreeNode->setValues(false, childIndex);
-
-			    mOctreeData.resize(mOctreeData.size() + 8, 
-                                    (generateTerminalNodes) ? OctreeNode::getLeafNode() : OctreeNode::getInnerNode());
-
                 glm::ivec3 nodeStartGridPos;
                 if(currentDepth == startDepth)
+                {
                     nodeStartGridPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+                    const uint32_t nodeStartIndex = 
+                                        nodeStartGridPos.z * mStartGridSize * mStartGridSize + 
+                                        nodeStartGridPos.y * mStartGridSize + 
+                                        nodeStartGridPos.x;
+                    octreeNode = &mOctreeData[nodeStartIndex];
+                }
+
+                uint32_t childIndex = std::numeric_limits<uint32_t>::max();
+                if(currentDepth >= startDepth)
+                {
+                    childIndex = mOctreeData.size();
+                    octreeNode->setValues(false, childIndex);
+                    mOctreeData.resize(mOctreeData.size() + 8, 
+                                        (generateTerminalNodes) ? OctreeNode::getLeafNode() : OctreeNode::getInnerNode());
+                }
 
 				// Low Z children
 				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
