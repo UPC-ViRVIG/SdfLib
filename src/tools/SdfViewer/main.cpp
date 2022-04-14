@@ -811,9 +811,9 @@ int main(int argc, char** argv)
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 6,
-			(startDepthArg) ? args::get(startDepthArg) : 4,
-			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3,
+			(depthArg) ? args::get(depthArg) : 7,
+			(startDepthArg) ? args::get(startDepthArg) : 1,
+			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 4e-3,
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;

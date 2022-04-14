@@ -5,19 +5,19 @@
 #include <array>
 #include <stack>
 
-namespace 
+namespace
 {
-struct NodeInfo
-{
-    NodeInfo(uint32_t nodeIndex, uint16_t depth, glm::vec3 center, float size, bool isTerminalNode = false)
-        : nodeIndex(nodeIndex), depth(depth), center(center), size(size), isTerminalNode(isTerminalNode) {}
-    uint32_t nodeIndex;
-    uint16_t depth;
-    glm::vec3 center;
-    float size;
-    bool isTerminalNode;
-    std::array<float, 8> distanceToVertices;
-};
+	struct NodeInfo
+	{
+		NodeInfo(uint32_t nodeIndex, uint16_t depth, glm::vec3 center, float size, bool isTerminalNode = false)
+			: nodeIndex(nodeIndex), depth(depth), center(center), size(size), isTerminalNode(isTerminalNode) {}
+		uint32_t nodeIndex;
+		uint16_t depth;
+		glm::vec3 center;
+		float size;
+		bool isTerminalNode;
+		std::array<float, 8> distanceToVertices;
+	};
 }
 
 void OctreeSdf::initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth)
