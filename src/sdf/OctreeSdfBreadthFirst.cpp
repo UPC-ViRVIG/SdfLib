@@ -149,8 +149,8 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 
         // 110
         0b01000000000000000000, // [_,-,-]
-        0b00000000000000010000, // [_,-,+]        
-        0b00000100000000000000, // [_,+,-]
+        0b00000100000000000000, // [_,+,-]        
+        0b00000000000000010000, // [_,-,+]
         0b00000000000000000001  // [_,+,+]
     };
 
@@ -280,6 +280,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
 											  ((((neighbour & node.childIndex) >> 1) & 0b0001) << (neighbour & 0b0001)) +
 											  (neighbour & node.childIndex & 0b0001);
+                        assert(sign >= 0 && sign < 4);
                         samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
                                         ? neigbourMasks[4 * (neighbour - 1) + sign]
                                         : 0;
@@ -311,6 +312,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         if(samplesMask & (1 << (18-i)))
                         {
                             node.distanceToMidPoints[i] = interpolateValue(reinterpret_cast<float*>(&node.distanceToVertices), 0.5f * nodeSamplePoints[i] + 0.5f);
+                            node.distanceToMidPoints[i] = 0.0f;
                         }
                         else
                         {
