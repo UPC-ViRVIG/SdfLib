@@ -230,14 +230,14 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     for(uint32_t currentDepth=startOctreeDepth; currentDepth <= maxDepth; currentDepth++)
     {
         // Iter 1
-        for(NodeInfo& node : nodesBuffer[currentBuffer])
+        if(currentDepth < maxDepth)
         {
-            OctreeNode* octreeNode = (currentDepth > startDepth) 
+            for(NodeInfo& node : nodesBuffer[currentBuffer])
+            {
+                OctreeNode* octreeNode = (currentDepth > startDepth) 
                                         ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
                                         : nullptr;
 
-            if(!node.isTerminalNode && currentDepth < maxDepth)
-            {
                 // Get triangles influencing the node
                 float maxMinDist = 0.0f;
                 for(uint32_t i=0; i < 8; i++)
@@ -266,15 +266,15 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     for(uint8_t neighbour = 1; neighbour <= 6; neighbour++)
                     {
                         if(((node.neighbourIndices[neighbour - 1]) >> 30) == 0) // Calculate next neigbour
-                        {
-							assert(!mOctreeData[node.neighbourIndices[neighbour - 1]].isLeaf());
-                            node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1]].getChildrenIndex();
-
-							if (mOctreeData[node.neighbourIndices[neighbour - 1]].isLeaf())
-							{
-								// Check if the values are correct
-								node.neighbourIndices[neighbour - 1] = 1 << 31;
-							}
+                        {                            
+                            if (mOctreeData[node.neighbourIndices[neighbour - 1]].isLeaf())
+                            {
+                                node.neighbourIndices[neighbour - 1] = 1 << 31;
+                            }
+                            else
+                            {
+                                node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1]].getChildrenIndex();
+                            }
                         }
                         
                         const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
@@ -312,7 +312,6 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         if(samplesMask & (1 << (18-i)))
                         {
                             node.distanceToMidPoints[i] = interpolateValue(reinterpret_cast<float*>(&node.distanceToVertices), 0.5f * nodeSamplePoints[i] + 0.5f);
-                            node.distanceToMidPoints[i] = 0.0f;
                         }
                         else
                         {
@@ -341,6 +340,66 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     generateTerminalNodes = value < sqTerminationThreshold;
                 }
 
+                node.isTerminalNode = generateTerminalNodes;
+                if(octreeNode != nullptr) octreeNode->setValues(generateTerminalNodes, std::numeric_limits<uint32_t>::max());
+            }
+        }
+
+        // Iter 2
+        for(NodeInfo& node : nodesBuffer[currentBuffer])
+        {
+            OctreeNode* octreeNode = (currentDepth > startDepth) 
+                                        ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
+                                        : nullptr;
+
+            const std::vector<OctreeSdf::OctreeNode>& octreeData = mOctreeData;
+            auto getNeighbourMask = [&](uint32_t nodeId, uint8_t dir, uint8_t sign) -> uint32_t
+            {
+                return ((nodeId >> 31) || (!(nodeId >> 30) && octreeData[nodeId + (dir ^ node.childIndex)].isLeaf()))
+                        ? neigbourMasks[4 * (dir - 1) + sign]
+                        : 0;
+            };
+
+            if(!node.isTerminalNode && currentDepth < maxDepth)
+            {
+
+                // Get current neighbours
+                uint32_t samplesMask = 0; // Calculate which sample points must be interpolated
+                if(currentDepth > startDepth)
+                {
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0001, node.childIndex & 0b001);
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0011, 0b010 ^ (node.childIndex & 0b011));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0101, (((~node.childIndex) >> 1) & 0b010) + (node.childIndex & 0b001));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[1], 0b0010, (node.childIndex >> 1) & 0b001);
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[1], 0b0011, 0b001 ^ (node.childIndex & 0b011));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[1], 0b0110, 0b010 ^ ((node.childIndex >> 1) & 0b011));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[2], 0b0011, node.childIndex & 0b011);
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[3], 0b0100, (node.childIndex >> 2) & 0b001);
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[3], 0b0101, ((node.childIndex >> 1) & 0b010) + ((~node.childIndex) & 0b001));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[3], 0b0110, 0b001 ^ ((node.childIndex >> 1) & 0b011));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[4], 0b0101, ((node.childIndex >> 1) & 0b010) + (node.childIndex & 0b001));
+                    samplesMask |= getNeighbourMask(node.neighbourIndices[5], 0b0110, (node.childIndex >> 1) & 0b011);
+
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0001, (~node.childIndex) & 0b001);
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0010, ((~node.childIndex) >> 1) & 0b001);
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0100, ((~node.childIndex) >> 2) & 0b001);
+
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0011, (~node.childIndex) & 0b011);
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0101, (((~node.childIndex) >> 1) & 0b010) + ((~node.childIndex) & 0b001));
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0110, ((~node.childIndex) >> 1) & 0b011);                    
+                }
+
+                // Change distance if requires
+                {
+                    for(uint32_t i=0; i < 19; i++)
+                    {
+                        if(samplesMask & (1 << (18-i)))
+                        {
+                            node.distanceToMidPoints[i] = interpolateValue(reinterpret_cast<float*>(&node.distanceToVertices), 0.5f * nodeSamplePoints[i] + 0.5f);
+                        }
+                    }
+                }
+
                 // Generate new childrens
 				const float newSize = 0.5f * node.size;
 
@@ -360,12 +419,11 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                 {
                     childIndex = mOctreeData.size();
                     octreeNode->setValues(false, childIndex);
-                    mOctreeData.resize(mOctreeData.size() + 8, 
-                                        (generateTerminalNodes) ? OctreeNode::getLeafNode() : OctreeNode::getInnerNode());
+                    mOctreeData.resize(mOctreeData.size() + 8);
                 }
 
 				// Low Z children
-				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -377,7 +435,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(0, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -389,7 +447,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(1, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 2, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 2, node.center + glm::vec3(-newSize, newSize, -newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -401,7 +459,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(2, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 3, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 3, node.center + glm::vec3(newSize, newSize, -newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -414,7 +472,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				}
 
                 // High Z children
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 4, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 4, node.center + glm::vec3(-newSize, -newSize, newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -426,7 +484,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(4, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 5, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 5, node.center + glm::vec3(newSize, -newSize, newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -438,7 +496,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(5, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 6, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 6, node.center + glm::vec3(-newSize, newSize, newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
@@ -450,7 +508,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     else getNeighboursVector(6, node.childIndex, node.parentChildrenIndex, node.neighbourIndices, child.neighbourIndices);
 				}
 
-                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 7, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
+                nodesBuffer[nextBuffer].push_back(NodeInfo(childIndex, 7, node.center + glm::vec3(newSize, newSize, newSize), newSize));
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
