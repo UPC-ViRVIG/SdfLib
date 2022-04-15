@@ -312,7 +312,6 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         if(samplesMask & (1 << (18-i)))
                         {
                             node.distanceToMidPoints[i] = interpolateValue(reinterpret_cast<float*>(&node.distanceToVertices), 0.5f * nodeSamplePoints[i] + 0.5f);
-                            node.distanceToMidPoints[i] = 0.0f;
                         }
                         else
                         {
