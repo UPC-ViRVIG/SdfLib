@@ -17,6 +17,8 @@
 #include "utils/PrimitivesFactory.h"
 #include "utils/Timer.h"
 #include "utils/GJK.h"
+#include "InfluenceRegionCreator.h"
+#include "sdf/TrianglesInfluence.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
@@ -336,6 +338,47 @@ public:
 			mColoredModelRenderer->callDraw = false;
 			addSystem(mColoredModelRenderer);
 		}
+
+		// Influence mesh
+		auto addInfluenceRegion = [&] (std::shared_ptr<RenderMesh>& renderMesh, 
+									   uint32_t& vertBufferId, uint32_t& normBufferId)
+		{
+			renderMesh = std::make_shared<RenderMesh>();
+			renderMesh->start();
+			vertBufferId =
+				renderMesh->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+													RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+												}, nullptr, 0);
+
+			normBufferId =
+				renderMesh->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+														RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+													}, nullptr, 0);
+
+			renderMesh->setDrawMode(GL_TRIANGLES);
+			renderMesh->setShader(Shader<NormalsShader>::getInstance());
+			renderMesh->drawSurface(true);
+			renderMesh->drawWireframe(true);
+			renderMesh->setTransform(
+				glm::translate(glm::mat4(1.0f), viewBB.getCenter()) * 
+				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfBB.getSize()) *
+				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
+			);
+
+			renderMesh->callDraw = false;
+		};
+
+		addInfluenceRegion(mInfluenceRegion, mInfluenceRegionBufferIdVert, mInfluenceRegionBufferIdNorm);
+		mInfluenceRegion->systemName = "Influence region";
+		addSystem(mInfluenceRegion);
+
+		mGreenNormalsShader = std::unique_ptr<NormalsShader>(new NormalsShader());
+		mGreenNormalsShader->setDrawColor(glm::vec3(0.0f, 0.8f, 0.0f));
+
+		addInfluenceRegion(mOptimalInfluenceRegion, mOptimalInfluenceRegionBufferIdVert, mOptimalInfluenceRegionBufferIdNorm);
+		mOptimalInfluenceRegion->systemName = "Optimal influence region";
+		mOptimalInfluenceRegion->setShader(mGreenNormalsShader.get());
+		addSystem(mOptimalInfluenceRegion);
 	}
 
 	void update(float deltaTime) override
@@ -413,6 +456,7 @@ public:
 				break;
 		}
 
+
 		// Selection option
 		if(!mMesh.has_value()) return;
 		bool lastSelectZone = mSelectZone;
@@ -420,11 +464,15 @@ public:
 		if(mSelectZone) 
 		{
 			ImGui::Checkbox("Calculate Minimal Influence", &mComputeMinimalInfluence);
+			ImGui::Checkbox("Draw influence zone", &mDrawInfluenceZone);
+			ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
+			ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
 			ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
+			ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
 			if(mPrintTrianglesInfluence)
 			{
 				ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
-				ImGui::Checkbox("Print If has some influence", &mPrintIfSomeInfluence);
+				ImGui::Checkbox("Print if it has some influence", &mPrintIfSomeInfluence);
 			}
 			ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
 			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
@@ -505,9 +553,15 @@ public:
 					glm::vec3(1.0f, 1.0f, 1.0f)
 				};
 
+				std::shared_ptr<Mesh> influenceRegionMesh = (mDrawInfluenceZone)
+					? PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions)
+					: nullptr;
+
+				std::vector<TriangleUtils::TriangleData> trianglesInfo = TriangleUtils::calculateMeshTriangleData(mMesh.value());
+
+				// Serach triangles influencing the zone
 				if(mComputeMinimalInfluence) 
 				{
-					std::vector<TriangleUtils::TriangleData> trianglesInfo = TriangleUtils::calculateMeshTriangleData(mMesh.value());
 					std::vector<std::array<float, 8>> trianglesDist(triangles.size());
 
 					uint32_t index = 0;
@@ -520,8 +574,18 @@ public:
 						index++;
 					}
 
+					TrianglesInfluence trianglesInfluence(0.5f * size);
+					for(uint32_t i=0; i < triangles.size(); i++)
+					{
+						trianglesInfluence.addTriangle(trianglesDist[i]);
+					}
+
 					std::vector<std::pair<float, uint32_t>> newTriangles;
-					std::vector<std::pair<glm::vec3, float>> spheresQuad(8);
+					std::vector<std::vector<std::pair<glm::vec3, float>>> spheresQuad(triangles.size(), 
+																						std::vector<std::pair<glm::vec3, float>>(8));
+
+					std::vector<std::pair<glm::vec3, float>> spheresConvexHull;
+					trianglesInfluence.getSpheresShape(spheresConvexHull);
 
 					uint32_t outIndex = 0;
 					for(std::pair<float, uint32_t>& p : triangles)
@@ -531,43 +595,91 @@ public:
 						triangle[2] = vertices[indices[3 * p.second + 2]] - centerPoint;
 						
 						bool inside = true;
-						index = 0;
-						for(std::pair<float, uint32_t>& p1 : triangles)
+						for(index = 0; index < triangles.size(); index++)
 						{
 							if (outIndex != index)
 							{
 								for (uint32_t i = 0; i < 8; i++)
 								{
-									spheresQuad[i] = std::make_pair(childrens[i] * 0.5f * size, trianglesDist[index][i]);
+									spheresQuad[index][i] = std::make_pair(childrens[i] * 0.5f * size, trianglesDist[index][i]);
 								}
 
-								bool insideRegion = GJK::isInsideConvexHull(spheresQuad, triangle);
-								if (!insideRegion)
+								if (!GJK::isInsideConvexHull(spheresQuad[index], triangle))
 								{
 									inside = false;
-									//break;
-								}
-								else
-								{
-									int a = 22;
-									a++;
+									break;
 								}
 							}
-							index++;
 						}
 
-						if (inside)
+						bool otherTestInside = GJK::isInsideConvexHull(spheresConvexHull, triangle);
+
+						if(otherTestInside ^ inside)
 						{
-							newTriangles.push_back(p);
+							SPDLOG_ERROR("The two test regions are not equivalent");
 						}
+
+						if (inside) newTriangles.push_back(p);
 						outIndex++;
 					}
 
 					SPDLOG_INFO("Triangles with new method {} // with all method {}", newTriangles.size(), triangles.size());
 
 					triangles = std::move(newTriangles);
+
+					if(mDrawInfluenceZone)
+					{
+						InfluenceRegionCreator::createConvexHull(*influenceRegionMesh, centerPoint, spheresConvexHull);
+					}
+				}
+				else if(mDrawInfluenceZone)
+				{
+					std::vector<std::pair<glm::vec3, float>> sphereQuad(8);
+					for(uint32_t i=0; i < 8; i++)
+					{
+						sphereQuad[i] = std::make_pair(childrens[i] * 0.5f * size, minMaxDist);
+					}
+					InfluenceRegionCreator::createConvexHull(*influenceRegionMesh, centerPoint, sphereQuad);
 				}
 
+				
+				if(mDrawInfluenceZone)
+				{
+					mInfluenceRegion->setIndexData(influenceRegionMesh->getIndices());
+					mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdVert, 
+														influenceRegionMesh->getVertices().data(),
+														influenceRegionMesh->getVertices().size());
+
+					mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdNorm, 
+														influenceRegionMesh->getNormals().data(),
+														influenceRegionMesh->getNormals().size());
+					mInfluenceRegion->callDraw = true;
+				}
+				else mInfluenceRegion->callDraw = false;
+
+				if(mDrawOptimalZone)
+				{
+					std::shared_ptr<Mesh> optimalInfluenceRegionMesh = PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions);
+
+					std::vector<uint32_t> trianglesIndices(triangles.size());
+					for(uint32_t i=0; i < triangles.size(); i++)
+					{
+						trianglesIndices[i] = triangles[i].second;
+					}
+
+					InfluenceRegionCreator::createOptimalRegion(*optimalInfluenceRegionMesh, centerPoint, 0.5f * size, trianglesIndices, trianglesInfo);
+
+					mOptimalInfluenceRegion->setIndexData(optimalInfluenceRegionMesh->getIndices());
+					mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdVert, 
+														optimalInfluenceRegionMesh->getVertices().data(),
+														optimalInfluenceRegionMesh->getVertices().size());
+
+					mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdNorm, 
+														optimalInfluenceRegionMesh->getNormals().data(),
+														optimalInfluenceRegionMesh->getNormals().size());
+
+					mOptimalInfluenceRegion->callDraw = true;
+				} else mOptimalInfluenceRegion->callDraw = false;
 
 				std::vector<std::pair<TriangleUtils::TriangleData, uint32_t>> trianglesData;
 				trianglesData.reserve(triangles.size());
@@ -591,7 +703,6 @@ public:
 
 				if(mPrintTrianglesInfluence)
 				{
-
 					auto getRandomVec3 = [&] () -> glm::vec3
 					{
 						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
@@ -652,6 +763,8 @@ public:
 															glm::fract(colorIndex));
 						}
 
+						if(t == mSelectedTriangle) color = glm::vec3(0.0f, 0.0f, 1.0f);
+
 						// Add triangle
 						const std::pair<float, uint32_t>& p = triangles[t];
 						newVertices.push_back(vertices[indices[3 * p.second]]);
@@ -686,6 +799,8 @@ public:
 			{
 				mSelectionCube->callDraw = false;
 				mColoredModelRenderer->callDraw = false;
+				mInfluenceRegion->callDraw = false;
+				mOptimalInfluenceRegion->callDraw = false;
 				mModelRenderer->setIndexData(mMesh.value().getIndices());
 			}
 		}
@@ -694,6 +809,7 @@ private:
 	std::unique_ptr<SdfPlaneShader> mGridPlaneShader;
 	std::unique_ptr<SdfOctreePlaneShader> mOctreePlaneShader;
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
+	std::unique_ptr<NormalsShader> mGreenNormalsShader;
 
 	std::shared_ptr<RenderMesh> mModelRenderer;
 	std::shared_ptr<RenderMesh> mColoredModelRenderer;
@@ -701,6 +817,12 @@ private:
 	std::shared_ptr<RenderMesh> mPlaneRenderer; 
 	std::shared_ptr<RenderMesh> mCubeRenderer;
 	std::shared_ptr<RenderMesh> mSelectionCube;
+	std::shared_ptr<RenderMesh> mInfluenceRegion;
+	uint32_t mInfluenceRegionBufferIdVert;
+	uint32_t mInfluenceRegionBufferIdNorm;
+	std::shared_ptr<RenderMesh> mOptimalInfluenceRegion;
+	uint32_t mOptimalInfluenceRegionBufferIdVert;
+	uint32_t mOptimalInfluenceRegionBufferIdNorm;
 
 	glm::mat4x4 mGizmoStartMatrix;
 	glm::mat4x4 mGizmoMatrix;
@@ -709,10 +831,15 @@ private:
 	bool mPrintTrianglesInfluence = false;
 	bool mPrintIfSomeInfluence = false;
 	bool mComputeMinimalInfluence = false;
+	bool mDrawInfluenceZone = false;
+	bool mDrawOptimalZone = false;
 	uint32_t mInfluenceNumSamples = 10000;
 	uint32_t mSelectedDepth = 0;
 	BoundingBox mSelectArea;
 	float mGridSize;
+	uint32_t mInfluenceZoneSubdivisions = 2;
+
+	uint32_t mSelectedTriangle = 0;
 
 	std::optional<Mesh> mMesh;
 
@@ -772,9 +899,9 @@ int main(int argc, char** argv)
 		}
 	}
 
-	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
 	const std::string defaultModel = "../models/sphere.glb";
-	// const std::string defaultModel = "../models/frog.ply";
+	// const std::string defaultModel = "../models/bunny.ply";
 
 	if(sdfPathArg)
 	{

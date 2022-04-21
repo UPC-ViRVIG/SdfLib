@@ -1,5 +1,6 @@
 #include "PrimitivesFactory.h"
 
+#include <map>
 #include <array>
 
 namespace PrimitivesFactory
@@ -13,7 +14,7 @@ const std::array<unsigned int, 60> isosphereIndices =
     6,1,10,9,0,11,9,11,2,9,2,5,7,2,11
 };
 
-std::shared_ptr<Mesh> getIsosphere()
+std::shared_ptr<Mesh> getIsosphere(uint32_t subdivisions)
 {
     constexpr float X = 0.525731112119133606;
     constexpr float Z = 0.850650808352039932;
@@ -36,6 +37,66 @@ std::shared_ptr<Mesh> getIsosphere()
     auto mesh = std::make_shared<Mesh>();
     mesh->getIndices().assign(isosphereIndices.begin(), isosphereIndices.end());
     mesh->getVertices().assign(isosphereVertices.begin(), isosphereVertices.end());
+
+    if(subdivisions > 0)
+    {
+        std::map<std::pair<uint32_t, uint32_t>, uint32_t> edgeMidPointCache;
+
+        std::vector<glm::vec3>& vertices = mesh->getVertices();
+        std::vector<uint32_t>& indices = mesh->getIndices();
+
+        float goldenRatio = (1.0f + glm::sqrt(5.0f)) / 2.0f;
+        goldenRatio = glm::sqrt(goldenRatio * goldenRatio + 1.0f);
+
+        auto getMidEdgeId = [&](uint32_t a, uint32_t b) -> uint32_t
+        {
+            auto edgeId = std::make_pair(glm::min(a, b), glm::max(a, b));
+            auto it = edgeMidPointCache.find(edgeId);
+            if(it != edgeMidPointCache.end())
+            {
+                const uint32_t edgeIndex = it->second;
+                edgeMidPointCache.erase(it);
+                return edgeIndex;
+            }
+            else
+            {
+                glm::vec3 point = 0.5f * (vertices[a] + vertices[b]);
+                vertices.push_back(glm::normalize(point));
+                const uint32_t edgeIndex = vertices.size()-1;
+                edgeMidPointCache[edgeId] = edgeIndex;
+                return edgeIndex;
+            }
+        };
+
+        for(uint32_t s=0; s < subdivisions; s++)
+        {
+			uint32_t oldIndicesSize = indices.size();
+            for(uint32_t t=0; t < oldIndicesSize; t += 3)
+            {
+                uint32_t nv1 = getMidEdgeId(indices[t], indices[t+1]);
+                uint32_t nv2 = getMidEdgeId(indices[t+1], indices[t+2]);
+                uint32_t nv3 = getMidEdgeId(indices[t+2], indices[t]);
+
+                indices.push_back(indices[t]);
+                indices.push_back(nv1);
+                indices.push_back(nv3);
+
+                indices.push_back(nv1);
+                indices.push_back(indices[t+1]);
+                indices.push_back(nv2);
+
+                indices.push_back(nv2);
+                indices.push_back(indices[t+2]);
+                indices.push_back(nv3);
+
+                indices[t] = nv1;
+                indices[t+1] = nv2;
+                indices[t+2] = nv3;
+            }
+
+            edgeMidPointCache.clear();
+        }
+    }
 
     return mesh;
 }

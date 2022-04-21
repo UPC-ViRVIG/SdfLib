@@ -86,7 +86,7 @@ target_link_libraries(SdfOctreeTest PUBLIC ${PROJECT_NAME})
 add_executable(GJKtest src/tools/GJKtest/main.cpp)
 target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
 
-add_executable(SdfViewer src/tools/SdfViewer/main.cpp)
+add_executable(SdfViewer src/tools/SdfViewer/main.cpp src/tools/SdfViewer/InfluenceRegionCreator.h)
 target_link_libraries(SdfViewer PUBLIC ${PROJECT_NAME})
 
 add_executable(SdfExporter src/tools/SdfExporter/main.cpp)
