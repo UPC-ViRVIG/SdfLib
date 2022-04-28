@@ -25,6 +25,11 @@ namespace GJK
     bool isInsideConvexHull(const std::vector<std::pair<glm::vec3, float>>& spheresShape, 
                             const std::array<glm::vec3, 3>& triangle,
                             uint32_t* pIter = nullptr);
+
+    bool isInsideConvexHull(float halfNodeSize,
+                            const std::array<float, 8>& vertRadius, 
+                            const std::array<glm::vec3, 3>& triangle,
+                            uint32_t* pIter = nullptr);
 }
 
 #endif

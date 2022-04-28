@@ -565,27 +565,21 @@ public:
 					std::vector<std::array<float, 8>> trianglesDist(triangles.size());
 
 					uint32_t index = 0;
+					std::array<float, 8> minDistToVertices;
+					minDistToVertices.fill(INFINITY);
 					for(std::pair<float, uint32_t>& p : triangles)
 					{
 						for(uint32_t j=0; j < 8; j++)
 						{
 							trianglesDist[index][j] = glm::abs(TriangleUtils::getSignedDistPointAndTriangle(centerPoint + 0.5f * childrens[j] * size, trianglesInfo[p.second]));
+							minDistToVertices[j] = glm::min(minDistToVertices[j], trianglesDist[index][j]);
 						}
 						index++;
-					}
-
-					TrianglesInfluence trianglesInfluence(0.5f * size);
-					for(uint32_t i=0; i < triangles.size(); i++)
-					{
-						trianglesInfluence.addTriangle(trianglesDist[i]);
 					}
 
 					std::vector<std::pair<float, uint32_t>> newTriangles;
 					std::vector<std::vector<std::pair<glm::vec3, float>>> spheresQuad(triangles.size(), 
 																						std::vector<std::pair<glm::vec3, float>>(8));
-
-					std::vector<std::pair<glm::vec3, float>> spheresConvexHull;
-					trianglesInfluence.getSpheresShape(spheresConvexHull);
 
 					uint32_t outIndex = 0;
 					for(std::pair<float, uint32_t>& p : triangles)
@@ -612,25 +606,65 @@ public:
 							}
 						}
 
-						bool otherTestInside = GJK::isInsideConvexHull(spheresConvexHull, triangle);
-
-						if(otherTestInside ^ inside)
-						{
-							SPDLOG_ERROR("The two test regions are not equivalent");
-						}
-
 						if (inside) newTriangles.push_back(p);
 						outIndex++;
 					}
 
 					SPDLOG_INFO("Triangles with new method {} // with all method {}", newTriangles.size(), triangles.size());
 
-					triangles = std::move(newTriangles);
-
-					if(mDrawInfluenceZone)
 					{
-						InfluenceRegionCreator::createConvexHull(*influenceRegionMesh, centerPoint, spheresConvexHull);
+						std::vector<uint32_t> inTriangles(indices.size()/3);
+						for(uint32_t i=0; i < indices.size()/3; i++)
+						{
+							inTriangles[i] = i;
+						}
+
+						std::vector<uint32_t> outTriangles1;
+						PreciseTrianglesInfluence().filterTriangles(centerPoint, 0.5f * size, 
+																	inTriangles, outTriangles1,
+																	minDistToVertices,
+																	mMesh.value(), trianglesInfo);
+
+						uint32_t numErrors = glm::abs(newTriangles.size() - outTriangles1.size());
+						std::sort(newTriangles.begin(), newTriangles.end(), [](const std::pair<float, uint32_t>& p1, const std::pair<float, uint32_t>& p2) {
+							return p1.second < p2.second;
+						});
+						std::sort(outTriangles1.begin(), outTriangles1.end());
+						uint32_t falsePositive = 0;
+						uint32_t falseNegative = 0;
+						uint32_t i, j;
+						for(i=0, j=0; i < outTriangles1.size() && j < newTriangles.size();)
+						{
+							if(outTriangles1[i] < newTriangles[j].second) 
+							{
+								falsePositive++;
+								i++;
+							}
+							else if(outTriangles1[i] > newTriangles[j].second) 
+							{
+								falseNegative++;
+								j++;
+							}
+							else
+							{
+								i++; j++;
+							}
+						}
+
+						if(i < newTriangles.size())
+						{
+							falseNegative += newTriangles.size() - i;
+						}
+						else if(j < outTriangles1.size())
+						{
+							falsePositive += outTriangles1.size() - i;
+						}
+
+						SPDLOG_INFO("PreciseTrianglesInfluence results // FP: {}, FN: {}", falsePositive, falseNegative);
+						SPDLOG_INFO("New method num selected triangles: {}", outTriangles1.size());
 					}
+
+					triangles = std::move(newTriangles);
 				}
 				else if(mDrawInfluenceZone)
 				{
@@ -763,7 +797,7 @@ public:
 															glm::fract(colorIndex));
 						}
 
-						if(t == mSelectedTriangle) color = glm::vec3(0.0f, 0.0f, 1.0f);
+						// if(t == mSelectedTriangle) color = glm::vec3(0.0f, 0.0f, 1.0f);
 
 						// Add triangle
 						const std::pair<float, uint32_t>& p = triangles[t];

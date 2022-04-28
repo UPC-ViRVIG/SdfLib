@@ -1,6 +1,9 @@
 #ifndef TRIANGLES_INFLUENCE_H
 #define TRIANGLES_INFLUENCE_H
 
+#include "utils/Mesh.h"
+#include "utils/TriangleUtils.h"
+
 #include <vector>
 #include <array>
 #include <glm/glm.hpp>
@@ -21,6 +24,19 @@ const std::array<std::pair<uint32_t, uint32_t>, 12> nodeEdgesIndices
     std::make_pair(5, 7),
     std::make_pair(7, 6),
     std::make_pair(6, 5),
+};
+
+const std::array<glm::vec3, 8> childrens = 
+{
+    glm::vec3(-1.0f, -1.0f, -1.0f),
+    glm::vec3(1.0f, -1.0f, -1.0f),
+    glm::vec3(-1.0f, 1.0f, -1.0f),
+    glm::vec3(1.0f, 1.0f, -1.0f),
+
+    glm::vec3(-1.0f, -1.0f, 1.0f),
+    glm::vec3(1.0f, -1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, 1.0f),
+    glm::vec3(1.0f, 1.0f, 1.0f)
 };
 
 class TrianglesInfluence
@@ -197,5 +213,119 @@ private:
     }
 };
 
+struct BasicTrianglesInfluence
+{
+    typedef void VertexInfo;
+    typedef void NodeInfo;
+
+    inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                const std::array<float, 8>& distanceToVertices,
+                                const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        outTriangles.clear();
+        
+        // Serach the maximum distance of all node verices minimum distance
+        float maxMinDist = 0.0f;
+        for(uint32_t i=0; i < 8; i++)
+        {
+            maxMinDist = glm::max(maxMinDist, glm::abs(distanceToVertices[i]));
+        }
+
+        const std::vector<glm::vec3>& vertices = mesh.getVertices();
+        const std::vector<uint32_t>& indices = mesh.getIndices();
+
+        std::array<glm::vec3, 3> triangle;
+
+        for(const uint32_t& idx : inTriangles)
+        {
+            triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
+            triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
+            triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
+
+            const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle);
+
+            if(minDist <= maxMinDist)
+            {
+                outTriangles.push_back(idx);
+            }
+        }
+    }
+};
+
+
+struct PreciseTrianglesInfluence
+{
+    typedef void VertexInfo;
+    typedef void NodeInfo;
+
+    inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                const std::array<float, 8>& distanceToVertices,
+                                const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        outTriangles.clear();
+        
+        // Serach the maximum distance of all node verices minimum distance
+        float maxMinDist = 0.0f;
+        for(uint32_t i=0; i < 8; i++)
+        {
+            maxMinDist = glm::max(maxMinDist, glm::abs(distanceToVertices[i]));
+        }
+
+        const std::vector<glm::vec3>& vertices = mesh.getVertices();
+        const std::vector<uint32_t>& indices = mesh.getIndices();
+
+        std::array<glm::vec3, 3> triangle;
+
+        std::vector<std::array<float, 8>> triangleRegions(1);
+        triangleRegions.reserve(inTriangles.size());
+
+        for(const uint32_t& idx : inTriangles)
+        {
+            const uint32_t trIndex = triangleRegions.size() - 1;
+            std::array<float, 8>& dist = triangleRegions[trIndex];
+            
+            bool valid = false;
+            for(uint32_t c=0; c < 8; c++)
+            {
+                dist[c] = glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx])) + 1e-5;
+                valid = valid || dist[c] < maxMinDist;
+            }
+
+            if(valid) triangleRegions.resize(triangleRegions.size() + 1);
+        }
+
+		triangleRegions.resize(triangleRegions.size() - 1);
+
+        for(const uint32_t& idx : inTriangles)
+        {
+            triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
+            triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
+            triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
+
+            bool isInside = true;
+            for(const auto& region : triangleRegions)
+            {
+                if(!GJK::isInsideConvexHull(nodeHalfSize, region, triangle))
+                {
+                    isInside = false;
+                    break;
+                }
+            }
+
+            if(isInside)
+            {
+                outTriangles.push_back(idx);
+            }
+        }
+    }
+};
+
+struct PerVertexTrianglesInfluence
+{
+
+
+};
 
 #endif

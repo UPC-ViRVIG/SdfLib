@@ -588,4 +588,84 @@ bool isInsideConvexHull(const std::vector<std::pair<glm::vec3, float>>& spheresS
     return true;
 }
 
+const std::array<glm::vec3, 8> childrens = 
+{
+    glm::vec3(-1.0f, -1.0f, -1.0f),
+    glm::vec3(1.0f, -1.0f, -1.0f),
+    glm::vec3(-1.0f, 1.0f, -1.0f),
+    glm::vec3(1.0f, 1.0f, -1.0f),
+
+    glm::vec3(-1.0f, -1.0f, 1.0f),
+    glm::vec3(1.0f, -1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, 1.0f),
+    glm::vec3(1.0f, 1.0f, 1.0f)
+};
+
+glm::vec3 findFurthestPoint(float halfNodeSize, const std::array<float, 8>& vertRadius, const glm::vec3& direction)
+{
+    float maxValue = glm::dot(glm::vec3(-halfNodeSize), direction) + vertRadius[0];
+    int maxIndex = 0;
+    for(int i=1; i < 8; i++)
+    {
+        const float value = glm::dot(childrens[i] * halfNodeSize, direction) + vertRadius[i];
+        if(value > maxValue)
+        {
+            maxValue = value;
+            maxIndex = i;
+        }
+    }
+
+    return childrens[maxIndex] * halfNodeSize + vertRadius[maxIndex] * direction;
+}
+
+glm::vec3 findFurthestPoint(float halfNodeSize,
+                            const std::array<float, 8>& vertRadius, 
+                            const std::array<glm::vec3, 3>& triangle,
+                            const glm::vec3& direction)
+{
+    return findFurthestPoint(halfNodeSize, vertRadius, direction) - findFurthestPoint(triangle, -direction);
+}
+
+bool isInsideConvexHull(float halfNodeSize,
+                        const std::array<float, 8>& vertRadius,
+                        const std::array<glm::vec3, 3>& triangle,
+                        uint32_t* pIter)
+{
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+
+    Simplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPoint(halfNodeSize, vertRadius, triangle, glm::vec3(1.0, 0.0, 0.0));
+
+    glm::vec3 direction = -simplex.points[0];
+    do {
+        direction = glm::normalize(direction);
+        glm::vec3 p = findFurthestPoint(halfNodeSize, vertRadius, triangle, direction);
+        
+        if(glm::dot(p, direction) <= 0.0f)
+        {
+            return false;
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+    } while(!getOriginDirection(simplex, direction, 0.0f) && ++iter < 100);
+
+    //assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return true;
+}
+
 }
