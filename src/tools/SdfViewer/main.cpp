@@ -567,8 +567,8 @@ public:
 						std::array<float, 8> minDistToVertices;
 						std::array<float, 8> nullArray;
 
-						PreciseTrianglesInfluence().calculateVerticesInfo(inTriangles,
-																		  centerPoint, 0.5f * size,
+						PreciseTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
+																		  inTriangles,
 																		  childrens, 0u, nullArray,
 																		  minDistToVertices, verticesInfo,
 																		  mMesh.value(), trianglesInfo);
@@ -627,8 +627,8 @@ public:
 						std::array<float, 8> verticesDist;
 						std::array<BasicTrianglesInfluence::VertexInfo, 8> verticesInfo;
 						std::array<float, 8> nullArray;
-						BasicTrianglesInfluence().calculateVerticesInfo(inTriangles, 
-																		centerPoint, 0.5f * size,
+						BasicTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
+																		inTriangles, 
 																		childrens, 0u, nullArray,
 																		verticesDist, verticesInfo,
 																		mMesh.value(), trianglesInfo);
@@ -652,8 +652,8 @@ public:
 						std::array<float, 8> verticesDist;
 						std::array<PerVertexTrianglesInfluence::VertexInfo, 8> verticesInfo;
 						std::array<float, 8> nullArray;
-						PerVertexTrianglesInfluence().calculateVerticesInfo(inTriangles, 
-																			centerPoint, 0.5f * size,
+						PerVertexTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
+																			inTriangles,
 																			childrens, 0u, nullArray,
 																			verticesDist, verticesInfo,
 																			mMesh.value(), trianglesInfo);
@@ -930,7 +930,7 @@ int main(int argc, char** argv)
 		}
 	}
 
-	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "grid";
+	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
 	//const std::string defaultModel = "../models/sphere.glb";
 	const std::string defaultModel = "../models/bunny.ply";
 
@@ -969,8 +969,8 @@ int main(int argc, char** argv)
 	{
 		MyScene scene(
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
-			(depthArg) ? args::get(depthArg) : 7,
-			(startDepthArg) ? args::get(startDepthArg) : 1,
+			(depthArg) ? args::get(depthArg) : 6,
+			(startDepthArg) ? args::get(startDepthArg) : 2,
 			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 4e-3,
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);

@@ -217,14 +217,14 @@ private:
 namespace
 {
 template<int N, typename VertexInfo>
-inline void standardCalculateVerticesInfo(const std::vector<uint32_t>& triangles,
-                                             const glm::vec3 offset, const float size,
-                                             const std::array<glm::vec3, N>& pointsRelPos,
-                                             const uint32_t pointsToInterpolateMask,
-                                             const std::array<float, 8>& interpolationPoints,
-                                             std::array<float, N>& outDistanceToPoint,
-                                             std::array<VertexInfo, N>& outPointInfo,
-                                             const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float size,
+                                            const std::vector<uint32_t>& triangles,
+                                            const std::array<glm::vec3, N>& pointsRelPos,
+                                            const uint32_t pointsToInterpolateMask,
+                                            const std::array<float, 8>& interpolationPoints,
+                                            std::array<float, N>& outDistanceToPoint,
+                                            std::array<VertexInfo, N>& outPointInfo,
+                                            const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
 {
 	outDistanceToPoint.fill(INFINITY);
     std::array<uint32_t, N> minIndex;
@@ -263,8 +263,8 @@ struct BasicTrianglesInfluence
     struct NodeInfo {};
 
     template<int N>
-    inline void calculateVerticesInfo(const std::vector<uint32_t>& triangles,
-                                        const glm::vec3 offset, const float size,
+    inline void calculateVerticesInfo(  const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                        const std::vector<uint32_t>& triangles,
                                         const std::array<glm::vec3, N>& pointsRelPos,
                                         const uint32_t pointsToInterpolateMask,
                                         const std::array<float, 8>& interpolationPoints,
@@ -272,7 +272,7 @@ struct BasicTrianglesInfluence
                                         std::array<VertexInfo, N>& outPointInfo,
                                         const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     { 
-        standardCalculateVerticesInfo(triangles, offset, size, pointsRelPos, 
+        standardCalculateVerticesInfo(nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
                                       pointsToInterpolateMask, interpolationPoints,
                                       outDistanceToPoint, outPointInfo, mesh, trianglesData);
     }
@@ -320,8 +320,8 @@ struct PreciseTrianglesInfluence
     struct NodeInfo {};
 
     template<int N>
-    inline void calculateVerticesInfo(const std::vector<uint32_t>& triangles,
-                                      const glm::vec3 offset, const float size,
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
                                       const uint32_t pointsToInterpolateMask,
                                       const std::array<float, 8>& interpolationPoints,
@@ -329,7 +329,7 @@ struct PreciseTrianglesInfluence
                                       std::array<VertexInfo, N>& outPointInfo,
                                       const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     { 
-        standardCalculateVerticesInfo(triangles, offset, size, pointsRelPos, 
+        standardCalculateVerticesInfo(nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
                                       pointsToInterpolateMask, interpolationPoints,
                                       outDistanceToPoint, outPointInfo, mesh, trianglesData);
     }
@@ -405,8 +405,8 @@ struct PerVertexTrianglesInfluence
     typedef uint32_t VertexInfo;
 
     template<int N>
-    inline void calculateVerticesInfo(const std::vector<uint32_t>& triangles,
-                                      const glm::vec3 offset, const float size,
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
                                       const uint32_t pointToInterpolateMask,
                                       const std::array<float, 8>& interpolationPoints,
@@ -420,7 +420,7 @@ struct PerVertexTrianglesInfluence
         {
             for(uint32_t i=0; i < N; i++)
             {
-                const float dist = TriangleUtils::getSqDistPointAndTriangle(offset + pointsRelPos[i] * size, trianglesData[t]);
+                const float dist = TriangleUtils::getSqDistPointAndTriangle(nodeCenter + pointsRelPos[i] * nodeHalfSize, trianglesData[t]);
 
                 if(dist < outDistanceToPoint[i])
                 {
@@ -438,7 +438,7 @@ struct PerVertexTrianglesInfluence
             }
             else
             {
-                outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(offset + pointsRelPos[i] * size, trianglesData[outPointInfo[i]]);
+                outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(nodeCenter + pointsRelPos[i] * nodeHalfSize, trianglesData[outPointInfo[i]]);
             }
         }
     }

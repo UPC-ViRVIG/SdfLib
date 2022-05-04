@@ -95,7 +95,7 @@ public:
     OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
               float terminationThreshold = 1e-3,
               TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE,
-              InitAlgorithm initAlgorithm = InitAlgorithm::BF_ADAPTATIVE);
+              InitAlgorithm initAlgorithm = InitAlgorithm::DF_ADAPTATIVE);
 
     // Returns the maximum distance in absulute value contained by the octree
     float getOctreeValueRange() const { return mValueRange; }
@@ -143,6 +143,7 @@ private:
     uint32_t mMaxDepth;
     std::vector<OctreeNode> mOctreeData;
 
+    template<typename TrianglesInfluenceStrategy>
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                     float terminationThreshold, TerminationRule terminationRule);
 
@@ -151,5 +152,7 @@ private:
     
     void initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth); // For testing propouses
 };
+
+#include "OctreeSdfDepthFirst.h"
 
 #endif

@@ -2,6 +2,7 @@
 #include "utils/Timer.h"
 #include "utils/GJK.h"
 #include "OctreeSdfUtils.h"
+#include "TrianglesInfluence.h"
 #include <array>
 #include <stack>
 
@@ -29,7 +30,7 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<PerVertexTrianglesInfluence>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
             initOctreeWithContinuity(mesh, startDepth, depth, terminationThreshold, terminationRule);
