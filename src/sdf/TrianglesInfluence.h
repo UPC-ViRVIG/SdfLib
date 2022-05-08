@@ -4,6 +4,7 @@
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
+#include "utils/Timer.h"
 
 #include <vector>
 #include <array>
@@ -226,15 +227,21 @@ inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float 
                                             std::array<VertexInfo, N>& outPointInfo,
                                             const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
 {
-	outDistanceToPoint.fill(INFINITY);
+    outDistanceToPoint.fill(INFINITY);
     std::array<uint32_t, N> minIndex;
 
+    std::array<glm::vec3, N> inPoints;
     for(uint32_t i=0; i < N; i++)
     {
-        if(pointsToInterpolateMask & (1 << (N-i-1))) continue;
-        for(uint32_t t : triangles)
+        inPoints[i] = offset + pointsRelPos[i] * size;
+    }
+
+    for(uint32_t t : triangles)
+    {
+        for(uint32_t i=0; i < N; i++)
         {
-            const float dist = TriangleUtils::getSqDistPointAndTriangle(offset + pointsRelPos[i] * size, trianglesData[t]);
+            if(pointsToInterpolateMask & (1 << (N-i-1))) continue;
+            const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
             if(dist < outDistanceToPoint[i])
             {
                 minIndex[i] = t;
@@ -247,15 +254,16 @@ inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float 
     {
         if(pointsToInterpolateMask & (1 << (N-i-1)))
         {
-			outDistanceToPoint[i] = interpolateValue(reinterpret_cast<const float*>(&interpolationPoints), 0.5f * pointsRelPos[i] + 0.5f);
+            outDistanceToPoint[i] = interpolateValue(reinterpret_cast<const float*>(&interpolationPoints), 0.5f * pointsRelPos[i] + 0.5f);
         }
         else
         {
-			outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(offset + pointsRelPos[i] * size, trianglesData[minIndex[i]]);
+            outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(inPoints[i], trianglesData[minIndex[i]]);
         }
     }
 }
 }
+
 
 struct BasicTrianglesInfluence
 {
@@ -271,7 +279,7 @@ struct BasicTrianglesInfluence
                                         std::array<float, N>& outDistanceToPoint,
                                         std::array<VertexInfo, N>& outPointInfo,
                                         const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
-    { 
+    {
         standardCalculateVerticesInfo(nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
                                       pointsToInterpolateMask, interpolationPoints,
                                       outDistanceToPoint, outPointInfo, mesh, trianglesData);
