@@ -147,6 +147,7 @@ private:
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                     float terminationThreshold, TerminationRule terminationRule);
 
+    template<typename TrianglesInfluenceStrategy>
     void initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                                   float terminationThreshold, TerminationRule terminationRule);
     
@@ -154,5 +155,6 @@ private:
 };
 
 #include "OctreeSdfDepthFirst.h"
+#include "OctreeSdfBreadthFirst.h"
 
 #endif

@@ -22,12 +22,12 @@ struct DepthFirstNodeInfo
     std::array<VertexInfo, 8> verticesInfo;
 };
 
+
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                            float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
 {
     typedef DepthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo> NodeInfo;
-    // typedef DepthFirstNodeInfo NodeInfo;
 
     const float sqTerminationThreshold = terminationThreshold;
 
@@ -89,8 +89,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
     }
     
-	Timer startTimer;
-	startTimer.start();
     std::stack<NodeInfo> nodes;
     {
         float newSize = 0.5f * mBox.getSize().x * glm::pow(0.5f, startOctreeDepth);
@@ -109,18 +107,10 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                                                              0u, n.distanceToVertices,
                                                              n.distanceToVertices, n.verticesInfo,
                                                              mesh, trianglesData);
-                    // std::array<glm::vec3, 8> inPos;
-                    // for(uint32_t c=0; c < 8; c++)
-                    // {
-                    //     inPos[c] = n.center + childrens[c] * n.size;
-                    // }
-                    // calculateMinDistances(inPos, n.distanceToVertices, triangles[0], trianglesData);
                 }
             }
         }
     }
-
-	SPDLOG_INFO("Time: {}", startTimer.getElapsedSeconds());
 
     mValueRange = 0.0f;
 
@@ -129,16 +119,19 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     const std::vector<glm::vec3>& vertices = mesh.getVertices();
     const std::vector<uint32_t>& indices = mesh.getIndices();
 
+#ifdef PRINT_STATISTICS
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
     verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
-
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
     Timer timer;
+#endif
 
     while(!nodes.empty())
     {
+        #ifdef PRINT_STATISTICS
         timer.start();
+        #endif
         const NodeInfo node = nodes.top();
         nodes.pop();
 
@@ -161,34 +154,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                                                triangles[rDepth], node.distanceToVertices, node.verticesInfo,
                                                mesh, trianglesData);
 
-            // triangles[rDepth].clear();
-        
-            // // Serach the maximum distance of all node verices minimum distance
-            // float maxMinDist = 0.0f;
-            // for(uint32_t i=0; i < 8; i++)
-            // {
-            //     maxMinDist = glm::max(maxMinDist, glm::abs(node.distanceToVertices[i]));
-            // }
-
-            // const std::vector<glm::vec3>& vertices = mesh.getVertices();
-            // const std::vector<uint32_t>& indices = mesh.getIndices();
-
-            // std::array<glm::vec3, 3> triangle;
-
-            // for(const uint32_t& idx : triangles[rDepth-1])
-            // {
-            //     triangle[0] = vertices[indices[3 * idx]] - node.center;
-            //     triangle[1] = vertices[indices[3 * idx + 1]] - node.center;
-            //     triangle[2] = vertices[indices[3 * idx + 2]] - node.center;
-
-            //     const float minDist = GJK::getMinDistance(glm::vec3(node.size), triangle);
-
-            //     if(minDist <= maxMinDist)
-            //     {
-            //         triangles[rDepth].push_back(idx);
-            //     }
-            // }
-
             std::array<float, 19> minDistToPoints;
             std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
@@ -196,44 +161,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                                                      0u, node.distanceToVertices,
                                                      minDistToPoints, pointsInfo,
                                                      mesh, trianglesData);
-
-            // Timer timer1;
-            // timer1.start();
-            // std::array<glm::vec3, 19> inPoints;
-            // for(uint32_t i=0; i < 19; i++)
-            // {
-            //     inPoints[i] = node.center + nodeSamplePoints[i] * node.size;
-            // }
-
-            // minDistToPoints.fill(INFINITY);
-            // std::array<uint32_t, 19> minIndex;
-
-            // for(uint32_t t : triangles[rDepth])
-            // {
-            //     for(uint32_t i=0; i < 19; i++)
-            //     {
-            //         if(0 & (1 << (19-i-1))) continue;
-            //         const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
-            //         if(dist < minDistToPoints[i])
-            //         {
-            //             minIndex[i] = t;
-            //             minDistToPoints[i] = dist;
-            //         }
-            //     }
-            // }
-
-            // for(uint32_t i=0; i < 19; i++)
-            // {
-            //     if(0 & (1 << (19-i-1)))
-            //     {
-            //         minDistToPoints[i] = interpolateValue(reinterpret_cast<const float*>(&node.distanceToVertices), 0.5f * nodeSamplePoints[i] + 0.5f);
-            //     }
-            //     else
-            //     {
-            //         minDistToPoints[i] = TriangleUtils::getSignedDistPointAndTriangle(inPoints[i], trianglesData[minIndex[i]]);
-            //     }
-            // }
-            // elapsedTime += timer1.getElapsedSeconds();
             
             bool generateTerminalNodes = false;
             if(node.depth >= startDepth)
@@ -396,13 +323,14 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 }
             }
 
-            // Save statistics
+#ifdef PRINT_STATISTICS
             {
                 verticesStatistics[node.depth].first += triangles[rDepth].size();
                 verticesStatistics[node.depth].second += 1;
                 elapsedTime[node.depth] += timer.getElapsedSeconds();
                 numTrianglesEvaluated[node.depth] += triangles[rDepth-1].size();
             }
+#endif
         }
         else
         {
@@ -421,6 +349,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         }
     }
 	
+#ifdef PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
     for(uint32_t d=0; d < maxDepth; d++)
     {
@@ -440,6 +369,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
     }
+#endif
 }
 
 #endif
