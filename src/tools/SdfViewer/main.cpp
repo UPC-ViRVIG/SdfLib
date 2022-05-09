@@ -650,14 +650,14 @@ public:
 					{
 						std::vector<uint32_t> outTriangles;
 						std::array<float, 8> verticesDist;
-						std::array<PerVertexTrianglesInfluence::VertexInfo, 8> verticesInfo;
+						std::array<PerVertexTrianglesInfluence<1>::VertexInfo, 8> verticesInfo;
 						std::array<float, 8> nullArray;
-						PerVertexTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
+						PerVertexTrianglesInfluence<1>().calculateVerticesInfo(centerPoint, 0.5f * size,
 																			inTriangles,
 																			childrens, 0u, nullArray,
 																			verticesDist, verticesInfo,
 																			mMesh.value(), trianglesInfo);
-						PerVertexTrianglesInfluence().filterTriangles(centerPoint, 0.5f * size, 
+						PerVertexTrianglesInfluence<1>().filterTriangles(centerPoint, 0.5f * size, 
 																		inTriangles, outTriangles,
 																		verticesDist, verticesInfo,
 																		mMesh.value(), trianglesInfo);

@@ -369,6 +369,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
     }
+
+    trianglesInfluence.printStatistics();
 #endif
 }
 

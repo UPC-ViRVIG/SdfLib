@@ -629,6 +629,7 @@ glm::vec3 findFurthestPoint(float halfNodeSize,
 bool isInsideConvexHull(float halfNodeSize,
                         const std::array<float, 8>& vertRadius,
                         const std::array<glm::vec3, 3>& triangle,
+                        glm::vec3 startDir,
                         uint32_t* pIter)
 {
     uint32_t dIter;
@@ -637,7 +638,7 @@ bool isInsideConvexHull(float halfNodeSize,
 
     Simplex simplex;
     simplex.type = SimplexType::POINT;
-    simplex.points[0] = findFurthestPoint(halfNodeSize, vertRadius, triangle, glm::vec3(1.0, 0.0, 0.0));
+    simplex.points[0] = findFurthestPoint(halfNodeSize, vertRadius, triangle, startDir);
 
     glm::vec3 direction = -simplex.points[0];
     do {

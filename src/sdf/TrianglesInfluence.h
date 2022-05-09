@@ -319,6 +319,8 @@ struct BasicTrianglesInfluence
             }
         }
     }
+
+    void printStatistics() {}
 };
 
 
@@ -405,12 +407,18 @@ struct PreciseTrianglesInfluence
             }
         }
     }
+
+    void printStatistics() {}
 };
 
+template<int NumVertexTests>
 struct PerVertexTrianglesInfluence
 {
     struct {} NodeInfo;
     typedef uint32_t VertexInfo;
+
+    uint32_t gjkIter = 0;
+    uint32_t gjkCalls = 0;
 
     template<int N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
@@ -477,16 +485,34 @@ struct PerVertexTrianglesInfluence
             }
         }
 
+        std::array<std::pair<uint32_t, float>, NumVertexTests> verticesToTest;
         for(const uint32_t& idx : inTriangles)
         {
             triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
             triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
             triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
 
-            bool isInside = true;
+            verticesToTest.fill(std::make_pair(0, INFINITY));
             for(uint32_t r=0; r < 8; r++)
             {
-                if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle))
+                const float dist = 
+                    TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[r] * nodeHalfSize, trianglesData[idx]);
+                
+                if(dist < verticesToTest[0].second)
+                    verticesToTest[0] = std::make_pair(r, dist);
+
+                for(uint32_t i=1; i < NumVertexTests; i++)
+                {
+                    if(verticesToTest[i-1].second < verticesToTest[i].second)
+                        std::swap(verticesToTest[i-1], verticesToTest[i]);
+                }
+            }
+
+            bool isInside = true;
+            for(uint32_t r=0; r < NumVertexTests; r++)
+            {
+                const uint32_t vId = verticesToTest[r].first;
+                if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
                 {
                     isInside = false;
                     break;
@@ -499,6 +525,58 @@ struct PerVertexTrianglesInfluence
             }
         }
     }
+
+    void printStatistics() {}
 };
+
+template<>
+inline void PerVertexTrianglesInfluence<8>::filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                            const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                            const std::array<float, 8>& distanceToVertices,
+                                            const std::array<VertexInfo, 8>& verticesInfo,
+                                            const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+{
+    outTriangles.clear();
+        
+    const std::vector<glm::vec3>& vertices = mesh.getVertices();
+    const std::vector<uint32_t>& indices = mesh.getIndices();
+
+    std::array<glm::vec3, 3> triangle;
+
+    std::array<std::array<float, 8>, 8> triangleRegions;
+
+    for(uint32_t i=0; i < 8; i++)
+    {
+        const uint32_t& idx = verticesInfo[i];
+
+        for(uint32_t c=0; c < 8; c++)
+        {
+            triangleRegions[i][c] = 
+                glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+        }
+    }
+
+    for(const uint32_t& idx : inTriangles)
+    {
+        triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
+        triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
+        triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
+
+        bool isInside = true;
+        for(uint32_t r=0; r < 8; r++)
+        {
+            if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+            {
+                isInside = false;
+                break;
+            }
+        }
+
+        if(isInside)
+        {
+            outTriangles.push_back(idx);
+        }
+    }
+}
 
 #endif
