@@ -5,6 +5,8 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <fstream>
 
+#include "utils/Mesh.h"
+
 class SdfFunction
 {
 public:
@@ -12,9 +14,11 @@ public:
     {
         GRID,
         OCTREE,
+        EXACT_OCTREE,
         NONE
     };
     virtual float getDistance(glm::vec3 sample) const = 0;
+    virtual BoundingBox getSampleArea() const = 0;
     virtual SdfFormat getFormat() const { return SdfFormat::NONE; }
     
     bool saveToFile(const std::string& outputPath);

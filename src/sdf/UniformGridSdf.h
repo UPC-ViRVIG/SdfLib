@@ -28,6 +28,7 @@ public:
     SdfFormat getFormat() const override { return SdfFormat::GRID; }
 
     const BoundingBox& getGridBoundingBox() const { return mBox; }
+    BoundingBox getSampleArea() const override { return mBox; }
     float getGridCellSize() const { return mCellSize; }
     glm::ivec3 getGridSize() const { return mGridSize; }
     const std::vector<float>& getGrid() const { return mGrid; }

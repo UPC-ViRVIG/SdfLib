@@ -8,7 +8,9 @@
 #include <unordered_map>
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <cereal/types/array.hpp>
 #include "Mesh.h"
+#include "UsefullSerializations.h"
 
 namespace TriangleUtils
 {
@@ -40,6 +42,12 @@ namespace TriangleUtils
         glm::vec3 getTriangleNormal() const
         {
             return glm::vec3(transform[0][2], transform[1][2], transform[2][2]);
+        }
+
+        template<class Archive>
+        void serialize(Archive & archive)
+        {
+            archive(origin, transform, b, c, v2, v3, edgesNormal, verticesNormal);
         }
 
         glm::vec3 origin;

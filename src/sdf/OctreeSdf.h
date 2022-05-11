@@ -102,6 +102,7 @@ public:
 
     glm::ivec3 getStartGridSize() const { return glm::ivec3(mStartGridSize); }
     const BoundingBox& getGridBoundingBox() const { return mBox; }
+    BoundingBox getSampleArea() const override { return mBox; }
     uint32_t getOctreeMaxDepth() const { return mMaxDepth; }
     const std::vector<OctreeNode>& getOctreeData() const { return mOctreeData; }
 

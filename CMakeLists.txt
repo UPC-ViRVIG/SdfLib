@@ -93,3 +93,6 @@ target_link_libraries(SdfViewer PUBLIC ${PROJECT_NAME})
 
 add_executable(SdfExporter src/tools/SdfExporter/main.cpp)
 target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
+
+add_executable(SdfError src/tools/SdfError/main.cpp)
+target_link_libraries(SdfError PUBLIC ${PROJECT_NAME})

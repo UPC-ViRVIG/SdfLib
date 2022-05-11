@@ -5,6 +5,7 @@
 #include "sdf/UniformGridSdf.h"
 #include "sdf/RealSdf.h"
 #include "sdf/OctreeSdf.h"
+#include "sdf/ExactOctreeSdf.h"
 #include "utils/Mesh.h"
 #include <iostream>
 #include <random>
@@ -27,8 +28,9 @@ int main(int argc, char** argv)
     args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
 	args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "Octree generation termination rule", {"termination_rule"});
 	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
-	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree or grid", {"sdf_format"});
+	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree, grid, exact_octree", {"sdf_format"});
     args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: df_uniform, df, bf", {"algorithm"});
+    args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
 
     try
@@ -41,7 +43,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
+    std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "exact_octree";
     std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
@@ -100,6 +102,16 @@ int main(int argc, char** argv)
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),
             initAlgorithm));
+    }
+    else if(sdfFormat == "exact_octree")
+    {
+        timer.start();
+        sdfFunc = std::unique_ptr<ExactOctreeSdf>(new ExactOctreeSdf(
+            mesh, box,
+            (depthArg) ? args::get(depthArg) : 5,
+            (startDepthArg) ? args::get(startDepthArg) : 1,
+            (minTrianglesPerNode) ? args::get(minTrianglesPerNode) : 32
+        ));
     }
     else
     {

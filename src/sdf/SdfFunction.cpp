@@ -2,6 +2,7 @@
 
 #include "UniformGridSdf.h"
 #include "OctreeSdf.h"
+#include "ExactOctreeSdf.h"
 
 bool SdfFunction::saveToFile(const std::string& outputPath)
 {
@@ -23,6 +24,11 @@ bool SdfFunction::saveToFile(const std::string& outputPath)
     {
         archive(format);
         archive(*reinterpret_cast<OctreeSdf*>(this));
+    }
+    else if(format == SdfFormat::EXACT_OCTREE)
+    {
+        archive(format);
+        archive(*reinterpret_cast<ExactOctreeSdf*>(this));
     }
     else
     {
@@ -54,6 +60,12 @@ std::unique_ptr<SdfFunction> SdfFunction::loadFromFile(const std::string& inputP
     else if(format == UniformGridSdf::OCTREE)
     {
         std::unique_ptr<OctreeSdf> obj(new OctreeSdf());
+        archive(*obj);
+        return obj;
+    }
+    else if(format == UniformGridSdf::EXACT_OCTREE)
+    {
+        std::unique_ptr<ExactOctreeSdf> obj(new ExactOctreeSdf());
         archive(*obj);
         return obj;
     }

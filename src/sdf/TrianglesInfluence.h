@@ -5,6 +5,7 @@
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
 #include "utils/Timer.h"
+#include "utils/GJK.h"
 
 #include <vector>
 #include <array>
