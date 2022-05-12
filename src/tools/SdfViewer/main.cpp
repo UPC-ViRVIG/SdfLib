@@ -487,6 +487,7 @@ public:
 			ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
 			ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
 			ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
+			ImGui::Checkbox("Print node error", &mPrintNodeError);
 			//ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
 			if(mPrintTrianglesInfluence)
 			{
@@ -515,7 +516,7 @@ public:
 				glm::vec3 selPoint = cameraPos + cameraDir * t;
 				const float size = mGridSize * static_cast<float>(1 << mSelectedDepth);
 
-				glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min + 0.5f * mGridSize) / size) * size - 0.5f * mGridSize + 0.5f * size;
+				glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min) / size) * size + 0.5f * size;
 
 				// Position cube
 				mSelectionCube->setTransform( 
@@ -541,6 +542,31 @@ public:
 					glm::vec3(1.0f, -1.0f, 1.0f),
 					glm::vec3(-1.0f, 1.0f, 1.0f),
 					glm::vec3(1.0f, 1.0f, 1.0f)
+				};
+
+				const std::array<glm::vec3, 19> nodeSamplePoints =
+				{
+					glm::vec3(0.0f, -1.0f, -1.0f),
+					glm::vec3(-1.0f, 0.0f, -1.0f),
+					glm::vec3(0.0f, 0.0f, -1.0f),
+					glm::vec3(1.0f, 0.0f, -1.0f),
+					glm::vec3(0.0f, 1.0f, -1.0f),
+
+					glm::vec3(-1.0f, -1.0f, 0.0f),
+					glm::vec3(0.0f, -1.0f, 0.0f),
+					glm::vec3(1.0f, -1.0f, 0.0f),
+					glm::vec3(-1.0f, 0.0f, 0.0f),
+					glm::vec3(0.0f),
+					glm::vec3(1.0f, 0.0f, 0.0f),
+					glm::vec3(-1.0f, 1.0f, 0.0f),
+					glm::vec3(0.0f, 1.0f, 0.0f),
+					glm::vec3(1.0f, 1.0f, 0.0f),
+
+					glm::vec3(0.0f, -1.0f, 1.0f),
+					glm::vec3(-1.0f, 0.0f, 1.0f),
+					glm::vec3(0.0f, 0.0f, 1.0f),
+					glm::vec3(1.0f, 0.0f, 1.0f),
+					glm::vec3(0.0f, 1.0f, 1.0f),
 				};
 
 				std::shared_ptr<Mesh> influenceRegionMesh = (mDrawInfluenceZone)
@@ -731,15 +757,16 @@ public:
 
 				mModelRenderer->setIndexData(newIndices);
 
+				auto getRandomVec3 = [&] () -> glm::vec3
+				{
+					glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+										static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+										static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+					return centerPoint + (p - 0.5f) * size;
+				};
+
 				if(mPrintTrianglesInfluence)
 				{
-					auto getRandomVec3 = [&] () -> glm::vec3
-					{
-						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-										 static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-										 static_cast<float>(rand())/static_cast<float>(RAND_MAX));
-						return centerPoint + (p - 0.5f) * size;
-					};
 					for(uint32_t s=0; s < mInfluenceNumSamples; s++)
 					{
 						glm::vec3 sample = getRandomVec3();
@@ -820,6 +847,50 @@ public:
 					mColoredModelRenderer->callDraw = false;
 				}
 
+				if(mPrintNodeError)
+				{
+					std::array<float, 8> distanceToVertices;
+					{
+						std::array<glm::vec3, 8> inPos;
+						for(uint32_t i=0; i < 8; i++)
+						{
+							inPos[i] = centerPoint + childrens[i] * 0.5f * size;
+						}
+						calculateMinDistances(inPos, distanceToVertices, triangles, trianglesInfo);
+					}
+
+					std::array<float, 19> distanceToMidPoints;
+					{
+						std::array<glm::vec3, 19> inPos;
+						for(uint32_t i=0; i < 19; i++)
+						{
+							inPos[i] = centerPoint + nodeSamplePoints[i] * 0.5f * size;
+						}
+						calculateMinDistances(inPos, distanceToMidPoints, triangles, trianglesInfo);
+					}
+
+					const float trapezoidRMSE = glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule(distanceToVertices, distanceToMidPoints));
+					SPDLOG_INFO("RMSE using trapezoid method: {}", trapezoidRMSE);
+
+					auto pow2 = [](float a) { return a * a; };
+
+					std::array<float, 1> dist;
+					std::array<glm::vec3, 1> pos;
+					double accError = 0.0;
+					for(uint32_t s=0; s < mInfluenceNumSamples; s++)
+					{
+						pos[0] = getRandomVec3();
+						calculateMinDistances(pos, dist, triangles, trianglesInfo);
+
+						const float d2 = interpolateValue(reinterpret_cast<const float*>(&distanceToVertices), 
+														  (pos[0] - centerPoint + 0.5f * size) / size);
+
+						accError += static_cast<double>(pow2(dist[0] - d2));
+					}
+					const float montecarloRMSE = glm::sqrt(static_cast<float>(accError / static_cast<double>(mInfluenceNumSamples)));
+					SPDLOG_INFO("MSE uisng monte carlo method: {}", montecarloRMSE);
+				}
+
 				SPDLOG_INFO("Number of selected triangles: {}", triangles.size());
 			}
 		}
@@ -863,6 +934,7 @@ private:
 	bool mComputeMinimalInfluence = false;
 	bool mDrawInfluenceZone = false;
 	bool mDrawOptimalZone = false;
+	bool mPrintNodeError = false;
 	uint32_t mInfluenceNumSamples = 10000;
 	uint32_t mSelectedDepth = 0;
 	BoundingBox mSelectArea;

@@ -29,7 +29,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 {
     typedef DepthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold;
+    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -169,10 +169,10 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 switch(terminationRule)
                 {
                     case TerminationRule::TRAPEZOIDAL_RULE:
-                        value = estimateErrorFunctionIntegralByTrapezoidRule(node.distanceToVertices, minDistToPoints) / (8.0f * node.size * node.size * node.size);
+                        value = estimateErrorFunctionIntegralByTrapezoidRule(node.distanceToVertices, minDistToPoints);
                         break;
                     case TerminationRule::SIMPSONS_RULE:
-                        value = estimateErrorFunctionIntegralBySimpsonsRule(node.distanceToVertices, minDistToPoints) / (8.0f * node.size * node.size * node.size);
+                        value = estimateErrorFunctionIntegralBySimpsonsRule(node.distanceToVertices, minDistToPoints);
                         break;
                     case TerminationRule::NONE:
                         value = INFINITY;
