@@ -262,7 +262,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                 std::array<float, 19> distanceToMidPoints;
                 std::array<TrianglesInfluenceStrategy::VertexInfo, 19> midPointsInfo;
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         0u, node.distanceToVertices,
+                                                         samplesMask, node.distanceToVertices,
                                                          distanceToMidPoints, midPointsInfo,
                                                          mesh, trianglesData);
 

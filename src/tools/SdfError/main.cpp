@@ -78,7 +78,7 @@ int main(int argc, char** argv)
     {
         accError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
     }
-    accError = accError / static_cast<double>(numSamples);
+    accError = glm::sqrt(accError / static_cast<double>(numSamples));
 
-    SPDLOG_INFO("MSE: {}", accError);
+    SPDLOG_INFO("RMSE: {}", accError);
 }

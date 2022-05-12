@@ -30,10 +30,10 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<PerVertexTrianglesInfluence<8>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<PerVertexTrianglesInfluence<1>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
-            initOctreeWithContinuity<BasicTrianglesInfluence>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctreeWithContinuity<PerVertexTrianglesInfluence<1>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
     }
 }
