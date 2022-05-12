@@ -36,7 +36,7 @@ int main(int argc, char** argv)
 
 	SPDLOG_INFO("Models Loaded");
 
-    const uint32_t numSamples = 10000000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
+    const uint32_t numSamples = 1000000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
     std::vector<glm::vec3> samples(numSamples);
     
     glm::vec3 center = sdf->getSampleArea().getCenter();

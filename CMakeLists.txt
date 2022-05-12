@@ -88,6 +88,9 @@ target_link_libraries(SdfOctreeTest PUBLIC ${PROJECT_NAME})
 add_executable(GJKtest src/tools/GJKtest/main.cpp)
 target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
 
+add_executable(CalculateInterpolationParameters src/tools/CalculateInterpolationParameters/main.cpp)
+target_link_libraries(CalculateInterpolationParameters PUBLIC ${PROJECT_NAME})
+
 add_executable(SdfViewer src/tools/SdfViewer/main.cpp src/tools/SdfViewer/InfluenceRegionCreator.h)
 target_link_libraries(SdfViewer PUBLIC ${PROJECT_NAME})
 
