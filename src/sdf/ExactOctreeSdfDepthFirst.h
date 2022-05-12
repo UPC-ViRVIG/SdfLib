@@ -109,7 +109,8 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 #ifdef PRINT_STATISTICS
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth + 1, std::make_pair(0, 0));
     verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
-    std::vector<float> elapsedTime(maxDepth + 1);
+    std::vector<uint32_t> endedNodes(maxDepth + 1, 0);
+    std::vector<float> elapsedTime(maxDepth + 1, 0.0f);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth + 1, 0);
     uint32_t numTrianglesInLeafs = 0;
     uint32_t numLeafs = 0;
@@ -300,6 +301,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                 numTrianglesInLeafs += triangles[rDepth].size();
                 numLeafs++;
                 maxTrianglesInLeaf = glm::max(maxTrianglesInLeaf, static_cast<uint32_t>(triangles[rDepth].size()));
+                endedNodes[node.depth]++;
             #endif
         }
 
@@ -315,7 +317,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 	
 #ifdef PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
-    for(uint32_t d=0; d < maxDepth; d++)
+    for(uint32_t d=0; d < maxDepth+1; d++)
     {
         const float mean = static_cast<float>(verticesStatistics[d].first) / 
                            static_cast<float>(glm::max(1u, verticesStatistics[d].second));
@@ -332,9 +334,11 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         {
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
+        //SPDLOG_INFO("Depth {}, ended nodes: {}%", d, 100.0f * static_cast<float>(endedNodes[d]) / static_cast<float>(1 << (3 * (d-1))));
+        SPDLOG_INFO("Depth {}, ended nodes: {}", d, endedNodes[d]);
     }
 
-    SPDLOG_INFO("Mean triangles in leafs: {}", static_cast<float>(numTrianglesInLeafs) / static_cast<float>(numLeafs));
+    SPDLOG_INFO("Mean triangles in leaves: {}", static_cast<float>(numTrianglesInLeafs) / static_cast<float>(numLeafs));
     SPDLOG_INFO("Maximum triangles in a leaf: {}", maxTrianglesInLeaf);
 
     trianglesInfluence.printStatistics();
