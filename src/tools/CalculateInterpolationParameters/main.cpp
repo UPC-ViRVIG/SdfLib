@@ -32,6 +32,12 @@ int main()
         glm::vec3(0.0f, 1.0, 1.0f),
         glm::vec3(1.0f, 1.0, 1.0f)
     };
+
+    // std::array<std::array<uint8_t, 3>, 1> equations = 
+    // {
+	// 	std::array<uint8_t, 3>{ {0, 0, 0} }
+    // };
+
     std::array<std::array<uint8_t, 3>, 8> equations = 
     {
 		std::array<uint8_t, 3>{ {0, 0, 0} },
@@ -75,9 +81,9 @@ int main()
     Eigen::MatrixXf A(equations.size() * pos.size(), polynomialElements.size());
 
     uint32_t rowIndex = 0;
-    for(const std::array<uint8_t, 3>& eq : equations)
+    for(const glm::vec3& p : pos)
     {
-        for(const glm::vec3& p : pos)
+        for(const std::array<uint8_t, 3>& eq : equations)
         {
             polynomialCache = polynomialElements;
             for(uint32_t ax=0; ax < 3; ax++)
@@ -120,7 +126,7 @@ int main()
 
     std::cout << std::endl;
 
-    std::cout << "inline void calculateCoeff(const std::array<float," << (equations.size() * pos.size())
+    std::cout << "inline void calculateCoeff(const std::array<std::array<float, " << equations.size() << ">, " << pos.size()
               << ">& inValues, std::array<float," << polynomialElements.size() << ">& outCoeff) {" << std::endl;
     
     for(uint32_t row=0; row < invA.rows(); row++)
@@ -128,9 +134,12 @@ int main()
         std::cout << "\toutCoeff[" << row << "] = ";
         for(uint32_t col=0; col < invA.cols(); col++)
         {
-            if(invA(row, col) > 0.001f)
+            if(glm::abs(invA(row, col)) > 0.001f)
             {
-                std::cout << invA(row, col) << " * inValues[" << col << "] + ";
+                const uint32_t vIndex = col / equations.size();
+                const uint32_t eqIndex = col % equations.size();
+                if(eqIndex >= 4) continue; // Only for specific porpuses
+                std::cout << invA(row, col) << " * inValues[" << vIndex << "][" << eqIndex << "] + ";
             }
         }
 

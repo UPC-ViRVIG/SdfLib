@@ -13,6 +13,7 @@
 #include "utils/TriangleUtils.h"
 #include "utils/PrimitivesFactory.h"
 #include "utils/Timer.h"
+#include "sdf/InterpolationMethods.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
@@ -80,8 +81,53 @@ int main()
 {
 	spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
 
-    TestScene scene;
-	// TestScene scene;
-    MainLoop loop;
-    loop.start(scene);
+    Mesh mesh("../models/sphere.glb");
+
+	std::vector<TriangleUtils::TriangleData> trianglesData = TriangleUtils::calculateMeshTriangleData(mesh);
+	std::vector<uint32_t> triangles(trianglesData.size());
+
+	for(uint32_t i=0; i < trianglesData.size(); i++)
+	{
+		triangles[i] = i;
+	}
+
+	std::array<std::array<float, 4>, 8> coeff;
+	typedef TriCubicInterpolation Inter;
+	Inter::calculatePointsValues(glm::vec3(0.0, 0.0, 0.0), 0, mesh, trianglesData, coeff[0]);
+	Inter::calculatePointsValues(glm::vec3(1.0, 0.0, 0.0), 0, mesh, trianglesData, coeff[1]);
+	Inter::calculatePointsValues(glm::vec3(0.0, 1.0, 0.0), 0, mesh, trianglesData, coeff[2]);
+	Inter::calculatePointsValues(glm::vec3(1.0, 1.0, 0.0), 0, mesh, trianglesData, coeff[3]);
+
+	Inter::calculatePointsValues(glm::vec3(0.0, 0.0, 1.0), 0, mesh, trianglesData, coeff[4]);
+	Inter::calculatePointsValues(glm::vec3(1.0, 0.0, 1.0), 0, mesh, trianglesData, coeff[5]);
+	Inter::calculatePointsValues(glm::vec3(0.0, 1.0, 1.0), 0, mesh, trianglesData, coeff[6]);
+	Inter::calculatePointsValues(glm::vec3(1.0, 1.0, 1.0), 0, mesh, trianglesData, coeff[7]);
+
+
+	std::array<float, 64> interpolation;
+	Inter::calculateCoefficients(coeff, triangles, mesh, trianglesData, interpolation);
+
+	float value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 0.0, 0.0));
+	std::cout << value << ", " << coeff[0][0] << std::endl;
+	
+	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 0.0, 0.0));
+	std::cout << value << ", " << coeff[1][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 1.0, 0.0));
+	std::cout << value << ", " << coeff[2][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 1.0, 0.0));
+	std::cout << value << ", " << coeff[3][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 0.0, 1.0));
+	std::cout << value << ", " << coeff[4][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 0.0, 1.0));
+	std::cout << value << ", " << coeff[5][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 1.0, 1.0));
+	std::cout << value << ", " << coeff[6][0] << std::endl;
+
+	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 1.0, 1.0));
+	std::cout << value << ", " << coeff[7][0] << std::endl;
 }
