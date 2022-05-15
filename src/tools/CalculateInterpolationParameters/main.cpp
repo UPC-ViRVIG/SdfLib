@@ -139,7 +139,9 @@ int main()
                 const uint32_t vIndex = col / equations.size();
                 const uint32_t eqIndex = col % equations.size();
                 if(eqIndex >= 4) continue; // Only for specific porpuses
-                std::cout << invA(row, col) << " * inValues[" << vIndex << "][" << eqIndex << "] + ";
+                std::cout << invA(row, col) << " * inValues[" << vIndex << "][" << eqIndex << "]";
+                if(eqIndex > 0) std::cout << " * nodeSize";
+                std::cout << " + ";
             }
         }
 
@@ -160,6 +162,7 @@ int main()
         {
             for(uint32_t i=0; i <= degree; i++)
             {
+                //std::cout << " + uintBitsToFloat(octreeData[vIndex + " << (index++) << "])";
                 std::cout << " + values[" << (index++) << "]";
                 for(uint32_t n=0; n < i; n++) std::cout << " * fracPart[0]";
                 for(uint32_t n=0; n < j; n++) std::cout << " * fracPart[1]";
@@ -171,4 +174,48 @@ int main()
 
     std::cout << ";" << std::endl;
     std::cout << "}" << std::endl;
+
+
+    // Print derivatives
+    const std::array<uint8_t, 3>& eq = equations[3];
+    polynomialCache = polynomialElements;
+    for(uint32_t ax=0; ax < 3; ax++)
+    {
+        for(uint32_t n=0; n < eq[ax]; n++)
+        {
+            for(Product& prod : polynomialCache)
+            {
+                if(prod.axis[ax] > 0)
+                {
+                    prod.value *= prod.axis[ax];
+                    prod.axis[ax]--;
+                } else prod.value = 0.0f;
+            }
+        }
+    }
+    std::cout << std::endl << std::endl;
+
+    index=0;
+    for(uint32_t k=0; k <= degree; k++)
+    {
+        std::cout << "\t";
+        for(uint32_t j=0; j <= degree; j++)
+        {
+            for(uint32_t i=0; i <= degree; i++)
+            {
+                if(glm::abs(polynomialCache[index].value) > 0.001f)
+                {
+                    std::cout << " + " << polynomialCache[index].value << " * values[" << index << "]";
+                    for(uint32_t n=0; n < polynomialCache[index].axis[0]; n++) std::cout << " * fracPart[0]";
+                    for(uint32_t n=0; n < polynomialCache[index].axis[1]; n++) std::cout << " * fracPart[1]";
+                    for(uint32_t n=0; n < polynomialCache[index].axis[2]; n++) std::cout << " * fracPart[2]";
+                }
+                index++;
+
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << ";" << std::endl;
 }

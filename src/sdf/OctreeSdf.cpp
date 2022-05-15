@@ -3,6 +3,7 @@
 #include "utils/GJK.h"
 #include "OctreeSdfUtils.h"
 #include "TrianglesInfluence.h"
+#include "InterpolationMethods.h"
 #include <array>
 #include <stack>
 
@@ -30,10 +31,10 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<PerVertexTrianglesInfluence<1>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<PerVertexTrianglesInfluence<1, TriCubicInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
-            initOctreeWithContinuity<PerVertexTrianglesInfluence<1>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctreeWithContinuity<PerVertexTrianglesInfluence<1, TriCubicInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
     }
 }
@@ -61,7 +62,7 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
         fracPart = glm::fract(2.0f * fracPart);
     }
 
-    const float* values = reinterpret_cast<const float*>(&mOctreeData[currentNode->getChildrenIndex()]);
+    auto& values = *reinterpret_cast<const std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
 
-    return interpolateValue(values, fracPart);
+    return TriCubicInterpolation::interpolateValue(values, fracPart);
 }

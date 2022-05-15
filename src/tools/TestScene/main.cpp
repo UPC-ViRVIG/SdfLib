@@ -93,41 +93,36 @@ int main()
 
 	std::array<std::array<float, 4>, 8> coeff;
 	typedef TriCubicInterpolation Inter;
-	Inter::calculatePointsValues(glm::vec3(0.0, 0.0, 0.0), 0, mesh, trianglesData, coeff[0]);
-	Inter::calculatePointsValues(glm::vec3(1.0, 0.0, 0.0), 0, mesh, trianglesData, coeff[1]);
-	Inter::calculatePointsValues(glm::vec3(0.0, 1.0, 0.0), 0, mesh, trianglesData, coeff[2]);
-	Inter::calculatePointsValues(glm::vec3(1.0, 1.0, 0.0), 0, mesh, trianglesData, coeff[3]);
+	auto f = [](glm::vec3 point)
+	{
+		std::array<float, 4> c;
+		c[0] = point.x;
+		c[1] = 1.0f;
+		c[2] = 0.0f;
+		c[3] = 0.0f;
+		return c;
+	};
 
-	Inter::calculatePointsValues(glm::vec3(0.0, 0.0, 1.0), 0, mesh, trianglesData, coeff[4]);
-	Inter::calculatePointsValues(glm::vec3(1.0, 0.0, 1.0), 0, mesh, trianglesData, coeff[5]);
-	Inter::calculatePointsValues(glm::vec3(0.0, 1.0, 1.0), 0, mesh, trianglesData, coeff[6]);
-	Inter::calculatePointsValues(glm::vec3(1.0, 1.0, 1.0), 0, mesh, trianglesData, coeff[7]);
+	glm::vec3 center = glm::vec3(-1.24f, -2.0f, 2.0f);
 
+	coeff[0] = f(5.0f * glm::vec3(0.0f, 0.0f, 0.0f));
+	coeff[1] = f(5.0f * glm::vec3(1.0f, 0.0f, 0.0f));
+	coeff[2] = f(5.0f * glm::vec3(0.0f, 1.0f, 0.0f));
+	coeff[3] = f(5.0f * glm::vec3(1.0f, 1.0f, 0.0f));
 
-	std::array<float, 64> interpolation;
-	Inter::calculateCoefficients(coeff, triangles, mesh, trianglesData, interpolation);
+	coeff[4] = f(5.0f * glm::vec3(0.0f, 0.0f, 1.0f));
+	coeff[5] = f(5.0f * glm::vec3(1.0f, 0.0f, 1.0f));
+	coeff[6] = f(5.0f * glm::vec3(0.0f, 1.0f, 1.0f));
+	coeff[7] = f(5.0f * glm::vec3(1.0f, 1.0f, 1.0f));
 
-	float value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 0.0, 0.0));
-	std::cout << value << ", " << coeff[0][0] << std::endl;
+	std::array<float, 64> param;
+	Inter::calculateCoefficients(coeff, 5.0f, triangles, mesh, trianglesData, param);
 	
-	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 0.0, 0.0));
-	std::cout << value << ", " << coeff[1][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 1.0, 0.0));
-	std::cout << value << ", " << coeff[2][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 1.0, 0.0));
-	std::cout << value << ", " << coeff[3][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 0.0, 1.0));
-	std::cout << value << ", " << coeff[4][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 0.0, 1.0));
-	std::cout << value << ", " << coeff[5][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(0.0, 1.0, 1.0));
-	std::cout << value << ", " << coeff[6][0] << std::endl;
-
-	value = Inter::interpolateValue(interpolation, glm::vec3(1.0, 1.0, 1.0));
-	std::cout << value << ", " << coeff[7][0] << std::endl;
+	std::array<float, 4> interCoeff;
+	Inter::interpolateVertexValues(param, glm::vec3(0.5f, 0.0f, 0.0f), 5.0f, interCoeff);
+	
+	std::cout << interCoeff[0] << std::endl;
+	std::cout << interCoeff[1] << std::endl;
+	std::cout << interCoeff[2] << std::endl;
+	std::cout << interCoeff[3] << std::endl;
 }
