@@ -14,6 +14,11 @@ namespace GJK
     float getMinDistance(glm::vec3 quadSize, 
                          const std::array<glm::vec3, 3>& triangle, 
                          uint32_t* pIter = nullptr);
+    bool IsNear(glm::vec3 quadSize, 
+                 const std::array<glm::vec3, 3>& triangle,
+                 float distThreshold,
+                 uint32_t* pIter = nullptr);
+
     float getMinDistanceNewMethod(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
     float getMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
 

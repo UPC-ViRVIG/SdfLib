@@ -353,13 +353,22 @@ float getMaxDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::ve
     return glm::sqrt(maxDist);
 }
 
+inline glm::vec3 fsign(glm::vec3 a)
+{
+	return glm::vec3(
+		(a.x > 0.0f) ? 1.0f : -1.0f,
+		(a.y > 0.0f) ? 1.0f : -1.0f,
+		(a.z > 0.0f) ? 1.0f : -1.0f
+		);
+}
+
 inline glm::vec3 findFurthestPoint(const glm::vec3& quadSize, const std::array<glm::vec3, 3>& triangle, const glm::vec3& direction)
 {
     const float d1 = glm::dot(triangle[0], direction);
     const float d2 = glm::dot(triangle[1], direction);
     const float d3 = glm::dot(triangle[2], direction);
 
-    const glm::vec3 quadPos = glm::sign(-direction) * quadSize;
+    const glm::vec3 quadPos = fsign(-direction) * quadSize;
 
     if(d1 > d2)
     {
@@ -369,15 +378,6 @@ inline glm::vec3 findFurthestPoint(const glm::vec3& quadSize, const std::array<g
     {
         return (d2 > d3) ? triangle[1] - quadPos : triangle[2] - quadPos;
     }
-}
-
-inline glm::vec3 fsign(glm::vec3 a)
-{
-	return glm::vec3(
-		(a.x > 0.0f) ? 1.0f : -1.0f,
-		(a.y > 0.0f) ? 1.0f : -1.0f,
-		(a.z > 0.0f) ? 1.0f : -1.0f
-		);
 }
 
 inline TrackedSimplex::Point findFurthestPointAndIndices(const glm::vec3& quadSize, const std::array<glm::vec3, 3>& triangle, const glm::vec3& direction)
@@ -485,6 +485,51 @@ float getMinDistance(glm::vec3 quadSize,
 
     // It does not have next origin direction because the origin is inside the simplex
     return 0.0f;
+}
+
+bool IsNear(glm::vec3 quadSize, 
+                 const std::array<glm::vec3, 3>& triangle,
+                 float distThreshold,
+                 uint32_t* pIter)
+{
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+
+    Simplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPoint(quadSize, triangle, glm::vec3(1.0, 0.0, 0.0));
+
+    glm::vec3 direction = -simplex.points[0];
+    float dotLastEnterPoint = 0.0f;
+    do {
+        direction = glm::normalize(direction);
+        glm::vec3 p = findFurthestPoint(quadSize, triangle, direction);
+        
+        //if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
+        float dist = glm::dot(simplex.points[0], -direction);
+        if(dist - glm::dot(p, -direction) <= 1.0e-5f || dist <= distThreshold)
+        {
+            return dist <= distThreshold;
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+    } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
+
+    //assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return true;
 }
 
 inline float sqMaxDistToQuad(const glm::vec3& point, const glm::vec3& quadSize)
