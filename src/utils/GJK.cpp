@@ -714,4 +714,51 @@ bool isInsideConvexHull(float halfNodeSize,
     return true;
 }
 
+bool IsNear(float halfNodeSize,
+                const std::array<float, 8>& vertRadius, 
+                const std::array<glm::vec3, 3>& triangle,
+                float distThreshold,
+                glm::vec3 startDir,
+                uint32_t* pIter)
+{
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+
+    Simplex simplex;
+    simplex.type = SimplexType::POINT;
+    simplex.points[0] = findFurthestPoint(halfNodeSize, vertRadius, triangle, startDir);
+
+    glm::vec3 direction = -simplex.points[0];
+    float dotLastEnterPoint = 0.0f;
+    do {
+        direction = glm::normalize(direction);
+        glm::vec3 p = findFurthestPoint(halfNodeSize, vertRadius, triangle, direction);
+        
+        //if(dotLastEnterPoint - glm::dot(simplex.points[0], direction) <= 1.0e-5f)
+        float dist = glm::dot(simplex.points[0], -direction);
+        if(dist - glm::dot(p, -direction) <= 1.0e-5f || dist <= distThreshold)
+        {
+            return dist <= distThreshold;
+        }
+
+        // Insert new point to the simplex
+        simplex.type = static_cast<SimplexType>(simplex.type + 1);
+        simplex.points[3] = simplex.points[2];
+        simplex.points[2] = simplex.points[1];
+        simplex.points[1] = simplex.points[0];
+        simplex.points[0] = p;
+
+    } while(!getOriginDirection(simplex, direction, dotLastEnterPoint) && ++iter < 100);
+
+    //assert(iter < 100);
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("GJK has done maximum iterations without solving the shape");
+    }
+
+    // It does not have next origin direction because the origin is inside the simplex
+    return true;
+}
+
 }
