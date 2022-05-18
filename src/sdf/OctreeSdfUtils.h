@@ -55,54 +55,58 @@ inline float pow2(float a)
     return a * a;
 }
 
-inline float estimateErrorFunctionIntegralByTrapezoidRule(const std::array<float, 8> vertexPoints, std::array<float, 19> middlePoints)
+template<typename Inter>
+inline float estimateErrorFunctionIntegralByTrapezoidRule(const std::array<float, Inter::NUM_COEFFICIENTS>& interpolationCoeff,
+                                                          const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints)
 {
-    return 2.0f / 64.0f * pow2(middlePoints[0] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 0.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[1] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 0.0f))) +
-           4.0f / 64.0f * pow2(middlePoints[2] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 0.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[3] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 0.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[4] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 0.0f))) +
+    return 2.0f / 64.0f * pow2(middlePoints[0][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[1][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.0f))) +
+           4.0f / 64.0f * pow2(middlePoints[2][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[3][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[4][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.0f))) +
 
-           2.0f / 64.0f * pow2(middlePoints[5] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.0f, 0.5f))) +
-           4.0f / 64.0f * pow2(middlePoints[6] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 0.5f))) +
-           2.0f / 64.0f * pow2(middlePoints[7] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.0f, 0.5f))) +
-           4.0f / 64.0f * pow2(middlePoints[8] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 0.5f))) +
-           8.0f / 64.0f * pow2(middlePoints[9] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 0.5f))) +
-           4.0f / 64.0f * pow2(middlePoints[10] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 0.5f))) +
-           2.0f / 64.0f * pow2(middlePoints[11] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 1.0f, 0.5f))) +
-           4.0f / 64.0f * pow2(middlePoints[12] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 0.5f))) +
-           2.0f / 64.0f * pow2(middlePoints[13] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 1.0f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[5][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[6][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[7][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[8][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.5f))) +
+           8.0f / 64.0f * pow2(middlePoints[9][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[10][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[11][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 1.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[12][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[13][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 1.0f, 0.5f))) +
 
-           2.0f / 64.0f * pow2(middlePoints[14] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 1.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[15] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 1.0f))) +
-           4.0f / 64.0f * pow2(middlePoints[16] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 1.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[17] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 1.0f))) +
-           2.0f / 64.0f * pow2(middlePoints[18] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 1.0f)));
+           2.0f / 64.0f * pow2(middlePoints[14][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[15][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 1.0f))) +
+           4.0f / 64.0f * pow2(middlePoints[16][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[17][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[18][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 1.0f)));
 }
 
-inline float estimateErrorFunctionIntegralBySimpsonsRule(const std::array<float, 8> vertexPoints, std::array<float, 19> middlePoints)
+template<typename Inter>
+inline float estimateErrorFunctionIntegralBySimpsonsRule(const std::array<float, Inter::NUM_COEFFICIENTS>& interpolationCoeff,
+                                                         const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints)
 {
-    return 4.0f / 216.0f * pow2(middlePoints[0] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 0.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[1] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 0.0f))) +
-           16.0f / 216.0f * pow2(middlePoints[2] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 0.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[3] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 0.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[4] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 0.0f))) +
+    return 4.0f / 216.0f * pow2(middlePoints[0][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[1][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.0f))) +
+           16.0f / 216.0f * pow2(middlePoints[2][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[3][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[4][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.0f))) +
 
-           4.0f / 216.0f * pow2(middlePoints[5] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.0f, 0.5f))) +
-           16.0f / 216.0f * pow2(middlePoints[6] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 0.5f))) +
-           4.0f / 216.0f * pow2(middlePoints[7] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.0f, 0.5f))) +
-           16.0f / 216.0f * pow2(middlePoints[8] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 0.5f))) +
-           64.0f / 216.0f * pow2(middlePoints[9] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 0.5f))) +
-           16.0f / 216.0f * pow2(middlePoints[10] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 0.5f))) +
-           4.0f / 216.0f * pow2(middlePoints[11] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 1.0f, 0.5f))) +
-           16.0f / 216.0f * pow2(middlePoints[12] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 0.5f))) +
-           4.0f / 216.0f * pow2(middlePoints[13] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 1.0f, 0.5f))) +
+           4.0f / 216.0f * pow2(middlePoints[5][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.0f, 0.5f))) +
+           16.0f / 216.0f * pow2(middlePoints[6][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.5f))) +
+           4.0f / 216.0f * pow2(middlePoints[7][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.0f, 0.5f))) +
+           16.0f / 216.0f * pow2(middlePoints[8][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.5f))) +
+           64.0f / 216.0f * pow2(middlePoints[9][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.5f))) +
+           16.0f / 216.0f * pow2(middlePoints[10][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.5f))) +
+           4.0f / 216.0f * pow2(middlePoints[11][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 1.0f, 0.5f))) +
+           16.0f / 216.0f * pow2(middlePoints[12][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.5f))) +
+           4.0f / 216.0f * pow2(middlePoints[13][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 1.0f, 0.5f))) +
 
-           4.0f / 216.0f * pow2(middlePoints[14] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.0f, 1.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[15] - interpolateValue(vertexPoints.data(), glm::vec3(0.0f, 0.5f, 1.0f))) +
-           16.0f / 216.0f * pow2(middlePoints[16] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 0.5f, 1.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[17] - interpolateValue(vertexPoints.data(), glm::vec3(1.0f, 0.5f, 1.0f))) +
-           4.0f / 216.0f * pow2(middlePoints[18] - interpolateValue(vertexPoints.data(), glm::vec3(0.5f, 1.0f, 1.0f)));
+           4.0f / 216.0f * pow2(middlePoints[14][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 1.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[15][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 1.0f))) +
+           16.0f / 216.0f * pow2(middlePoints[16][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 1.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[17][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 1.0f))) +
+           4.0f / 216.0f * pow2(middlePoints[18][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 1.0f)));
 }
 
 

@@ -13,6 +13,7 @@
 #include "utils/TriangleUtils.h"
 #include "utils/PrimitivesFactory.h"
 #include "utils/Timer.h"
+#include "sdf/InterpolationMethods.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
@@ -80,8 +81,48 @@ int main()
 {
 	spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
 
-    TestScene scene;
-	// TestScene scene;
-    MainLoop loop;
-    loop.start(scene);
+    Mesh mesh("../models/sphere.glb");
+
+	std::vector<TriangleUtils::TriangleData> trianglesData = TriangleUtils::calculateMeshTriangleData(mesh);
+	std::vector<uint32_t> triangles(trianglesData.size());
+
+	for(uint32_t i=0; i < trianglesData.size(); i++)
+	{
+		triangles[i] = i;
+	}
+
+	std::array<std::array<float, 4>, 8> coeff;
+	typedef TriCubicInterpolation Inter;
+	auto f = [](glm::vec3 point)
+	{
+		std::array<float, 4> c;
+		c[0] = point.x;
+		c[1] = 1.0f;
+		c[2] = 0.0f;
+		c[3] = 0.0f;
+		return c;
+	};
+
+	glm::vec3 center = glm::vec3(-1.24f, -2.0f, 2.0f);
+
+	coeff[0] = f(5.0f * glm::vec3(0.0f, 0.0f, 0.0f));
+	coeff[1] = f(5.0f * glm::vec3(1.0f, 0.0f, 0.0f));
+	coeff[2] = f(5.0f * glm::vec3(0.0f, 1.0f, 0.0f));
+	coeff[3] = f(5.0f * glm::vec3(1.0f, 1.0f, 0.0f));
+
+	coeff[4] = f(5.0f * glm::vec3(0.0f, 0.0f, 1.0f));
+	coeff[5] = f(5.0f * glm::vec3(1.0f, 0.0f, 1.0f));
+	coeff[6] = f(5.0f * glm::vec3(0.0f, 1.0f, 1.0f));
+	coeff[7] = f(5.0f * glm::vec3(1.0f, 1.0f, 1.0f));
+
+	std::array<float, 64> param;
+	Inter::calculateCoefficients(coeff, 5.0f, triangles, mesh, trianglesData, param);
+	
+	std::array<float, 4> interCoeff;
+	Inter::interpolateVertexValues(param, glm::vec3(0.5f, 0.0f, 0.0f), 5.0f, interCoeff);
+	
+	std::cout << interCoeff[0] << std::endl;
+	std::cout << interCoeff[1] << std::endl;
+	std::cout << interCoeff[2] << std::endl;
+	std::cout << interCoeff[3] << std::endl;
 }

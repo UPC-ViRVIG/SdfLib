@@ -1,5 +1,6 @@
 #include "ExactOctreeSdf.h"
 #include "TrianglesInfluence.h"
+#include "InterpolationMethods.h"
 
 ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDepth,
                                uint32_t startDepth, uint32_t minTrianglesPerNode)
@@ -18,7 +19,7 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
 
     mTrianglesData = TriangleUtils::calculateMeshTriangleData(mesh);
 
-    initOctree<PerVertexTrianglesInfluence<1>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
+    initOctree<PerVertexTrianglesInfluence<1, NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
     calculateStatistics();
 }
 

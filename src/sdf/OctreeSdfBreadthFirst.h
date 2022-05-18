@@ -9,7 +9,7 @@
 #include <stack>
 
 
-template<typename VertexInfo>
+template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct BreadthFirstNodeInfo
 {
     BreadthFirstNodeInfo() {}
@@ -24,7 +24,7 @@ struct BreadthFirstNodeInfo
 
     std::array<uint32_t, 6> neighbourIndices;
 
-    std::array<float, 8> distanceToVertices;
+    std::array<std::array<float, VALUES_PER_VERTEX>, 8> verticesValues;
     std::array<VertexInfo, 8> verticesInfo;
 
     std::vector<uint32_t>* parentTriangles;
@@ -72,7 +72,8 @@ template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                               float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
 {
-    typedef BreadthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo> NodeInfo;
+    typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    typedef BreadthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
 
@@ -194,10 +195,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     nodes.push_back(NodeInfo(std::numeric_limits<uint32_t>::max(), 0, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
                     NodeInfo& n = nodes.back();
                     n.parentTriangles = &startTriangles;
-
+                    std::array<float, InterpolationMethod::NUM_COEFFICIENTS> nullArray;
                     trianglesInfluence.calculateVerticesInfo(n.center, n.size, startTriangles, childrens,
-                                                              0u, n.distanceToVertices,
-                                                              n.distanceToVertices, n.verticesInfo,
+                                                              0u, nullArray,
+                                                              n.verticesValues, n.verticesInfo,
                                                               mesh, trianglesData);
                 }
             }
@@ -223,11 +224,13 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
             OctreeNode* octreeNode = (currentDepth > startDepth) 
                                         ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
                                         : nullptr;
+            
+            std::array<float, InterpolationMethod::NUM_COEFFICIENTS> interpolationCoeff;
 
             if(!node.isTerminalNode && currentDepth < maxDepth)
             {
                 trianglesInfluence.filterTriangles(node.center, node.size, *node.parentTriangles, 
-                                                   node.triangles, node.distanceToVertices, node.verticesInfo,
+                                                   node.triangles, node.verticesValues, node.verticesInfo,
                                                    mesh, trianglesData);
 
                 // Get current neighbours
@@ -258,12 +261,16 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         
                     }
                 }
-
-                std::array<float, 19> distanceToMidPoints;
+                
+                if(currentDepth >= startDepth)
+                {
+                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, interpolationCoeff);
+                }
+                std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
                 std::array<TrianglesInfluenceStrategy::VertexInfo, 19> midPointsInfo;
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         samplesMask, node.distanceToVertices,
-                                                         distanceToMidPoints, midPointsInfo,
+                                                         samplesMask, interpolationCoeff,
+                                                         midPointsValues, midPointsInfo,
                                                          mesh, trianglesData);
 
                 bool generateTerminalNodes = false;
@@ -273,10 +280,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     switch(terminationRule)
                     {
                         case TerminationRule::TRAPEZOIDAL_RULE:
-                            value = estimateErrorFunctionIntegralByTrapezoidRule(node.distanceToVertices, distanceToMidPoints);
+                            value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
                             break;
                         case TerminationRule::SIMPSONS_RULE:
-                            value = estimateErrorFunctionIntegralBySimpsonsRule(node.distanceToVertices, distanceToMidPoints);
+                            value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;
@@ -314,10 +321,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = node.distanceToVertices[0]; child.distanceToVertices[1] = distanceToMidPoints[0]; 
-                    child.distanceToVertices[2] = distanceToMidPoints[1]; child.distanceToVertices[3] = distanceToMidPoints[2];
-					child.distanceToVertices[4] = distanceToMidPoints[5]; child.distanceToVertices[5] = distanceToMidPoints[6];
-					child.distanceToVertices[6] = distanceToMidPoints[8]; child.distanceToVertices[7] = distanceToMidPoints[9];
+					child.verticesValues[0] = node.verticesValues[0]; child.verticesValues[1] = midPointsValues[0]; 
+                    child.verticesValues[2] = midPointsValues[1]; child.verticesValues[3] = midPointsValues[2];
+					child.verticesValues[4] = midPointsValues[5]; child.verticesValues[5] = midPointsValues[6];
+					child.verticesValues[6] = midPointsValues[8]; child.verticesValues[7] = midPointsValues[9];
 
                     child.verticesInfo[0] = node.verticesInfo[0]; child.verticesInfo[1] = midPointsInfo[0]; 
                     child.verticesInfo[2] = midPointsInfo[1]; child.verticesInfo[3] = midPointsInfo[2];
@@ -332,10 +339,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[0]; child.distanceToVertices[1] = node.distanceToVertices[1];
-					child.distanceToVertices[2] = distanceToMidPoints[2]; child.distanceToVertices[3] = distanceToMidPoints[3];
-					child.distanceToVertices[4] = distanceToMidPoints[6]; child.distanceToVertices[5] = distanceToMidPoints[7];
-					child.distanceToVertices[6] = distanceToMidPoints[9]; child.distanceToVertices[7] = distanceToMidPoints[10];
+					child.verticesValues[0] = midPointsValues[0]; child.verticesValues[1] = node.verticesValues[1];
+					child.verticesValues[2] = midPointsValues[2]; child.verticesValues[3] = midPointsValues[3];
+					child.verticesValues[4] = midPointsValues[6]; child.verticesValues[5] = midPointsValues[7];
+					child.verticesValues[6] = midPointsValues[9]; child.verticesValues[7] = midPointsValues[10];
 
                     child.verticesInfo[0] = midPointsInfo[0]; child.verticesInfo[1] = node.verticesInfo[1];
 					child.verticesInfo[2] = midPointsInfo[2]; child.verticesInfo[3] = midPointsInfo[3];
@@ -350,10 +357,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[1]; child.distanceToVertices[1] = distanceToMidPoints[2];
-					child.distanceToVertices[2] = node.distanceToVertices[2]; child.distanceToVertices[3] = distanceToMidPoints[4];
-					child.distanceToVertices[4] = distanceToMidPoints[8]; child.distanceToVertices[5] = distanceToMidPoints[9];
-					child.distanceToVertices[6] = distanceToMidPoints[11]; child.distanceToVertices[7] = distanceToMidPoints[12];
+					child.verticesValues[0] = midPointsValues[1]; child.verticesValues[1] = midPointsValues[2];
+					child.verticesValues[2] = node.verticesValues[2]; child.verticesValues[3] = midPointsValues[4];
+					child.verticesValues[4] = midPointsValues[8]; child.verticesValues[5] = midPointsValues[9];
+					child.verticesValues[6] = midPointsValues[11]; child.verticesValues[7] = midPointsValues[12];
 
                     child.verticesInfo[0] = midPointsInfo[1]; child.verticesInfo[1] = midPointsInfo[2];
 					child.verticesInfo[2] = node.verticesInfo[2]; child.verticesInfo[3] = midPointsInfo[4];
@@ -368,10 +375,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[2]; child.distanceToVertices[1] = distanceToMidPoints[3];
-					child.distanceToVertices[2] = distanceToMidPoints[4]; child.distanceToVertices[3] = node.distanceToVertices[3];
-					child.distanceToVertices[4] = distanceToMidPoints[9]; child.distanceToVertices[5] = distanceToMidPoints[10];
-					child.distanceToVertices[6] = distanceToMidPoints[12]; child.distanceToVertices[7] = distanceToMidPoints[13];
+					child.verticesValues[0] = midPointsValues[2]; child.verticesValues[1] = midPointsValues[3];
+					child.verticesValues[2] = midPointsValues[4]; child.verticesValues[3] = node.verticesValues[3];
+					child.verticesValues[4] = midPointsValues[9]; child.verticesValues[5] = midPointsValues[10];
+					child.verticesValues[6] = midPointsValues[12]; child.verticesValues[7] = midPointsValues[13];
 
                     child.verticesInfo[0] = midPointsInfo[2]; child.verticesInfo[1] = midPointsInfo[3];
 					child.verticesInfo[2] = midPointsInfo[4]; child.verticesInfo[3] = node.verticesInfo[3];
@@ -387,10 +394,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[5]; child.distanceToVertices[1] = distanceToMidPoints[6];
-					child.distanceToVertices[2] = distanceToMidPoints[8]; child.distanceToVertices[3] = distanceToMidPoints[9];
-					child.distanceToVertices[4] = node.distanceToVertices[4]; child.distanceToVertices[5] = distanceToMidPoints[14];
-					child.distanceToVertices[6] = distanceToMidPoints[15]; child.distanceToVertices[7] = distanceToMidPoints[16];
+					child.verticesValues[0] = midPointsValues[5]; child.verticesValues[1] = midPointsValues[6];
+					child.verticesValues[2] = midPointsValues[8]; child.verticesValues[3] = midPointsValues[9];
+					child.verticesValues[4] = node.verticesValues[4]; child.verticesValues[5] = midPointsValues[14];
+					child.verticesValues[6] = midPointsValues[15]; child.verticesValues[7] = midPointsValues[16];
 
                     child.verticesInfo[0] = midPointsInfo[5]; child.verticesInfo[1] = midPointsInfo[6];
 					child.verticesInfo[2] = midPointsInfo[8]; child.verticesInfo[3] = midPointsInfo[9];
@@ -405,10 +412,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[6]; child.distanceToVertices[1] = distanceToMidPoints[7];
-					child.distanceToVertices[2] = distanceToMidPoints[9]; child.distanceToVertices[3] = distanceToMidPoints[10];
-					child.distanceToVertices[4] = distanceToMidPoints[14]; child.distanceToVertices[5] = node.distanceToVertices[5];
-					child.distanceToVertices[6] = distanceToMidPoints[16]; child.distanceToVertices[7] = distanceToMidPoints[17];
+					child.verticesValues[0] = midPointsValues[6]; child.verticesValues[1] = midPointsValues[7];
+					child.verticesValues[2] = midPointsValues[9]; child.verticesValues[3] = midPointsValues[10];
+					child.verticesValues[4] = midPointsValues[14]; child.verticesValues[5] = node.verticesValues[5];
+					child.verticesValues[6] = midPointsValues[16]; child.verticesValues[7] = midPointsValues[17];
 
                     child.verticesInfo[0] = midPointsInfo[6]; child.verticesInfo[1] = midPointsInfo[7];
 					child.verticesInfo[2] = midPointsInfo[9]; child.verticesInfo[3] = midPointsInfo[10];
@@ -423,10 +430,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[8]; child.distanceToVertices[1] = distanceToMidPoints[9];
-					child.distanceToVertices[2] = distanceToMidPoints[11]; child.distanceToVertices[3] = distanceToMidPoints[12];
-					child.distanceToVertices[4] = distanceToMidPoints[15]; child.distanceToVertices[5] = distanceToMidPoints[16];
-					child.distanceToVertices[6] = node.distanceToVertices[6]; child.distanceToVertices[7] = distanceToMidPoints[18];
+					child.verticesValues[0] = midPointsValues[8]; child.verticesValues[1] = midPointsValues[9];
+					child.verticesValues[2] = midPointsValues[11]; child.verticesValues[3] = midPointsValues[12];
+					child.verticesValues[4] = midPointsValues[15]; child.verticesValues[5] = midPointsValues[16];
+					child.verticesValues[6] = node.verticesValues[6]; child.verticesValues[7] = midPointsValues[18];
 
                     child.verticesInfo[0] = midPointsInfo[8]; child.verticesInfo[1] = midPointsInfo[9];
 					child.verticesInfo[2] = midPointsInfo[11]; child.verticesInfo[3] = midPointsInfo[12];
@@ -441,10 +448,10 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				{
 					NodeInfo& child = nodesBuffer[nextBuffer].back();
                     child.parentTriangles = &node.triangles;
-					child.distanceToVertices[0] = distanceToMidPoints[9]; child.distanceToVertices[1] = distanceToMidPoints[10];
-					child.distanceToVertices[2] = distanceToMidPoints[12]; child.distanceToVertices[3] = distanceToMidPoints[13];
-					child.distanceToVertices[4] = distanceToMidPoints[16]; child.distanceToVertices[5] = distanceToMidPoints[17];
-					child.distanceToVertices[6] = distanceToMidPoints[18]; child.distanceToVertices[7] = node.distanceToVertices[7];
+					child.verticesValues[0] = midPointsValues[9]; child.verticesValues[1] = midPointsValues[10];
+					child.verticesValues[2] = midPointsValues[12]; child.verticesValues[3] = midPointsValues[13];
+					child.verticesValues[4] = midPointsValues[16]; child.verticesValues[5] = midPointsValues[17];
+					child.verticesValues[6] = midPointsValues[18]; child.verticesValues[7] = node.verticesValues[7];
 
                     child.verticesInfo[0] = midPointsInfo[9]; child.verticesInfo[1] = midPointsInfo[10];
 					child.verticesInfo[2] = midPointsInfo[12]; child.verticesInfo[3] = midPointsInfo[13];
@@ -460,12 +467,17 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
 				uint32_t childIndex = mOctreeData.size();
 				octreeNode->setValues(true, childIndex);
 
-				mOctreeData.resize(mOctreeData.size() + 8);
+                InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, *node.parentTriangles, mesh, trianglesData, interpolationCoeff);
+				mOctreeData.resize(mOctreeData.size() + InterpolationMethod::NUM_COEFFICIENTS);
+
+                for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
+                {
+                    mOctreeData[childIndex + i].value = interpolationCoeff[i];
+                }
 
 				for (uint32_t i = 0; i < 8; i++)
 				{
-					mOctreeData[childIndex + i].value = node.distanceToVertices[i];
-					mValueRange = glm::max(mValueRange, glm::abs(node.distanceToVertices[i]));
+					mValueRange = glm::max(mValueRange, glm::abs(node.verticesValues[i][0]));
 				}
             }
         }

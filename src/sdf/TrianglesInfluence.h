@@ -4,30 +4,13 @@
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
+#include "InterpolationMethods.h"
 #include "utils/Timer.h"
 #include "utils/GJK.h"
 
 #include <vector>
 #include <array>
 #include <glm/glm.hpp>
-
-const std::array<std::pair<uint32_t, uint32_t>, 12> nodeEdgesIndices
-{
-    std::make_pair(0, 1),
-    std::make_pair(1, 3),
-    std::make_pair(3, 2),
-    std::make_pair(2, 1),
-
-    std::make_pair(0, 4),
-    std::make_pair(1, 5),
-    std::make_pair(2, 6),
-    std::make_pair(3, 7),
-
-    std::make_pair(4, 5),
-    std::make_pair(5, 7),
-    std::make_pair(7, 6),
-    std::make_pair(6, 5),
-};
 
 const std::array<glm::vec3, 8> childrens = 
 {
@@ -42,193 +25,19 @@ const std::array<glm::vec3, 8> childrens =
     glm::vec3(1.0f, 1.0f, 1.0f)
 };
 
-class TrianglesInfluence
-{
-public:
-    TrianglesInfluence(float halfNodeSize)
-    {
-        mNodeHalfSize = halfNodeSize;
-        mSpheresShape.resize(8);
-        mSpheresShape[0] = std::make_pair(glm::vec3(-halfNodeSize), INFINITY);
-        mSpheresShape[1] = std::make_pair(glm::vec3(halfNodeSize, -halfNodeSize, -halfNodeSize), INFINITY);
-        mSpheresShape[2] = std::make_pair(glm::vec3(-halfNodeSize, halfNodeSize, -halfNodeSize), INFINITY);
-        mSpheresShape[3] = std::make_pair(glm::vec3(halfNodeSize, halfNodeSize, -halfNodeSize), INFINITY);
-        
-        mSpheresShape[4] = std::make_pair(glm::vec3(-halfNodeSize, -halfNodeSize, halfNodeSize), INFINITY);
-        mSpheresShape[5] = std::make_pair(glm::vec3(halfNodeSize, -halfNodeSize, halfNodeSize), INFINITY);
-        mSpheresShape[6] = std::make_pair(glm::vec3(-halfNodeSize, halfNodeSize, halfNodeSize), INFINITY);
-        mSpheresShape[7] = std::make_pair(glm::vec3(halfNodeSize), INFINITY);
-
-        mEdgesIntervals.fill(std::vector<IntervalNode>());
-    }
-
-    void addTriangle(const std::array<float, 8>& distanceToVertices)
-    {
-        std::array<bool, 8> needsUpdate;
-
-        // Mark which vertices need update
-        for(uint32_t i=0; i < 8; i++)
-        {
-            needsUpdate[i] = mSpheresShape[i].second > distanceToVertices[i];
-        }
-
-        // Put mid points if needed
-        for(uint32_t edgeId=0; edgeId < 12; edgeId++)
-        {
-            const std::pair<uint32_t, uint32_t>& edgeVertices = nodeEdgesIndices[edgeId];
-            std::vector<IntervalNode>& intervalArray = mEdgesIntervals[edgeId];
-            if(needsUpdate[edgeVertices.first] && needsUpdate[edgeVertices.second])
-            {
-                intervalArray.clear();
-            }
-            else
-            {
-                float newMinTRadius, newDiffTRadius;
-                calculateOuterTangent(0.0f, distanceToVertices[nodeEdgesIndices[edgeId].first], 
-                                      1.0f, distanceToVertices[nodeEdgesIndices[edgeId].second],
-                                      newMinTRadius, newDiffTRadius);
-
-                // Intersect the convex interval array and the new line
-				const float lastMinTRadius = (intervalArray.empty()) ? mSpheresShape[edgeVertices.first].second : intervalArray.back().radius;
-                bool removing = needsUpdate[edgeVertices.first];
-                float minT = 0.0f, maxT = 0.0f;
-                uint32_t nextInterval = 0;
-                uint32_t i;
-                float newT;
-                for(i=0; i < intervalArray.size(); i++)
-                {
-                    IntervalNode& inter = intervalArray[i];
-                    minT = maxT;
-                    maxT = intervalArray[i].maxT;
-
-                    newT = (newMinTRadius - inter.minTRadius) / 
-                           (inter.diffTRadius - newDiffTRadius);
-
-                    if(newT > minT && newT < maxT) // If the lines intersect
-                    {
-                        if(removing) break;
-                        else {
-                            // Create the new interval
-                            inter.position = mSpheresShape[edgeVertices.first].first * (1.0f - newT) +
-                                            mSpheresShape[edgeVertices.second].first * newT;
-                            inter.radius = newMinTRadius + newDiffTRadius * newT;
-                            inter.maxT = newT;
-                            nextInterval = i + 1;
-                            removing = true;
-                        }
-                    }
-                }
-
-                if(removing ^ needsUpdate[edgeVertices.second])
-                {
-                    if(i >= intervalArray.size())
-                    {
-                        float minTRadius, diffTRadius;
-                        calculateOuterTangent(maxT, lastMinTRadius, 
-                                              1.0f, mSpheresShape[edgeVertices.second].second,
-                                              minTRadius, diffTRadius);
-                        newT = (newMinTRadius - minTRadius) /
-							   (diffTRadius - newDiffTRadius);
-                    }
-                    if(i == nextInterval) intervalArray.emplace(intervalArray.begin() + nextInterval, IntervalNode());
-                    else if(i > nextInterval + 1)
-                    {
-                        // Move the previous intervals
-                        for(uint32_t j=nextInterval + 1; i < intervalArray.size(); j++, i++)
-                            intervalArray[j] = intervalArray[i];
-                    }
-
-                    // Insert the new interval
-                    const float maxTRadius = newMinTRadius + newDiffTRadius * newT;
-                    const float minT = (nextInterval > 0) ? intervalArray[nextInterval-1].maxT : 0.0f;
-                    const float minTRadius = (nextInterval > 0) 
-								? intervalArray[nextInterval-1].radius 
-								: glm::min(distanceToVertices[edgeVertices.first], mSpheresShape[edgeVertices.first].second);
-                    float resMinTRadius, resDiffTRadius;
-                    calculateOuterTangent(minT, minTRadius, newT, maxTRadius,
-                                          resMinTRadius, resDiffTRadius);
-                    intervalArray[nextInterval] = IntervalNode
-                    {
-                        mSpheresShape[edgeVertices.first].first * (1.0f - newT) +
-                        mSpheresShape[edgeVertices.second].first * newT,
-                        newMinTRadius + newDiffTRadius * newT,
-
-						resMinTRadius,
-                        resDiffTRadius,
-                        newT
-                    };
-                }
-            }
-        }
-
-        // Rewrite the vertices
-        for(uint32_t i=0; i < 8; i++)
-        {
-            if(needsUpdate[i]) mSpheresShape[i].second = distanceToVertices[i];
-        }
-    }
-
-    void getSpheresShape(std::vector<std::pair<glm::vec3, float>>& outShape) const
-    {
-        outShape.clear();
-
-        for(const auto& p : mSpheresShape) outShape.push_back(p);
-
-        for(const std::vector<IntervalNode>& interval : mEdgesIntervals)
-        {
-            for(const IntervalNode& node : interval)
-                outShape.push_back(std::make_pair(node.position, node.radius));
-        }
-    }
-private:
-    struct IntervalNode
-    {
-        glm::vec3 position;
-        float radius;
-
-        float minTRadius;
-        float diffTRadius;
-        float maxT;
-    };
-
-    float mNodeHalfSize;
-    std::vector<std::pair<glm::vec3, float>> mSpheresShape;
-    std::array<std::vector<IntervalNode>, 12> mEdgesIntervals;
-
-    inline void calculateOuterTangent(float t1, float radius1, float t2, float radius2,
-                                      float& outMinTRadius, float& outDiffTRadius)
-    {
-        const float length = 2.0f * glm::abs(t2 - t1) * mNodeHalfSize;
-        const float radiusDiff = glm::abs(radius1 - radius2);
-        
-        const float sin = radiusDiff / length;
-        const float cos = glm::sqrt(1.0f - sin * sin);
-
-        const float x1 = glm::sign(radius1 - radius2) * radius1 * sin / length;
-        const float y1 = radius1 * cos;
-		const float x2 = 1.0f + glm::sign(radius2 - radius1) * radius2 * sin / length;
-        const float y2 = radius2 * cos;
-
-        const float slope = (y2 - y1) / (x2 - x1);
-
-        outMinTRadius = y1 - slope * (t1 + x1);
-        outDiffTRadius = slope;
-    }
-};
-
 namespace
 {
-template<int N, typename VertexInfo>
+template<int N, typename InterpolationMethod>
 inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float size,
                                             const std::vector<uint32_t>& triangles,
                                             const std::array<glm::vec3, N>& pointsRelPos,
                                             const uint32_t pointsToInterpolateMask,
-                                            const std::array<float, 8>& interpolationPoints,
-                                            std::array<float, N>& outDistanceToPoint,
-                                            std::array<VertexInfo, N>& outPointInfo,
+                                            const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                            std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                            std::array<float, N>& outPointsInfo,
                                             const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
 {
-    outDistanceToPoint.fill(INFINITY);
+    outPointsInfo.fill(INFINITY);
     std::array<uint32_t, N> minIndex;
 
     std::array<glm::vec3, N> inPoints;
@@ -243,32 +52,36 @@ inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float 
         {
             if(pointsToInterpolateMask & (1 << (N-i-1))) continue;
             const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
-            if(dist < outDistanceToPoint[i])
+            if(dist < outPointsInfo[i])
             {
                 minIndex[i] = t;
-                outDistanceToPoint[i] = dist;
+                outPointsInfo[i] = dist;
             }
         }
     }
 
     for(uint32_t i=0; i < N; i++)
     {
+        outPointsInfo[i] = glm::sqrt(outPointsInfo[i]);
         if(pointsToInterpolateMask & (1 << (N-i-1)))
         {
-            outDistanceToPoint[i] = interpolateValue(reinterpret_cast<const float*>(&interpolationPoints), 0.5f * pointsRelPos[i] + 0.5f);
+            InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * size, outPointsValues[i]);
         }
         else
         {
-            outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(inPoints[i], trianglesData[minIndex[i]]);
+            InterpolationMethod::calculatePointValues(inPoints[i], minIndex[i], mesh, trianglesData, outPointsValues[i]);
         }
     }
 }
 }
 
 
+template<typename T>
 struct BasicTrianglesInfluence
 {
-    struct VertexInfo {};
+    typedef T InterpolationMethod;
+
+    typedef float VertexInfo;
     struct NodeInfo {};
 
     uint32_t gjkIter = 0;
@@ -282,19 +95,20 @@ struct BasicTrianglesInfluence
                                         const std::vector<uint32_t>& triangles,
                                         const std::array<glm::vec3, N>& pointsRelPos,
                                         const uint32_t pointsToInterpolateMask,
-                                        const std::array<float, 8>& interpolationPoints,
-                                        std::array<float, N>& outDistanceToPoint,
-                                        std::array<VertexInfo, N>& outPointInfo,
+                                        const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                        std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                        std::array<VertexInfo, N>& outPointsInfo,
                                         const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
-        standardCalculateVerticesInfo(nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
-                                      pointsToInterpolateMask, interpolationPoints,
-                                      outDistanceToPoint, outPointInfo, mesh, trianglesData);
+        standardCalculateVerticesInfo<N, InterpolationMethod>(
+                                    nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
+                                    pointsToInterpolateMask, interpolationCoeff,
+                                    outPointsValues, outPointsInfo, mesh, trianglesData);
     }
 
     inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                 const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
-                                const std::array<float, 8>& distanceToVertices,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
                                 const std::array<VertexInfo, 8>& verticesInfo,
                                 const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
@@ -304,7 +118,7 @@ struct BasicTrianglesInfluence
         float maxMinDist = 0.0f;
         for(uint32_t i=0; i < 8; i++)
         {
-            maxMinDist = glm::max(maxMinDist, glm::abs(distanceToVertices[i]));
+            maxMinDist = glm::max(maxMinDist, verticesInfo[i]);
         }
 
         const std::vector<glm::vec3>& vertices = mesh.getVertices();
@@ -361,10 +175,12 @@ struct BasicTrianglesInfluence
     }
 };
 
-
+template<typename T>
 struct PreciseTrianglesInfluence
 {
-    struct VertexInfo {};
+    typedef T InterpolationMethod;
+
+    typedef float VertexInfo;
     struct NodeInfo {};
 
     template<int N>
@@ -372,19 +188,20 @@ struct PreciseTrianglesInfluence
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
                                       const uint32_t pointsToInterpolateMask,
-                                      const std::array<float, 8>& interpolationPoints,
-                                      std::array<float, N>& outDistanceToPoint,
-                                      std::array<VertexInfo, N>& outPointInfo,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
                                       const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     { 
-        standardCalculateVerticesInfo(nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
-                                      pointsToInterpolateMask, interpolationPoints,
-                                      outDistanceToPoint, outPointInfo, mesh, trianglesData);
+        standardCalculateVerticesInfo<N, InterpolationMethod>(
+                                    nodeCenter, nodeHalfSize, triangles, pointsRelPos, 
+                                    pointsToInterpolateMask, interpolationCoeff,
+                                    outPointsValues, outPointsInfo, mesh, trianglesData);
     }
 
     inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                 const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
-                                const std::array<float, 8>& distanceToVertices,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
                                 const std::array<VertexInfo, 8>& verticesInfo,
                                 const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
@@ -394,7 +211,7 @@ struct PreciseTrianglesInfluence
         float maxMinDist = 0.0f;
         for(uint32_t i=0; i < 8; i++)
         {
-            maxMinDist = glm::max(maxMinDist, glm::abs(distanceToVertices[i]));
+            maxMinDist = glm::max(maxMinDist, verticesInfo[i]);
         }
 
         const std::vector<glm::vec3>& vertices = mesh.getVertices();
@@ -449,11 +266,13 @@ struct PreciseTrianglesInfluence
     void printStatistics() {}
 };
 
-template<int NumVertexTests>
+template<int NumVertexTests, typename T>
 struct PerVertexTrianglesInfluence
 {
-    struct {} NodeInfo;
+    typedef T InterpolationMethod;
+
     typedef uint32_t VertexInfo;
+    struct {} NodeInfo;
 
     uint32_t gjkIter = 0;
     uint32_t gjkCallsInside = 0;
@@ -467,23 +286,30 @@ struct PerVertexTrianglesInfluence
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
                                       const uint32_t pointToInterpolateMask,
-                                      const std::array<float, 8>& interpolationPoints,
-                                      std::array<float, N>& outDistanceToPoint,
-                                      std::array<VertexInfo, N>& outPointInfo,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
                                       const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
-        outDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
+        std::array<float, N> minDistanceToPoint;
+        minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
+
+        std::array<glm::vec3, N> inPoints;
+        for(uint32_t i=0; i < N; i++)
+        {
+            inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+        }
 
         for(const uint32_t& t : triangles)
         {
             for(uint32_t i=0; i < N; i++)
             {
-                const float dist = TriangleUtils::getSqDistPointAndTriangle(nodeCenter + pointsRelPos[i] * nodeHalfSize, trianglesData[t]);
+                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
 
-                if(dist < outDistanceToPoint[i])
+                if(dist < minDistanceToPoint[i])
                 {
-                    outPointInfo[i] = t;
-                    outDistanceToPoint[i] = dist;
+                    outPointsInfo[i] = t;
+                    minDistanceToPoint[i] = dist;
                 }
             }
         }
@@ -492,18 +318,18 @@ struct PerVertexTrianglesInfluence
         {
             if(pointToInterpolateMask & (1 << (N-i-1)))
             {
-                outDistanceToPoint[i] = interpolateValue(reinterpret_cast<const float*>(&interpolationPoints), 0.5f * pointsRelPos[i] + 0.5f);
+                InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
             }
             else
             {
-                outDistanceToPoint[i] = TriangleUtils::getSignedDistPointAndTriangle(nodeCenter + pointsRelPos[i] * nodeHalfSize, trianglesData[outPointInfo[i]]);
+                InterpolationMethod::calculatePointValues(inPoints[i], outPointsInfo[i], mesh, trianglesData, outPointsValues[i]);
             }
         }
     }
 
     inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                 const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
-                                const std::array<float, 8>& distanceToVertices,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
                                 const std::array<VertexInfo, 8>& verticesInfo,
                                 const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
@@ -614,54 +440,113 @@ struct PerVertexTrianglesInfluence
     }
 };
 
-template<>
-inline void PerVertexTrianglesInfluence<8>::filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
-                                            const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
-                                            const std::array<float, 8>& distanceToVertices,
-                                            const std::array<VertexInfo, 8>& verticesInfo,
-                                            const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+template<typename T>
+struct PerVertexTrianglesInfluence<8, T>
 {
-    outTriangles.clear();
-        
-    const std::vector<glm::vec3>& vertices = mesh.getVertices();
-    const std::vector<uint32_t>& indices = mesh.getIndices();
+    typedef T InterpolationMethod;
 
-    std::array<glm::vec3, 3> triangle;
+    typedef uint32_t VertexInfo;
+    struct {} NodeInfo;
 
-    std::array<std::array<float, 8>, 8> triangleRegions;
+    uint32_t gjkIter = 0;
+    uint32_t gjkCalls = 0;
 
-    for(uint32_t i=0; i < 8; i++)
+    template<int N>
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
+                                      const std::array<glm::vec3, N>& pointsRelPos,
+                                      const uint32_t pointToInterpolateMask,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
+                                      const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
-        const uint32_t& idx = verticesInfo[i];
+        std::array<float, N> minDistanceToPoint;
+        minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
 
-        for(uint32_t c=0; c < 8; c++)
+        std::array<glm::vec3, N> inPoints;
+        for(uint32_t i=0; i < N; i++)
         {
-            triangleRegions[i][c] = 
-                glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+            inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
         }
-    }
 
-    for(const uint32_t& idx : inTriangles)
-    {
-        triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
-        triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
-        triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
-
-        bool isInside = true;
-        for(uint32_t r=0; r < 8; r++)
+        for(const uint32_t& t : triangles)
         {
-            if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+            for(uint32_t i=0; i < N; i++)
             {
-                isInside = false;
-                break;
+                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+                if(dist < minDistanceToPoint[i])
+                {
+                    outPointsInfo[i] = t;
+                    minDistanceToPoint[i] = dist;
+                }
             }
         }
 
-        if(isInside)
+        for(uint32_t i=0; i < N; i++)
         {
-            outTriangles.push_back(idx);
+            if(pointToInterpolateMask & (1 << (N-i-1)))
+            {
+                InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
+            }
+            else
+            {
+                InterpolationMethod::calculatePointValues(inPoints[i], outPointsInfo[i], mesh, trianglesData, outPointsValues[i]);
+            }
         }
     }
-}
+
+    inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
+                                const std::array<VertexInfo, 8>& verticesInfo,
+                                const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        outTriangles.clear();
+        
+        const std::vector<glm::vec3>& vertices = mesh.getVertices();
+        const std::vector<uint32_t>& indices = mesh.getIndices();
+
+        std::array<glm::vec3, 3> triangle;
+
+        std::array<std::array<float, 8>, 8> triangleRegions;
+
+        for(uint32_t i=0; i < 8; i++)
+        {
+            const uint32_t& idx = verticesInfo[i];
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] = 
+                    glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+            }
+        }
+
+        for(const uint32_t& idx : inTriangles)
+        {
+            triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
+            triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
+            triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
+
+            bool isInside = true;
+            for(uint32_t r=0; r < 8; r++)
+            {
+                if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+                {
+                    isInside = false;
+                    break;
+                }
+            }
+
+            if(isInside)
+            {
+                outTriangles.push_back(idx);
+            }
+        }
+    }
+
+    void printStatistics() {}
+};
 
 #endif

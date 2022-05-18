@@ -19,6 +19,7 @@
 #include "utils/GJK.h"
 #include "InfluenceRegionCreator.h"
 #include "sdf/TrianglesInfluence.h"
+#include "sdf/InterpolationMethods.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
@@ -579,6 +580,8 @@ public:
 
 				// Serach triangles influencing the zone
 				{
+					typedef TriLinearInterpolation Inter;
+
 					std::vector<uint32_t> inTriangles(indices.size()/3);
 					for(uint32_t i=0; i < indices.size()/3; i++)
 					{
@@ -589,16 +592,16 @@ public:
 					// Ground truth process
 					{
 						std::vector<uint32_t> outTriangles;
-						std::array<PreciseTrianglesInfluence::VertexInfo, 8> verticesInfo;
-						std::array<float, 8> minDistToVertices;
-						std::array<float, 8> nullArray;
+						std::array<PreciseTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> minDistToVertices;
+						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
 
-						PreciseTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
-																		  inTriangles,
-																		  childrens, 0u, nullArray,
-																		  minDistToVertices, verticesInfo,
-																		  mMesh.value(), trianglesInfo);
-						PreciseTrianglesInfluence().filterTriangles(centerPoint, 0.5f * size, 
+						PreciseTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																				inTriangles,
+																				childrens, 0u, nullArray,
+																				minDistToVertices, verticesInfo,
+																				mMesh.value(), trianglesInfo);
+						PreciseTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
 																	inTriangles, outTriangles,
 																	minDistToVertices, verticesInfo,
 																	mMesh.value(), trianglesInfo);
@@ -650,17 +653,17 @@ public:
 
 					{
 						std::vector<uint32_t> outTriangles;
-						std::array<float, 8> verticesDist;
-						std::array<BasicTrianglesInfluence::VertexInfo, 8> verticesInfo;
-						std::array<float, 8> nullArray;
-						BasicTrianglesInfluence().calculateVerticesInfo(centerPoint, 0.5f * size,
+						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+						std::array<BasicTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+						BasicTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
 																		inTriangles, 
 																		childrens, 0u, nullArray,
 																		verticesDist, verticesInfo,
 																		mMesh.value(), trianglesInfo);
 
-						for(const float& d : verticesDist) maxMinDist = glm::max(maxMinDist, d);
-						BasicTrianglesInfluence().filterTriangles(centerPoint, 0.5f * size, 
+						for(const auto& d : verticesDist) maxMinDist = glm::max(maxMinDist, d[0]);
+						BasicTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
 																		inTriangles, outTriangles,
 																		verticesDist, verticesInfo,
 																		mMesh.value(), trianglesInfo);
@@ -675,15 +678,15 @@ public:
 
 					{
 						std::vector<uint32_t> outTriangles;
-						std::array<float, 8> verticesDist;
-						std::array<PerVertexTrianglesInfluence<1>::VertexInfo, 8> verticesInfo;
-						std::array<float, 8> nullArray;
-						PerVertexTrianglesInfluence<1>().calculateVerticesInfo(centerPoint, 0.5f * size,
+						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+						std::array<PerVertexTrianglesInfluence<1, Inter>::VertexInfo, 8> verticesInfo;
+						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+						PerVertexTrianglesInfluence<1, Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
 																			inTriangles,
 																			childrens, 0u, nullArray,
 																			verticesDist, verticesInfo,
 																			mMesh.value(), trianglesInfo);
-						PerVertexTrianglesInfluence<1>().filterTriangles(centerPoint, 0.5f * size, 
+						PerVertexTrianglesInfluence<1, Inter>().filterTriangles(centerPoint, 0.5f * size, 
 																		inTriangles, outTriangles,
 																		verticesDist, verticesInfo,
 																		mMesh.value(), trianglesInfo);
@@ -869,7 +872,8 @@ public:
 						calculateMinDistances(inPos, distanceToMidPoints, triangles, trianglesInfo);
 					}
 
-					const float trapezoidRMSE = glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule(distanceToVertices, distanceToMidPoints));
+					const float trapezoidRMSE = glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriLinearInterpolation>(
+															distanceToVertices, *reinterpret_cast<const std::array<std::array<float, 1>, 19>*>(&distanceToMidPoints)));
 					SPDLOG_INFO("RMSE using trapezoid method: {}", trapezoidRMSE);
 
 					auto pow2 = [](float a) { return a * a; };
@@ -1003,7 +1007,7 @@ int main(int argc, char** argv)
 	}
 
 	const std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
-	//const std::string defaultModel = "../models/sphere.glb";
+	// const std::string defaultModel = "../models/sphere.glb";
 	const std::string defaultModel = "../models/bunny.ply";
 
 	if(sdfPathArg)

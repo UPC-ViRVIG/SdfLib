@@ -205,58 +205,73 @@ namespace TriangleUtils
         {
             if(projPoint.x <= 0) // Its near v1
             {
-                outNormal = glm::normalize(point - v1);
-                return glm::sign(glm::dot(data.verticesNormal[0], projPoint)) * glm::sqrt(glm::dot(projPoint, projPoint));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[0], projPoint));
+                outNormal = sign * glm::normalize(point - v1);
+                return sign * glm::sqrt(glm::dot(projPoint, projPoint));
             }
             else if(projPoint.x >= data.v2) // Its near v2
             {
-                outNormal = glm::normalize(point - v2);
                 const glm::vec3 p = projPoint - glm::vec3(data.v2, 0.0, 0.0);
-                return glm::sign(glm::dot(data.verticesNormal[1], p)) * glm::sqrt(glm::dot(p, p));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[1], p));
+                outNormal = sign * glm::normalize(point - v2);
+                return  sign * glm::sqrt(glm::dot(p, p));
             }
             else // Its near edge 1
             {
-                outNormal = glm::normalize(glm::transpose(data.transform) * glm::vec3(0.0, de1, projPoint.z));
-                return glm::sign(glm::dot(data.edgesNormal[0], projPoint)) * glm::sqrt(de1 * de1 + projPoint.z * projPoint.z);
+                const float sign = glm::sign(glm::dot(data.edgesNormal[0], projPoint));
+                outNormal = sign * glm::normalize(glm::transpose(data.transform) * glm::vec3(0.0, projPoint.y, projPoint.z));
+                return  sign * glm::sqrt(de1 * de1 + projPoint.z * projPoint.z);
             }
         }
         else if(de2 >= 0)
         {
             if((projPoint.x - data.v2) * data.b.x + projPoint.y * data.b.y <= 0) // Its near v2
             {
-                outNormal = glm::normalize(point - v2);
                 const glm::vec3 p = projPoint - glm::vec3(data.v2, 0.0, 0.0);
-                return glm::sign(glm::dot(data.verticesNormal[1], p)) * glm::sqrt(glm::dot(p, p));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[1], p));
+                outNormal = sign * glm::normalize(point - v2);
+                return sign * glm::sqrt(glm::dot(p, p));
             }
             else if((projPoint.x - data.v3.x) * data.b.x + (projPoint.y - data.v3.y) * data.b.y >= 0) // Its near v3
             {
-                outNormal = glm::normalize(point - v3);
                 const glm::vec3 p = projPoint - glm::vec3(data.v3.x, data.v3.y, 0.0);
-                return glm::sign(glm::dot(data.verticesNormal[2], p)) * glm::sqrt(glm::dot(p, p));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[2], p));
+                outNormal = sign * glm::normalize(point - v3);
+                return sign * glm::sqrt(glm::dot(p, p));
             }
             else // Its near edge 2
             {
-                outNormal = glm::normalize(glm::transpose(data.transform) * glm::vec3((projPoint.x - data.v2) * data.b.y, -projPoint.y * data.b.x, projPoint.z));
-                return glm::sign(glm::dot(data.edgesNormal[1], projPoint - glm::vec3(data.v2, 0.0f, 0.0f))) * glm::sqrt(de2 * de2 + projPoint.z * projPoint.z);
+                const float sign = glm::sign(glm::dot(data.edgesNormal[1], projPoint - glm::vec3(data.v2, 0.0f, 0.0f)));
+                const float dot = (projPoint.x - data.v2) * data.b.x + projPoint.y * data.b.y;
+                outNormal = sign * glm::normalize(glm::transpose(data.transform) * glm::vec3((projPoint.x - data.v2) - dot * data.b.x, 
+                                                                                              projPoint.y - dot * data.b.y, 
+                                                                                              projPoint.z));
+                return sign * glm::sqrt(de2 * de2 + projPoint.z * projPoint.z);
             }
         }
         else if(de3 >= 0)
         {
             if(projPoint.x * data.c.x + projPoint.y * data.c.y >= 0) // Its near v1
             {
-                outNormal = glm::transpose(data.transform) * projPoint;
-                return glm::sign(glm::dot(data.verticesNormal[0], projPoint)) * glm::sqrt(glm::dot(projPoint, projPoint));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[0], projPoint));
+                outNormal = sign * glm::normalize(point - v1);
+                return sign * glm::sqrt(glm::dot(projPoint, projPoint));
             }
             else if((projPoint.x - data.v3.x) * data.c.x + (projPoint.y - data.v3.y) * data.c.y <= 0) // Its near v3
             {
                 const glm::vec3 p = projPoint - glm::vec3(data.v3.x, data.v3.y, 0.0);
-                outNormal = glm::transpose(data.transform) * p;
-                return glm::sign(glm::dot(data.verticesNormal[2], p)) * glm::sqrt(glm::dot(p, p));
+                const float sign = glm::sign(glm::dot(data.verticesNormal[2], p));
+                outNormal = sign * glm::normalize(point - v3);
+                return sign * glm::sqrt(glm::dot(p, p));
             }
             else // Its near edge 3
             {
-                outNormal = glm::normalize(glm::transpose(data.transform) * glm::vec3(projPoint.x * data.c.y, - projPoint.y * data.c.x, projPoint.z));
-                return glm::sign(glm::dot(data.edgesNormal[2], projPoint)) * glm::sqrt(de3 * de3 + projPoint.z * projPoint.z);
+                const float sign = glm::sign(glm::dot(data.edgesNormal[2], projPoint));
+				const float dot = projPoint.x * data.c.x + projPoint.y * data.c.y;
+                outNormal = sign * glm::normalize(glm::transpose(data.transform) * glm::vec3(projPoint.x - dot * data.c.x, 
+                                                                                             projPoint.y - dot * data.c.y, 
+                                                                                             projPoint.z));
+                return sign * glm::sqrt(de3 * de3 + projPoint.z * projPoint.z);
             }
         }
 
