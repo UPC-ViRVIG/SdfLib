@@ -1043,7 +1043,7 @@ int main(int argc, char** argv)
 			(modelPathArg) ? args::get(modelPathArg) : defaultModel,
 			(depthArg) ? args::get(depthArg) : 6,
 			(startDepthArg) ? args::get(startDepthArg) : 2,
-			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 4e-3,
+			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3,
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;

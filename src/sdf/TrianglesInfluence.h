@@ -271,6 +271,12 @@ struct BasicTrianglesInfluence
     struct VertexInfo {};
     struct NodeInfo {};
 
+    uint32_t gjkIter = 0;
+    uint32_t gjkCallsInside = 0;
+    std::array<uint32_t, 10> gjkIterHistogramInside = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint32_t gjkCallsOutside = 0;
+    std::array<uint32_t, 10> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
     template<int N>
     inline void calculateVerticesInfo(  const glm::vec3 nodeCenter, const float nodeHalfSize,
                                         const std::vector<uint32_t>& triangles,
@@ -312,16 +318,47 @@ struct BasicTrianglesInfluence
             triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
             triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
 
-            const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle);
+            uint32_t iter = 0;
+            //const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle, &iter);
+            const bool isInside = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
 
-            if(minDist <= maxMinDist)
+            if(isInside)
+            {
+                gjkIterHistogramInside[glm::min(iter, 9u)]++;
+                gjkCallsInside++;
+            }
+            else
+            {
+                gjkIterHistogramOutside[glm::min(iter, 9u)]++;
+                gjkCallsOutside++;
+            }
+            gjkIter += iter;
+
+            if(isInside)
             {
                 outTriangles.push_back(idx);
             }
         }
     }
 
-    void printStatistics() {}
+    void printStatistics() 
+    {
+        SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        for(uint32_t p=0; p < 10; p++)
+        {
+            SPDLOG_INFO("Inter Outside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsOutside));
+        }
+
+        for(uint32_t p=0; p < 10; p++)
+        {
+            SPDLOG_INFO("Inter Inside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p]) / static_cast<float>(gjkCallsInside));
+        }
+
+        for(uint32_t p=0; p < 10; p++)
+        {
+            SPDLOG_INFO("Inter {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p] + gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        }
+    }
 };
 
 
@@ -419,7 +456,11 @@ struct PerVertexTrianglesInfluence
     typedef uint32_t VertexInfo;
 
     uint32_t gjkIter = 0;
-    uint32_t gjkCalls = 0;
+    uint32_t gjkCallsInside = 0;
+    std::array<uint32_t, 20> gjkIterHistogramInside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    uint32_t gjkCallsOutside = 0;
+    std::array<uint32_t, 20> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    float filterTime = 0.0f;
 
     template<int N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
@@ -466,6 +507,8 @@ struct PerVertexTrianglesInfluence
                                 const std::array<VertexInfo, 8>& verticesInfo,
                                 const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
     {
+        Timer timer;
+        timer.start();
         outTriangles.clear();
         
         const std::vector<glm::vec3>& vertices = mesh.getVertices();
@@ -513,9 +556,29 @@ struct PerVertexTrianglesInfluence
             for(uint32_t r=0; r < NumVertexTests; r++)
             {
                 const uint32_t vId = verticesToTest[r].first;
-                if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+                uint32_t iter = 0;
+                if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f), &iter))
                 {
                     isInside = false;
+                }
+
+                if(verticesInfo[vId] != idx)
+                {
+                    if(isInside)
+                    {
+                        gjkIterHistogramInside[glm::min(iter, 19u)]++;
+                        gjkCallsInside++;
+                    }
+                    else
+                    {
+                        gjkIterHistogramOutside[glm::min(iter, 19u)]++;
+                        gjkCallsOutside++;
+                    }
+                    gjkIter += iter;
+                }
+                
+                if(!isInside)
+                {
                     break;
                 }
             }
@@ -525,9 +588,30 @@ struct PerVertexTrianglesInfluence
                 outTriangles.push_back(idx);
             }
         }
+
+        filterTime += timer.getElapsedSeconds();
     }
 
-    void printStatistics() {}
+    void printStatistics() 
+    {
+        SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter Outside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsOutside));
+        }
+
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter Inside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p]) / static_cast<float>(gjkCallsInside));
+        }
+
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p] + gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        }
+
+        SPDLOG_INFO("Filter Time: {}", filterTime);
+    }
 };
 
 template<>
