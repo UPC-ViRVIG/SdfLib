@@ -18,6 +18,10 @@ namespace GJK
                  const std::array<glm::vec3, 3>& triangle,
                  float distThreshold,
                  uint32_t* pIter = nullptr);
+    bool IsNearMinimize(glm::vec3 quadSize, 
+                        const std::array<glm::vec3, 3>& triangle,
+                        float distThreshold,
+                        uint32_t* pIter = nullptr);
 
     float getMinDistanceNewMethod(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
     float getMaxDistance(glm::vec3 quadSize, const std::array<glm::vec3, 3>& triangle);
@@ -42,6 +46,11 @@ namespace GJK
                 float distThreshold,
                 glm::vec3 startDir = glm::vec3(1.0, 0.0, 0.0),
                 uint32_t* pIter = nullptr);
+    bool IsNearMinimize(float halfNodeSize,
+                        const std::array<float, 8>& vertRadius, 
+                        const std::array<glm::vec3, 3>& triangle,
+                        float distThreshold,
+                        uint32_t* pIter = nullptr);
 }
 
 #endif

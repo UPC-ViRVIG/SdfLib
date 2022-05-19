@@ -58,7 +58,7 @@ struct TrackedSimplex
 };
 
 template<typename S>
-bool getLineOriginDirection(S& simplex, glm::vec3& outDirection)
+inline bool getLineOriginDirection(S& simplex, glm::vec3& outDirection)
 {
     const glm::vec3 ab = simplex[1] - simplex[0];
     const glm::vec3 ao = -simplex[0];
@@ -79,7 +79,7 @@ bool getLineOriginDirection(S& simplex, glm::vec3& outDirection)
 }
 
 template<typename S>
-bool getTriangleOriginDirection(S& simplex, glm::vec3& outDirection)
+inline bool getTriangleOriginDirection(S& simplex, glm::vec3& outDirection)
 {
     glm::vec3 ab = simplex[1] - simplex[0];
     glm::vec3 ac = simplex[2] - simplex[0];
@@ -128,43 +128,70 @@ bool getTriangleOriginDirection(S& simplex, glm::vec3& outDirection)
 }
 
 template<typename S>
-bool getTetrahedronOriginDirectionCase1(S& simplex, glm::vec3& outDirection)
+inline bool getTetrahedronOriginDirectionCase1(S& simplex, glm::vec3& outDirection)
 {
     glm::vec3 ab = simplex[1] - simplex[0];
     glm::vec3 ac = simplex[2] - simplex[0];
     glm::vec3 ad = simplex[3] - simplex[0];
     glm::vec3 ao = -simplex[0];
 
+    float minDist = INFINITY;
+    S tmpSimplex;
+    S resSimplex;
+
     glm::vec3 n = glm::cross(ab, ac);
     if(glm::dot(n, ao) > 0.0f)
     {
-        simplex.type = SimplexType::TRIANGLE;
-        return getTriangleOriginDirection(simplex, outDirection);
+        resSimplex.type = SimplexType::TRIANGLE;
+        resSimplex.points = simplex.points;
+        getTriangleOriginDirection(resSimplex, outDirection);
+        minDist = glm::dot(resSimplex[0], glm::normalize(-outDirection));
     }
 
     n = glm::cross(ac, ad);
     if(glm::dot(n, ao) > 0.0f)
     {
-        simplex.type = SimplexType::TRIANGLE;
-        simplex.points[1] = simplex.points[2];
-        simplex.points[2] = simplex.points[3];
-        return getTriangleOriginDirection(simplex, outDirection);
+        tmpSimplex.type = SimplexType::TRIANGLE;
+        tmpSimplex.points[0] = simplex.points[0];
+        tmpSimplex.points[1] = simplex.points[2];
+        tmpSimplex.points[2] = simplex.points[3];
+        glm::vec3 dir;
+        getTriangleOriginDirection(tmpSimplex, dir);
+        const float dist = glm::dot(tmpSimplex[0], glm::normalize(-dir));
+        if(dist < minDist)
+        {
+            minDist = dist;
+            resSimplex = tmpSimplex;
+            outDirection = dir;
+        }
     }
 
     n = glm::cross(ad, ab);
     if(glm::dot(n, ao) > 0.0f)
     {
-        simplex.type = SimplexType::TRIANGLE;
-        simplex.points[2] = simplex.points[1];
-        simplex.points[1] = simplex.points[3];
-        return getTriangleOriginDirection(simplex, outDirection);
+        tmpSimplex.type = SimplexType::TRIANGLE;
+        tmpSimplex.points[0] = simplex.points[0];
+        tmpSimplex.points[2] = simplex.points[1];
+        tmpSimplex.points[1] = simplex.points[3];
+        glm::vec3 dir;
+        getTriangleOriginDirection(tmpSimplex, dir);
+        const float dist = glm::dot(tmpSimplex[0], glm::normalize(-dir));
+        if(dist < minDist)
+        {
+            minDist = dist;
+            resSimplex = tmpSimplex;
+            outDirection = dir;
+        }
     }
 
-    return true;
+    simplex.type = resSimplex.type;
+	simplex.points = resSimplex.points;
+
+    return minDist == INFINITY;
 }
 
 template<typename S>
-bool getTetrahedronOriginDirectionCase2(S& simplex, glm::vec3& outDirection)
+inline bool getTetrahedronOriginDirectionCase2(S& simplex, glm::vec3& outDirection)
 {
     glm::vec3 ab = simplex[1] - simplex[0];
     glm::vec3 ac = simplex[2] - simplex[0];
@@ -532,6 +559,43 @@ bool IsNear(glm::vec3 quadSize,
     return true;
 }
 
+bool IsNearMinimize(glm::vec3 quadSize, 
+                    const std::array<glm::vec3, 3>& triangle,
+                    float distThreshold,
+                    uint32_t* pIter)
+{
+    constexpr uint32_t MAX_ITER = 15;
+
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+	float distToP;
+	float distToO;
+	bool isNear = false;
+    const float sqDistThreshold = distThreshold * distThreshold;
+    glm::vec3 currentPoint = triangle[0];
+
+    do {
+        glm::vec3 gradient = glm::normalize(-currentPoint);
+        glm::vec3 p = findFurthestPoint(quadSize, triangle, gradient);
+        distToP = glm::dot(gradient, p - currentPoint);
+		distToO = glm::dot(gradient, -currentPoint);
+        
+        glm::vec3 dir = p - currentPoint;
+		const float d = glm::dot(dir, -currentPoint);
+		if (d < 1.0e-5) return distToO <= distToP + distThreshold;
+        currentPoint += dir * glm::min(d / glm::dot(dir, dir), 1.0f);
+		isNear = glm::dot(currentPoint, currentPoint) < sqDistThreshold;
+    } while(!isNear && distToO <= distToP + distThreshold && ++iter < MAX_ITER);
+
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("Frank-Wolfe has done maximum iterations without solving the shape");
+    }
+
+    return isNear || iter >= MAX_ITER;
+}
+
 inline float sqMaxDistToQuad(const glm::vec3& point, const glm::vec3& quadSize)
 {    
     glm::vec3 aux = point - glm::sign(-point) * quadSize;
@@ -759,6 +823,44 @@ bool IsNear(float halfNodeSize,
 
     // It does not have next origin direction because the origin is inside the simplex
     return true;
+}
+
+bool IsNearMinimize(float halfNodeSize,
+                        const std::array<float, 8>& vertRadius, 
+                        const std::array<glm::vec3, 3>& triangle,
+                        float distThreshold,
+                        uint32_t* pIter)
+{
+    constexpr uint32_t MAX_ITER = 15;
+
+    uint32_t dIter;
+    uint32_t& iter = (pIter == nullptr) ? dIter : *pIter;
+	iter = 0;
+	float distToP;
+	float distToO;
+	bool isNear = false;
+    const float sqDistThreshold = distThreshold * distThreshold;
+    glm::vec3 currentPoint = -triangle[0];
+
+    do {
+        glm::vec3 gradient = glm::normalize(-currentPoint);
+        glm::vec3 p = findFurthestPoint(halfNodeSize, vertRadius, triangle, gradient);
+        distToP = glm::dot(gradient, p - currentPoint);
+		distToO = glm::dot(gradient, -currentPoint);
+
+        glm::vec3 dir = p - currentPoint;
+		const float d = glm::dot(dir, -currentPoint);
+		if (d < 1.0e-5) return distToO <= distToP + distThreshold;
+        currentPoint += dir * glm::min(d / glm::dot(dir, dir), 1.0f);
+		isNear = glm::dot(currentPoint, currentPoint) < sqDistThreshold;
+    } while(!isNear && distToO <= distToP + distThreshold && ++iter < MAX_ITER);
+
+    if(iter >= 100)
+    {
+        SPDLOG_ERROR("Frank-Wolfe has done maximum iterations without solving the shape");
+    }
+
+    return isNear || iter >= MAX_ITER;
 }
 
 }

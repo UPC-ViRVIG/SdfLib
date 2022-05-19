@@ -134,7 +134,9 @@ struct BasicTrianglesInfluence
 
             uint32_t iter = 0;
             //const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle, &iter);
-            const bool isInside = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
+			//const bool isInside = minDist < maxMinDist;
+            //const bool isInside1 = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
+            const bool isInside = GJK::IsNearMinimize(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
 
             if(isInside)
             {
@@ -343,6 +345,8 @@ struct PerVertexTrianglesInfluence
         std::array<glm::vec3, 3> triangle;
 
         std::array<std::array<float, 8>, 8> triangleRegions;
+        std::array<float, 8> minDistToVertices;
+        minDistToVertices.fill(INFINITY);
 
         for(uint32_t i=0; i < 8; i++)
         {
@@ -352,6 +356,13 @@ struct PerVertexTrianglesInfluence
             {
                 triangleRegions[i][c] = 
                     glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+
+                minDistToVertices[i] = glm::min(minDistToVertices[i], triangleRegions[i][c]);
+            }
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] -= minDistToVertices[i];
             }
         }
 
@@ -383,7 +394,8 @@ struct PerVertexTrianglesInfluence
             {
                 const uint32_t vId = verticesToTest[r].first;
                 uint32_t iter = 0;
-                if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f), &iter))
+                // if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f), &iter))
+                if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
                 {
                     isInside = false;
                 }

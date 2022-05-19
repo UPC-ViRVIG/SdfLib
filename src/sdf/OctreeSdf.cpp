@@ -31,7 +31,7 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<PerVertexTrianglesInfluence<1, TriCubicInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<BasicTrianglesInfluence<TriLinearInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
             initOctreeWithContinuity<PerVertexTrianglesInfluence<1, TriCubicInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
