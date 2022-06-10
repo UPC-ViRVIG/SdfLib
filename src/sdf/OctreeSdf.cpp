@@ -7,6 +7,8 @@
 #include <array>
 #include <stack>
 
+typedef TriLinearInterpolation InterpolationMethod;
+
 OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, 
                      uint32_t depth, uint32_t startDepth,
                      float terminationThreshold,
@@ -31,10 +33,10 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<BasicTrianglesInfluence<TriLinearInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<PerVertexTrianglesInfluence<1, InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
-            initOctreeWithContinuity<PerVertexTrianglesInfluence<1, TriCubicInterpolation>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctreeWithContinuity<PerVertexTrianglesInfluence<1, InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
     }
 }
@@ -62,7 +64,7 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
         fracPart = glm::fract(2.0f * fracPart);
     }
 
-    auto& values = *reinterpret_cast<const std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
+    auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
 
-    return TriCubicInterpolation::interpolateValue(values, fracPart);
+    return InterpolationMethod::interpolateValue(values, fracPart);
 }

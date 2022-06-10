@@ -29,6 +29,8 @@ file(GLOB SDF_HEADER_FILES src/sdf/*.h)
 file(GLOB UTILS_SOURCE_FILES src/utils/*.cpp)
 file(GLOB UTILS_HEADER_FILES src/utils/*.h)
 
+include_directories(include)
+
 # Add libraries
 add_library(${PROJECT_NAME}    ${SOURCE_FILES} ${HEADER_FILES}
                                ${RENDER_ENGINE_SOURCE_FILES} ${RENDER_ENGINE_HEADER_FILES}
@@ -99,3 +101,14 @@ target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
 
 add_executable(SdfError src/tools/SdfError/main.cpp)
 target_link_libraries(SdfError PUBLIC ${PROJECT_NAME})
+
+#set(CGAL_ROOT C:/Users/eduard/vcpkg/installed/x86-windows/share/cgal)
+list(APPEND CMAKE_MODULE_PATH C:/Users/eduard/vcpkg/installed/x86-windows/share)
+set(GMP_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
+set(GMP_LIBRARIES C:/Users/eduard/vcpkg/installed/x86-windows/lib/gmp.lib)
+set(MPFR_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
+set(MPFR_LIBRARIES C:/Users/eduard/vcpkg/installed/x86-windows/lib/mpfr.lib)
+set(Boost_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
+find_package(CGAL CONFIG REQUIRED)
+add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL)

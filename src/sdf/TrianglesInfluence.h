@@ -135,7 +135,7 @@ struct BasicTrianglesInfluence
             uint32_t iter = 0;
             //const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle, &iter);
 			//const bool isInside = minDist < maxMinDist;
-            //const bool isInside1 = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
+            // const bool isInside = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
             const bool isInside = GJK::IsNearMinimize(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
 
             if(isInside)

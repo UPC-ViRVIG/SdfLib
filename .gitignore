@@ -1,6 +1,7 @@
 build/
 models/
 output/
+include/
 .vscode/
 
 # Created by https://www.toptal.com/developers/gitignore/api/cmake,vs,c++
