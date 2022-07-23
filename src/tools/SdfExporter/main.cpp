@@ -59,6 +59,7 @@ int main(int argc, char** argv)
 
     const glm::vec3 modelBBSize = box.getSize();
     box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    // box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;
     std::unique_ptr<SdfFunction> sdfFunc;

@@ -21,6 +21,8 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfoExactOctree<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
+    mMinTrianglesInLeafs = minTrianglesPerNode;
+
     std::vector<TriangleUtils::TriangleData>& trianglesData = mTrianglesData;
     
     const uint32_t startOctreeDepth = glm::min(startDepth, START_OCTREE_DEPTH);
@@ -114,11 +116,12 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     std::vector<uint32_t> endedNodes(maxDepth + 1, 0);
     std::vector<float> elapsedTime(maxDepth + 1, 0.0f);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth + 1, 0);
-    uint32_t numTrianglesInLeafs = 0;
-    uint32_t numLeafs = 0;
-    uint32_t maxTrianglesInLeaf = 0;
+    uint64_t numTrianglesInLeafs = 0;
+    uint64_t numLeafs = 0;
     Timer timer;
 #endif
+
+    mMaxTrianglesInLeafs = 0;
 
     while(!nodes.empty())
     {
@@ -146,7 +149,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                                             triangles[rDepth], node.verticesValues, node.verticesInfo,
                                             mesh, trianglesData);
 
-         std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
+        std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
         std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
         trianglesInfluence.calculateVerticesInfo(node.center, node.size, triangles[rDepth], nodeSamplePoints,
@@ -158,6 +161,10 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         if(node.depth >= startDepth)
         {
             isTerminalNode = triangles[rDepth].size() <= minTrianglesPerNode;
+            // const float newNumTriangles = static_cast<float>(triangles[rDepth].size());
+            // const float oldNumTriangles = static_cast<float>(triangles[rDepth-1].size());
+            // const float oldoldNumTriangles = (rDepth > 1) ? static_cast<float>(triangles[rDepth-2].size()) : oldNumTriangles;
+            // isTerminalNode = (0.7f * (1.0f - newNumTriangles / oldNumTriangles) + 0.3f * (1.0f - oldNumTriangles / oldoldNumTriangles)) * (newNumTriangles-32) < static_cast<float>(minTrianglesPerNode);
         }
 
         if(!isTerminalNode && node.depth < maxDepth)
@@ -301,11 +308,14 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             }
 
             #ifdef PRINT_STATISTICS
-                numTrianglesInLeafs += triangles[rDepth].size();
-                numLeafs++;
-                maxTrianglesInLeaf = glm::max(maxTrianglesInLeaf, static_cast<uint32_t>(triangles[rDepth].size()));
+                const uint64_t numNodes = 1 << (3 * (maxDepth - node.depth));
+                numTrianglesInLeafs += triangles[rDepth].size() * numNodes;
+                numLeafs += numNodes;
+                // numTrianglesInLeafs += triangles[rDepth].size();
+                // numLeafs += 1;
                 endedNodes[node.depth]++;
             #endif
+            mMaxTrianglesInLeafs = glm::max(mMaxTrianglesInLeafs, static_cast<uint32_t>(triangles[rDepth].size()));
         }
 
 #ifdef PRINT_STATISTICS
@@ -342,7 +352,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     }
 
     SPDLOG_INFO("Mean triangles in leaves: {}", static_cast<float>(numTrianglesInLeafs) / static_cast<float>(numLeafs));
-    SPDLOG_INFO("Maximum triangles in a leaf: {}", maxTrianglesInLeaf);
+    SPDLOG_INFO("Maximum triangles in a leaf: {}", mMaxTrianglesInLeafs);
 
     trianglesInfluence.printStatistics();
 #endif

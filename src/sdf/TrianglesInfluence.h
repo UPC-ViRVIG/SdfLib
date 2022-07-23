@@ -12,6 +12,8 @@
 #include <array>
 #include <glm/glm.hpp>
 
+//#define PRINT_GJK_STATS
+
 const std::array<glm::vec3, 8> childrens = 
 {
     glm::vec3(-1.0f, -1.0f, -1.0f),
@@ -133,8 +135,8 @@ struct BasicTrianglesInfluence
             triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
 
             uint32_t iter = 0;
-            //const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle, &iter);
-			//const bool isInside = minDist < maxMinDist;
+            // const float minDist = GJK::getMinDistance(glm::vec3(nodeHalfSize), triangle, &iter);
+			// const bool isInside = minDist < maxMinDist;
             // const bool isInside = GJK::IsNear(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
             const bool isInside = GJK::IsNearMinimize(glm::vec3(nodeHalfSize), triangle, maxMinDist, &iter);
 
@@ -394,7 +396,7 @@ struct PerVertexTrianglesInfluence
             {
                 const uint32_t vId = verticesToTest[r].first;
                 uint32_t iter = 0;
-                // if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f), &iter))
+                // if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (vId < 4) ? -1.0f : 1.0f), &iter))
                 if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
                 {
                     isInside = false;
@@ -523,6 +525,8 @@ struct PerVertexTrianglesInfluence<8, T>
         std::array<glm::vec3, 3> triangle;
 
         std::array<std::array<float, 8>, 8> triangleRegions;
+        std::array<float, 8> minDistToVertices;
+        minDistToVertices.fill(INFINITY);
 
         for(uint32_t i=0; i < 8; i++)
         {
@@ -532,6 +536,13 @@ struct PerVertexTrianglesInfluence<8, T>
             {
                 triangleRegions[i][c] = 
                     glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+                
+                minDistToVertices[i] = glm::min(minDistToVertices[i], triangleRegions[i][c]);
+            }
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] -= minDistToVertices[i];
             }
         }
 
@@ -544,7 +555,8 @@ struct PerVertexTrianglesInfluence<8, T>
             bool isInside = true;
             for(uint32_t r=0; r < 8; r++)
             {
-                if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+                //if(verticesInfo[r] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[r], triangle, glm::vec3(0.0f, 0.0f, (r < 4) ? -1.0f : 1.0f)))
+                if(verticesInfo[r] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[r], triangle, minDistToVertices[r]))
                 {
                     isInside = false;
                     break;
@@ -559,6 +571,168 @@ struct PerVertexTrianglesInfluence<8, T>
     }
 
     void printStatistics() {}
+};
+
+template<typename T>
+struct PerNodeRegionTrianglesInfluence
+{
+    typedef T InterpolationMethod;
+
+    typedef uint32_t VertexInfo;
+    struct {} NodeInfo;
+
+    uint64_t gjkIter = 0;
+    uint64_t gjkCallsInside = 0;
+    std::array<uint64_t, 20> gjkIterHistogramInside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    uint64_t gjkCallsOutside = 0;
+    std::array<uint64_t, 20> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    float filterTime = 0.0f;
+
+    template<int N>
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
+                                      const std::array<glm::vec3, N>& pointsRelPos,
+                                      const uint32_t pointToInterpolateMask,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
+                                      const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        std::array<float, N> minDistanceToPoint;
+        minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
+
+        std::array<glm::vec3, N> inPoints;
+        for(uint32_t i=0; i < N; i++)
+        {
+            inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+        }
+
+        for(const uint32_t& t : triangles)
+        {
+            for(uint32_t i=0; i < N; i++)
+            {
+                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+                if(dist < minDistanceToPoint[i])
+                {
+                    outPointsInfo[i] = t;
+                    minDistanceToPoint[i] = dist;
+                }
+            }
+        }
+
+        for(uint32_t i=0; i < N; i++)
+        {
+            if(pointToInterpolateMask & (1 << (N-i-1)))
+            {
+                InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
+            }
+            else
+            {
+                InterpolationMethod::calculatePointValues(inPoints[i], outPointsInfo[i], mesh, trianglesData, outPointsValues[i]);
+            }
+        }
+    }
+
+    inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
+                                const std::array<VertexInfo, 8>& verticesInfo,
+                                const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        outTriangles.clear();
+        
+        const std::vector<glm::vec3>& vertices = mesh.getVertices();
+        const std::vector<uint32_t>& indices = mesh.getIndices();
+
+        std::array<glm::vec3, 3> triangle;
+
+        std::array<std::array<float, 8>, 8> triangleRegions;
+        std::array<float, 8> minDistToVertices;
+        minDistToVertices.fill(INFINITY);
+
+        for(uint32_t i=0; i < 8; i++)
+        {
+            const uint32_t& idx = verticesInfo[i];
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] = 
+                    glm::sqrt(TriangleUtils::getSqDistPointAndTriangle(nodeCenter + childrens[c] * nodeHalfSize, trianglesData[idx]));
+                
+                minDistToVertices[i] = glm::min(minDistToVertices[i], triangleRegions[i][c]);
+            }
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] -= minDistToVertices[i];
+            }
+        }
+
+        for(const uint32_t& idx : inTriangles)
+        {
+            triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
+            triangle[1] = vertices[indices[3 * idx + 1]] - nodeCenter;
+            triangle[2] = vertices[indices[3 * idx + 2]] - nodeCenter;
+
+            bool isInside = true;
+            
+            const glm::vec3 point = 0.3333333f * (triangle[0] + triangle[1] + triangle[2]);
+            const uint32_t vId = ((point.z > 0) ? 4 : 0) + 
+                                    ((point.y > 0) ? 2 : 0) + 
+                                    ((point.x > 0) ? 1 : 0);
+
+            uint32_t iter = 0;
+            //if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (vId < 4) ? -1.0f : 1.0f), &iter))
+            if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
+            {
+                isInside = false;
+            }
+
+#ifdef PRINT_GJK_STATS
+            if(verticesInfo[vId] != idx)
+            {
+                if(isInside)
+                {
+                    gjkIterHistogramInside[glm::min(iter, 19u)]++;
+                    gjkCallsInside++;
+                }
+                else
+                {
+                    gjkIterHistogramOutside[glm::min(iter, 19u)]++;
+                    gjkCallsOutside++;
+                }
+                gjkIter += iter;
+            }
+#endif
+
+            if(isInside)
+            {
+                outTriangles.push_back(idx);
+            }
+        }
+    }
+
+    void printStatistics() 
+    {
+#ifdef PRINT_GJK_STATS
+        SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter Outside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsOutside));
+        }
+
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter Inside {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p]) / static_cast<float>(gjkCallsInside));
+        }
+
+        for(uint32_t p=0; p < 20; p++)
+        {
+            SPDLOG_INFO("Inter {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p] + gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
+        }
+#endif
+    }
 };
 
 #endif

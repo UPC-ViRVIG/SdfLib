@@ -19,7 +19,7 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
 
     mTrianglesData = TriangleUtils::calculateMeshTriangleData(mesh);
 
-    initOctree<PerVertexTrianglesInfluence<1, NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
+    initOctree<PerNodeRegionTrianglesInfluence<NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
     calculateStatistics();
 }
 
@@ -88,7 +88,7 @@ std::vector<uint32_t> ExactOctreeSdf::evalNode(uint32_t nodeIndex, uint32_t dept
 
         mergedTriangles[depth] += triangles.size();
         mergedNodes[depth] += 1;
-        differentTriangles[depth] += sumTriangles - 8 * triangles.size();
+        differentTriangles[depth] += (sumTriangles - 8 * triangles.size()) / 8;
     }
     else
     {

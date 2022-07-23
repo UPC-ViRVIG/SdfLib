@@ -58,6 +58,7 @@ public:
 	void start() override
 	{
 		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
+		// Window::getCurrentWindow().setBackgroudColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
 		// Create camera
 		{
@@ -467,7 +468,8 @@ public:
 			const char* selectionAlgorithms[] = {
 				"Basic",
 				"Precise",
-				"Per vertex"
+				"Per vertex",
+				"Per node region"
 			};
 
 			if(ImGui::BeginCombo("Selection Algorithm", mSelectionAlgorithm))
@@ -694,6 +696,29 @@ public:
 						printErrors("PerVertexTrianglesInfluence", outTriangles);
 
 						if(std::strcmp(mSelectionAlgorithm, "Per vertex") == 0)
+						{
+							triangles = std::move(outTriangles);
+						}
+					}
+
+					{
+						std::vector<uint32_t> outTriangles;
+						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+						std::array<PerNodeRegionTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+						PerNodeRegionTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																			inTriangles,
+																			childrens, 0u, nullArray,
+																			verticesDist, verticesInfo,
+																			mMesh.value(), trianglesInfo);
+						PerNodeRegionTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
+																		inTriangles, outTriangles,
+																		verticesDist, verticesInfo,
+																		mMesh.value(), trianglesInfo);
+
+						printErrors("PerNodeRegionTrianglesInfluence", outTriangles);
+
+						if(std::strcmp(mSelectionAlgorithm, "Per node region") == 0)
 						{
 							triangles = std::move(outTriangles);
 						}

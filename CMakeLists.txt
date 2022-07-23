@@ -84,6 +84,9 @@ target_link_libraries(UniformGridSdfTest PUBLIC ${PROJECT_NAME})
 add_executable(UniformGridSdfOctreeTest src/tools/UniformGridSdfOctreeTest/main.cpp)
 target_link_libraries(UniformGridSdfOctreeTest PUBLIC ${PROJECT_NAME})
 
+add_executable(OctreeExactMeanOfTrianglesViewer src/tools/OctreeExactMeanOfTrianglesViewer/main.cpp)
+target_link_libraries(OctreeExactMeanOfTrianglesViewer PUBLIC ${PROJECT_NAME})
+
 add_executable(SdfOctreeTest src/tools/SdfOctreeTest/main.cpp)
 target_link_libraries(SdfOctreeTest PUBLIC ${PROJECT_NAME})
 

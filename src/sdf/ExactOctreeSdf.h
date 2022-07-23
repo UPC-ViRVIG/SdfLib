@@ -60,11 +60,13 @@ public:
 
     ExactOctreeSdf() {}
     ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDepth,
-                   uint32_t startDepth=1, uint32_t minTrianglesPerNode = 32);
+                   uint32_t startDepth=1, uint32_t minTrianglesPerNode = 128);
 
     glm::ivec3 getStartGridSize() const { return glm::ivec3(mStartGridSize); }
     const BoundingBox& getGridBoundingBox() const { return mBox; }
     BoundingBox getSampleArea() const override { return mBox; }
+    uint32_t getMaxTrianglesInLeafs() const { return mMaxTrianglesInLeafs; }
+    uint32_t getMinTrianglesInLeafs() const { return mMinTrianglesInLeafs; }
     uint32_t getOctreeMaxDepth() const { return mMaxDepth; }
     const std::vector<OctreeNode>& getOctreeData() const { return mOctreeData; }
     const std::vector<TriangleUtils::TriangleData>& getTrianglesData() { return mTrianglesData; }
@@ -75,13 +77,13 @@ public:
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mMaxDepth, mOctreeData, mTrianglesData);
+        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mMaxDepth, mOctreeData, mTrianglesData);
+        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
@@ -93,6 +95,10 @@ private:
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
 
     BoundingBox mBox;
+
+    // Store the node with the leaf node with the maximum number of triangles
+    uint32_t mMinTrianglesInLeafs;
+    uint32_t mMaxTrianglesInLeafs;
 
     int mStartGridSize = 0;
     int mStartGridXY = 0;
