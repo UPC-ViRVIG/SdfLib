@@ -171,6 +171,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     }
 
     TrianglesInfluenceStrategy trianglesInfluence;
+    trianglesInfluence.initCaches(mBox, maxDepth);
 
     // Create the grid
     {

@@ -18,6 +18,7 @@ public:
         NONE
     };
     virtual float getDistance(glm::vec3 sample) const = 0;
+    virtual float getDistance(glm::vec3 sample, glm::vec3& outGradient) const = 0;
     virtual BoundingBox getSampleArea() const = 0;
     virtual SdfFormat getFormat() const { return SdfFormat::NONE; }
     

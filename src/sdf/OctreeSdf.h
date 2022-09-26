@@ -107,6 +107,7 @@ public:
     const std::vector<OctreeNode>& getOctreeData() const { return mOctreeData; }
 
     float getDistance(glm::vec3 sample) const override;
+    float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
 	SdfFunction::SdfFormat getFormat() const override { return SdfFunction::SdfFormat::OCTREE; }
 
     template<class Archive>

@@ -72,6 +72,7 @@ public:
     const std::vector<TriangleUtils::TriangleData>& getTrianglesData() { return mTrianglesData; }
 
     float getDistance(glm::vec3 sample) const override;
+    float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
     SdfFormat getFormat() const override { return SdfFormat::EXACT_OCTREE; }
 
     template<class Archive>

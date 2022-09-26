@@ -36,6 +36,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     }
 
     TrianglesInfluenceStrategy trianglesInfluence;
+    trianglesInfluence.initCaches(mBox, maxDepth);
 
     const std::array<glm::vec3, 8> childrens = 
     {
@@ -149,13 +150,6 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                                             triangles[rDepth], node.verticesValues, node.verticesInfo,
                                             mesh, trianglesData);
 
-        std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
-        std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
-
-        trianglesInfluence.calculateVerticesInfo(node.center, node.size, triangles[rDepth], nodeSamplePoints,
-                                                    0u, interpolationCoeff,
-                                                    midPointsValues, pointsInfo,
-                                                    mesh, trianglesData);
         
         bool isTerminalNode = false;
         if(node.depth >= startDepth)
@@ -169,6 +163,14 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
         if(!isTerminalNode && node.depth < maxDepth)
         {
+            std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
+            std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
+
+            trianglesInfluence.calculateVerticesInfo(node.center, node.size, triangles[rDepth], nodeSamplePoints,
+                                                        0u, interpolationCoeff,
+                                                        midPointsValues, pointsInfo,
+                                                        mesh, trianglesData);
+
             // Generate new childrens
             const float newSize = 0.5f * node.size;
 

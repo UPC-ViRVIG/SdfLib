@@ -20,8 +20,8 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
 
     const glm::vec3 bbSize = box.getSize();
     const float maxSize = glm::max(glm::max(bbSize.x, bbSize.y), bbSize.z);
-    mBox.min = box.min;
-    mBox.max = box.min + maxSize;
+    mBox.min = box.getCenter() - 0.5f * maxSize;
+    mBox.max = box.getCenter() + 0.5f * maxSize;
 
     mStartGridSize = 1 << startDepth;
     mStartGridXY = mStartGridSize * mStartGridSize;
@@ -68,4 +68,10 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
     auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
 
     return InterpolationMethod::interpolateValue(values, fracPart);
+}
+
+float OctreeSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
+{
+    //TODO
+    return 0.0f;
 }

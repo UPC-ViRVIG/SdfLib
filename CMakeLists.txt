@@ -105,13 +105,28 @@ target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
 add_executable(SdfError src/tools/SdfError/main.cpp)
 target_link_libraries(SdfError PUBLIC ${PROJECT_NAME})
 
+add_executable(ParticleSimulation src/tools/ParticleSimulation/main.cpp)
+target_link_libraries(ParticleSimulation PUBLIC ${PROJECT_NAME})
+
+add_library(SdfLib SHARED src/tools/SdfLib/SdfExportFunc.h
+                          src/tools/SdfLib/SdfExportFunc.cpp)
+target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})                          
+
 # Uncomment to test with the other methods
-# list(APPEND CMAKE_MODULE_PATH C:/Users/eduard/vcpkg/installed/x86-windows/share)
-# set(GMP_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
-# set(GMP_LIBRARIES C:/Users/eduard/vcpkg/installed/x86-windows/lib/gmp.lib)
-# set(MPFR_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
-# set(MPFR_LIBRARIES C:/Users/eduard/vcpkg/installed/x86-windows/lib/mpfr.lib)
-# set(Boost_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x86-windows/include)
-# find_package(CGAL CONFIG REQUIRED)
-# add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
-# target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL)
+set(CGAL_DIR C:/Users/eduard/vcpkg/installed/x64-windows/share/cgal)
+set(GMP_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x64-windows/include)
+set(GMP_LIBRARIES C:/Users/eduard/vcpkg/installed/x64-windows/lib/gmp.lib)
+set(MPFR_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x64-windows/include)
+set(MPFR_LIBRARIES C:/Users/eduard/vcpkg/installed/x64-windows/lib/mpfr.lib)
+set(Boost_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x64-windows/include)
+find_package(CGAL CONFIG REQUIRED)
+
+add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL)
+
+add_executable(SdfOffsets src/tools/SdfOffsets/main.cpp)
+target_link_libraries(SdfOffsets PUBLIC ${PROJECT_NAME} CGAL::CGAL)
+
+add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
+target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL)
+

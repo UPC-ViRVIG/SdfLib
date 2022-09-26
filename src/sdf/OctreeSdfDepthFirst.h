@@ -45,6 +45,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     }
 
     TrianglesInfluenceStrategy trianglesInfluence;
+    trianglesInfluence.initCaches(mBox, maxDepth);
 
     const std::array<glm::vec3, 8> childrens = 
     {

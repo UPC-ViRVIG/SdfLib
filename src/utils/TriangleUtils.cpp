@@ -77,7 +77,7 @@ namespace TriangleUtils
                 for(uint32_t ii=i+1; ii < nonManifoldVertices.size(); ii++)
                 {
                     const glm::vec3& diff = v1 - vertices[nonManifoldVertices[ii]];
-                    if(glm::dot(diff, diff) < 0.000001f)
+                    if(glm::dot(diff, diff) < 0.00001f)
                     {
                         uint32_t p1 = findVertexParent(nonManifoldVertices[i]);
                         uint32_t p2 = findVertexParent(nonManifoldVertices[ii]);

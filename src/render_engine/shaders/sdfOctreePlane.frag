@@ -15,9 +15,9 @@ uniform vec3 planeNormal; // normalized
 uniform float octreeValueRange = 1.0;
 uniform vec3 startGridSize;
 
-uniform float surfaceThickness = 1.5;
+uniform float surfaceThickness = 2.0;
 uniform float gridThickness = 0.1;
-uniform float linesThickness = 0.8;
+uniform float linesThickness = 1.2;
 
 uniform float linesSpace = 0.1f;
 

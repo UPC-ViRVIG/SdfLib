@@ -25,6 +25,7 @@ public:
                    InitAlgorithm initAlgorithm = InitAlgorithm::OCTREE);
     
     float getDistance(glm::vec3 sample) const override;
+    float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
     SdfFormat getFormat() const override { return SdfFormat::GRID; }
 
     const BoundingBox& getGridBoundingBox() const { return mBox; }

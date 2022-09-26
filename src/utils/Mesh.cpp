@@ -19,8 +19,27 @@ Mesh::Mesh(std::string filePath)
         SPDLOG_ERROR("The model {} does not have any mesh assosiated", filePath);
     }
 
-    const aiMesh* mesh = scene->mMeshes[0];
+    initMesh(scene->mMeshes[0]);       
+}
 
+Mesh::Mesh(const aiMesh* mesh)
+{
+    initMesh(mesh);
+}
+
+Mesh::Mesh(glm::vec3* vertices, uint32_t numVertices,
+         uint32_t* indices, uint32_t numIndices)
+{
+    mVertices.resize(numVertices);
+    std::memcpy(mVertices.data(), vertices, sizeof(glm::vec3) * numVertices);
+
+    mIndices.resize(numIndices);
+    std::memcpy(mIndices.data(), indices, sizeof(uint32_t) * numIndices);
+}
+
+
+void Mesh::initMesh(const aiMesh* mesh)
+{
     if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE))
     {
         SPDLOG_ERROR("The model must be a triangle mesh");

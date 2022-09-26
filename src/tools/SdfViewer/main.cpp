@@ -55,6 +55,7 @@ public:
 		mModelPath(modelPath),
 		mNormalizeModel(normalizeModel) {}
 
+	glm::mat4 invTransform;
 	void start() override
 	{
 		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
@@ -82,8 +83,13 @@ public:
 			{
 				// Normalize model units
 				const glm::vec3 boxSize = mMesh.value().getBoudingBox().getSize();
-				mMesh.value().applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+				glm::vec3 center = mMesh.value().getBoudingBox().getCenter();
+				mMesh.value().applyTransform(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
 											 glm::translate(glm::mat4(1.0), -mMesh.value().getBoudingBox().getCenter()));
+
+				invTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+											 glm::translate(glm::mat4(1.0), -center));
+				SPDLOG_INFO("Center is {}, {}, {}", center.x, center.y, center.z);
 			}
 		}
 
@@ -145,6 +151,14 @@ public:
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
 
+		{
+			glm::vec3 pos = glm::vec3(invTransform * glm::vec4(octreeSdf.getGridBoundingBox().min, 1.0f));
+			SPDLOG_INFO("Min Point: {}, {}, {}", pos.x, pos.y, pos.z);
+
+			pos = glm::vec3(invTransform * glm::vec4(octreeSdf.getGridBoundingBox().max, 1.0f));
+			SPDLOG_INFO("Max Point: {}, {}, {}", pos.x, pos.y, pos.z);
+		}
+
 		mSelectArea = viewBB;
 
 		// Create sdf plane
@@ -163,6 +177,7 @@ public:
 
 			mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), viewBB.getCenter()) *
 								glm::scale(glm::mat4x4(1.0f), 2.0f * viewBB.getSize());
+			mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.0f, 0.0f, 0.163f)) * mGizmoStartMatrix;
 			mGizmoMatrix = mGizmoStartMatrix;
 			mPlaneRenderer->setTransform(mGizmoMatrix);
 
@@ -426,17 +441,20 @@ public:
 			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mGizmoStartMatrix;
 		}
 
-		if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_ALT))
+		if(!Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_CONTROL))
 		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
-		}
-		else
-		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::TRANSLATE_Z, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_ALT))
+			{
+				ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
+								glm::value_ptr(getMainCamera()->getProjectionMatrix()),
+								ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			}
+			else
+			{
+				ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
+								glm::value_ptr(getMainCamera()->getProjectionMatrix()),
+								ImGuizmo::OPERATION::TRANSLATE_Z, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			}
 		}
 		
 		mPlaneRenderer->setTransform(mGizmoMatrix);
@@ -547,6 +565,12 @@ public:
 					glm::vec3(1.0f, 1.0f, 1.0f)
 				};
 
+				for(uint32_t i=0; i < 8; i++)
+				{
+					const glm::vec3 pos = glm::vec3(invTransform * glm::vec4((centerPoint + 0.5f * childrens[i] * size), 1.0f));
+					std::cout << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+				}
+
 				const std::array<glm::vec3, 19> nodeSamplePoints =
 				{
 					glm::vec3(0.0f, -1.0f, -1.0f),
@@ -607,6 +631,14 @@ public:
 																	inTriangles, outTriangles,
 																	minDistToVertices, verticesInfo,
 																	mMesh.value(), trianglesInfo);
+
+						for(const uint32_t idx : outTriangles)
+						{
+							std::cout << idx << ", ";
+						}
+
+						std::cout << std::endl;
+
 						newTriangles = std::move(outTriangles);
 						triangles = newTriangles;
 
@@ -672,6 +704,13 @@ public:
 
 						printErrors("BasicTrianglesInfluence", outTriangles);
 
+						for(const uint32_t idx : outTriangles)
+						{
+							std::cout << idx << ", ";
+						}
+
+						std::cout << std::endl;
+
 						if(std::strcmp(mSelectionAlgorithm, "Basic") == 0)
 						{
 							triangles = std::move(outTriangles);
@@ -717,6 +756,13 @@ public:
 																		mMesh.value(), trianglesInfo);
 
 						printErrors("PerNodeRegionTrianglesInfluence", outTriangles);
+
+						for(const uint32_t idx : outTriangles)
+						{
+							std::cout << idx << ", ";
+						}
+
+						std::cout << std::endl;
 
 						if(std::strcmp(mSelectionAlgorithm, "Per node region") == 0)
 						{
@@ -852,6 +898,7 @@ public:
 
 						// Add triangle
 						const uint32_t& idx = triangles[t];
+						if(trianglesData[t].second > 0) std::cout << idx << ", ";
 						newVertices.push_back(vertices[indices[3 * idx]]);
 						newVertices.push_back(color);
 						newVertices.push_back(vertices[indices[3 * idx + 1]]);
@@ -859,6 +906,8 @@ public:
 						newVertices.push_back(vertices[indices[3 * idx + 2]]);
 						newVertices.push_back(color);
 					}
+
+					std::cout << std::endl;
 
 					mColoredModelRenderer->setVertexData(mColoredModelRendererBufferId, 
 														 newVertices.data(), 

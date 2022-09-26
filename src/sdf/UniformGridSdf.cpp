@@ -108,3 +108,9 @@ float UniformGridSdf::getDistance(glm::vec3 sample) const
 
     return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
 }
+
+float UniformGridSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
+{
+    // TODO
+    return 0.0f;
+}

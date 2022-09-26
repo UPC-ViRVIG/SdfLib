@@ -52,14 +52,15 @@ int main(int argc, char** argv)
     if(normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
-        mesh.applyTransform(	glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+        const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
+        mesh.applyTransform(	glm::scale(glm::mat4(1.0), glm::vec3(2.0f/maxSize)) *
                                 glm::translate(glm::mat4(1.0), -box.getCenter()));
         box = mesh.getBoudingBox();
     }
 
     const glm::vec3 modelBBSize = box.getSize();
-    box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    // box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    // box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;
     std::unique_ptr<SdfFunction> sdfFunc;

@@ -35,7 +35,13 @@ struct BoundingBox
         max += glm::vec3(margin);
     }
 
-     template<class Archive>
+    float getDistance(glm::vec3 point) const
+    {
+        glm::vec3 q = glm::abs(point - getCenter()) - 0.5f * getSize();
+        return glm::length(glm::max(q,glm::vec3(0.0f))) + glm::min(glm::max(q.x, glm::max(q.y,q.z)),0.0f);
+    }
+
+    template<class Archive>
     void serialize(Archive & archive)
     {
         archive(min, max); 
@@ -47,6 +53,9 @@ class Mesh
 public:
     Mesh() {}
     Mesh(std::string filePath);
+    Mesh(const aiMesh* mesh);
+    Mesh(glm::vec3* vertices, uint32_t numVertices,
+         uint32_t* indices, uint32_t numIndices);
 
     std::vector<glm::vec3>& getVertices() { return mVertices; }
     const std::vector<glm::vec3>& getVertices() const { return mVertices; }
@@ -63,6 +72,8 @@ public:
     void computeNormals();
     void applyTransform(glm::mat4 trans);
 private:
+    void initMesh(const aiMesh* mesh);
+
     std::vector<glm::vec3> mVertices;
     std::vector<uint32_t> mIndices;
     std::vector<glm::vec3> mNormals;

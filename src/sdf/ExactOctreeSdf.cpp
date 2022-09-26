@@ -9,8 +9,8 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
 
     const glm::vec3 bbSize = box.getSize();
     const float maxSize = glm::max(glm::max(bbSize.x, bbSize.y), bbSize.z);
-    mBox.min = box.min;
-    mBox.max = box.min + maxSize;
+    mBox.min = box.getCenter() - 0.5f * maxSize;
+    mBox.max = box.getCenter() + 0.5f * maxSize;
 
     mStartGridSize = 1 << startDepth;
     mStartGridXY = mStartGridSize * mStartGridSize;
@@ -20,6 +20,7 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
     mTrianglesData = TriangleUtils::calculateMeshTriangleData(mesh);
 
     initOctree<PerNodeRegionTrianglesInfluence<NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
+    //initOctree<PerVertexTrianglesInfluence<1, NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
     calculateStatistics();
 }
 
@@ -33,6 +34,13 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
     glm::vec3 fracPart = (sample - mBox.min) / mStartGridCellSize;
     glm::ivec3 startArrayPos = glm::floor(fracPart);
     fracPart = glm::fract(fracPart);
+
+    if(startArrayPos.x < 0 || startArrayPos.x >= mStartGridSize ||
+       startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
+       startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
+    {
+        return mBox.getDistance(sample) + glm::sqrt(3.0) * mBox.getSize().x;
+    }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
 
@@ -64,6 +72,12 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
     }
 
     return TriangleUtils::getSignedDistPointAndTriangle(sample, mTrianglesData[minIndex]);
+}
+
+float ExactOctreeSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
+{
+    // TODO
+    return 0.0f;
 }
 
 std::vector<uint32_t> ExactOctreeSdf::evalNode(uint32_t nodeIndex, uint32_t depth, 

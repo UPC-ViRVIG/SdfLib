@@ -72,6 +72,7 @@ public:
 
 		mMinNumTriangles = exactOctreeSdf.getMinTrianglesInLeafs();
 		mMinMinNumTriangles = exactOctreeSdf.getMinTrianglesInLeafs();
+		mMinMinNumTriangles = 0.0f;
 		mMaxNumTriangles = exactOctreeSdf.getMaxTrianglesInLeafs();
 		mMaxMaxNumTriangles = exactOctreeSdf.getMaxTrianglesInLeafs();
         
@@ -93,6 +94,7 @@ public:
 
 			mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), viewBB.getCenter()) *
 								glm::scale(glm::mat4x4(1.0f), 2.0f * viewBB.getSize());
+			mGizmoStartMatrix = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.0f, 0.0f, 0.163f)) * mGizmoStartMatrix;
 			mGizmoMatrix = mGizmoStartMatrix;
 			mPlaneRenderer->setTransform(mGizmoMatrix);
 			
@@ -163,17 +165,20 @@ public:
 			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mGizmoStartMatrix;
 		}
 
-		if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_ALT))
+		if(!Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_CONTROL))
 		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
-		}
-		else 
-		{
-			ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
-							 glm::value_ptr(getMainCamera()->getProjectionMatrix()),
-							 ImGuizmo::OPERATION::TRANSLATE_Z, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_ALT))
+			{
+				ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
+								glm::value_ptr(getMainCamera()->getProjectionMatrix()),
+								ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			}
+			else 
+			{
+				ImGuizmo::Manipulate(glm::value_ptr(getMainCamera()->getViewMatrix()), 
+								glm::value_ptr(getMainCamera()->getProjectionMatrix()),
+								ImGuizmo::OPERATION::TRANSLATE_Z, ImGuizmo::MODE::LOCAL, glm::value_ptr(mGizmoMatrix));
+			}
 		}
 		
 		mPlaneRenderer->setTransform(mGizmoMatrix);

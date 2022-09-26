@@ -285,6 +285,23 @@ struct PerVertexTrianglesInfluence
     std::array<uint32_t, 20> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     float filterTime = 0.0f;
 
+    const uint32_t CACHE_AXIS_POWER = 5;
+    const uint32_t CACHE_AXIS_MASK = (1 << CACHE_AXIS_POWER) - 1;
+    const uint32_t CACHE_AXIS_SIZE = 1 << CACHE_AXIS_POWER;
+    std::vector<std::pair<glm::uvec3, VertexInfo>> vertexInfoCache;
+    std::vector<glm::vec3> vertexInfoCache2;
+    glm::vec3 coordToId;
+    glm::vec3 minPoint;
+
+    void initCaches(BoundingBox box, uint32_t maxDepth)
+    {
+        vertexInfoCache.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE,
+                               std::make_pair(glm::uvec3((1 << maxDepth) + 1), 0));
+        vertexInfoCache2.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE);
+        coordToId = glm::vec3(static_cast<float>((1 << maxDepth)) / box.getSize());
+        minPoint = box.min;
+    }
+
     template<int N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
@@ -299,22 +316,38 @@ struct PerVertexTrianglesInfluence
         minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
 
         std::array<glm::vec3, N> inPoints;
+        // for(uint32_t i=0; i < N; i++)
+        // {
+        //     inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+        // }
         for(uint32_t i=0; i < N; i++)
         {
             inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
-        }
+            const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
 
-        for(const uint32_t& t : triangles)
-        {
-            for(uint32_t i=0; i < N; i++)
+            const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                     ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                     (pointId.x & CACHE_AXIS_MASK);
+
+            if(vertexInfoCache[cacheId].first == pointId)
             {
-                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
-
-                if(dist < minDistanceToPoint[i])
+                outPointsInfo[i] = vertexInfoCache[cacheId].second;
+            }
+            else
+            {
+                for(const uint32_t& t : triangles)
                 {
-                    outPointsInfo[i] = t;
-                    minDistanceToPoint[i] = dist;
+                    const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+                    if(dist < minDistanceToPoint[i])
+                    {
+                        outPointsInfo[i] = t;
+                        minDistanceToPoint[i] = dist;
+                    }
                 }
+
+                vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
+                vertexInfoCache2[cacheId] = inPoints[i];
             }
         }
 
@@ -402,6 +435,7 @@ struct PerVertexTrianglesInfluence
                     isInside = false;
                 }
 
+                #ifdef PRINT_GJK_STATS
                 if(verticesInfo[vId] != idx)
                 {
                     if(isInside)
@@ -416,6 +450,7 @@ struct PerVertexTrianglesInfluence
                     }
                     gjkIter += iter;
                 }
+                #endif
                 
                 if(!isInside)
                 {
@@ -434,6 +469,7 @@ struct PerVertexTrianglesInfluence
 
     void printStatistics() 
     {
+        #ifdef PRINT_GJK_STATS
         SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
         for(uint32_t p=0; p < 20; p++)
         {
@@ -451,6 +487,7 @@ struct PerVertexTrianglesInfluence
         }
 
         SPDLOG_INFO("Filter Time: {}", filterTime);
+        #endif
     }
 };
 
@@ -464,6 +501,23 @@ struct PerVertexTrianglesInfluence<8, T>
 
     uint32_t gjkIter = 0;
     uint32_t gjkCalls = 0;
+
+    const uint32_t CACHE_AXIS_POWER = 5;
+    const uint32_t CACHE_AXIS_MASK = (1 << CACHE_AXIS_POWER) - 1;
+    const uint32_t CACHE_AXIS_SIZE = 1 << CACHE_AXIS_POWER;
+    std::vector<std::pair<glm::uvec3, VertexInfo>> vertexInfoCache;
+    std::vector<glm::vec3> vertexInfoCache2;
+    glm::vec3 coordToId;
+    glm::vec3 minPoint;
+
+    void initCaches(BoundingBox box, uint32_t maxDepth)
+    {
+        vertexInfoCache.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE,
+                               std::make_pair(glm::uvec3((1 << maxDepth) + 1), 0));
+        vertexInfoCache2.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE);
+        coordToId = glm::vec3(static_cast<float>((1 << maxDepth)) / box.getSize());
+        minPoint = box.min;
+    }
 
     template<int N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
@@ -479,24 +533,54 @@ struct PerVertexTrianglesInfluence<8, T>
         minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
 
         std::array<glm::vec3, N> inPoints;
+        // for(uint32_t i=0; i < N; i++)
+        // {
+        //     inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+        // }
         for(uint32_t i=0; i < N; i++)
         {
             inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
-        }
+            const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
 
-        for(const uint32_t& t : triangles)
-        {
-            for(uint32_t i=0; i < N; i++)
+            const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                     ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                     (pointId.x & CACHE_AXIS_MASK);
+
+            if(vertexInfoCache[cacheId].first == pointId)
             {
-                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
-
-                if(dist < minDistanceToPoint[i])
+                outPointsInfo[i] = vertexInfoCache[cacheId].second;
+            }
+            else
+            {
+                for(const uint32_t& t : triangles)
                 {
-                    outPointsInfo[i] = t;
-                    minDistanceToPoint[i] = dist;
+                    const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+                    if(dist < minDistanceToPoint[i])
+                    {
+                        outPointsInfo[i] = t;
+                        minDistanceToPoint[i] = dist;
+                    }
                 }
+
+                vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
+                vertexInfoCache2[cacheId] = inPoints[i];
             }
         }
+
+        // for(const uint32_t& t : triangles)
+        // {
+        //     for(uint32_t i=0; i < N; i++)
+        //     {
+        //         const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+        //         if(dist < minDistanceToPoint[i])
+        //         {
+        //             outPointsInfo[i] = t;
+        //             minDistanceToPoint[i] = dist;
+        //         }
+        //     }
+        // }
 
         for(uint32_t i=0; i < N; i++)
         {
@@ -588,6 +672,23 @@ struct PerNodeRegionTrianglesInfluence
     std::array<uint64_t, 20> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     float filterTime = 0.0f;
 
+    const uint32_t CACHE_AXIS_POWER = 5;
+    const uint32_t CACHE_AXIS_MASK = (1 << CACHE_AXIS_POWER) - 1;
+    const uint32_t CACHE_AXIS_SIZE = 1 << CACHE_AXIS_POWER;
+    std::vector<std::pair<glm::uvec3, VertexInfo>> vertexInfoCache;
+    std::vector<glm::vec3> vertexInfoCache2;
+    glm::vec3 coordToId;
+    glm::vec3 minPoint;
+
+    void initCaches(BoundingBox box, uint32_t maxDepth)
+    {
+        vertexInfoCache.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE,
+                               std::make_pair(glm::uvec3((1 << maxDepth) + 1), 0));
+        vertexInfoCache2.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE);
+        coordToId = glm::vec3(static_cast<float>((1 << maxDepth)) / box.getSize());
+        minPoint = box.min;
+    }
+    
     template<int N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
@@ -602,24 +703,54 @@ struct PerNodeRegionTrianglesInfluence
         minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
 
         std::array<glm::vec3, N> inPoints;
+        // for(uint32_t i=0; i < N; i++)
+        // {
+        //     inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+        // }
         for(uint32_t i=0; i < N; i++)
         {
             inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
-        }
+            const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
 
-        for(const uint32_t& t : triangles)
-        {
-            for(uint32_t i=0; i < N; i++)
+            const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                     ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                     (pointId.x & CACHE_AXIS_MASK);
+
+            if(vertexInfoCache[cacheId].first == pointId)
             {
-                const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
-
-                if(dist < minDistanceToPoint[i])
+                outPointsInfo[i] = vertexInfoCache[cacheId].second;
+            }
+            else
+            {
+                for(const uint32_t& t : triangles)
                 {
-                    outPointsInfo[i] = t;
-                    minDistanceToPoint[i] = dist;
+                    const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+                    if(dist < minDistanceToPoint[i])
+                    {
+                        outPointsInfo[i] = t;
+                        minDistanceToPoint[i] = dist;
+                    }
                 }
+
+                vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
+                vertexInfoCache2[cacheId] = inPoints[i];
             }
         }
+
+        // for(const uint32_t& t : triangles)
+        // {
+        //     for(uint32_t i=0; i < N; i++)
+        //     {
+        //         const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
+
+        //         if(dist < minDistanceToPoint[i])
+        //         {
+        //             outPointsInfo[i] = t;
+        //             minDistanceToPoint[i] = dist;
+        //         }
+        //     }
+        // }
 
         for(uint32_t i=0; i < N; i++)
         {
@@ -669,6 +800,11 @@ struct PerNodeRegionTrianglesInfluence
             }
         }
 
+        auto sign = [](float a, uint32_t val) 
+        {
+            return (a > 0.0f) ? val : -val;
+        };
+
         for(const uint32_t& idx : inTriangles)
         {
             triangle[0] = vertices[indices[3 * idx]] - nodeCenter;
@@ -678,9 +814,9 @@ struct PerNodeRegionTrianglesInfluence
             bool isInside = true;
             
             const glm::vec3 point = 0.3333333f * (triangle[0] + triangle[1] + triangle[2]);
-            const uint32_t vId = ((point.z > 0) ? 4 : 0) + 
-                                    ((point.y > 0) ? 2 : 0) + 
-                                    ((point.x > 0) ? 1 : 0);
+            uint32_t vId = ((point.z > 0) ? 4 : 0) + 
+                            ((point.y > 0) ? 2 : 0) + 
+                            ((point.x > 0) ? 1 : 0);
 
             uint32_t iter = 0;
             //if(verticesInfo[vId] != idx && !GJK::isInsideConvexHull(nodeHalfSize, triangleRegions[vId], triangle, glm::vec3(0.0f, 0.0f, (vId < 4) ? -1.0f : 1.0f), &iter))
@@ -688,6 +824,17 @@ struct PerNodeRegionTrianglesInfluence
             {
                 isInside = false;
             }
+
+            //  if(isInside)
+            //  {
+            //      if(glm::abs(point.x) < glm::abs(point.y)) vId -= (glm::abs(point.x) < glm::abs(point.z)) ? sign(point.x, 1) : sign(point.z, 4);
+            //      else vId -= (glm::abs(point.y) < glm::abs(point.z)) ? sign(point.y, 2) : sign(point.z, 4);
+
+            //      if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
+            //      {
+            //          isInside = false;
+            //      }
+            //  }
 
 #ifdef PRINT_GJK_STATS
             if(verticesInfo[vId] != idx)

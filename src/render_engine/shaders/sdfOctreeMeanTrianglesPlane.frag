@@ -29,15 +29,24 @@ uniform float gridThickness = 0.0035;
 // 	vec3(1.0f, 0.0f, 0.0f)
 // );
 
-const int paletteNumColors = 7;
-const vec3 palette[7] = vec3[7](
-	vec3(0.99f, 0.94f, 0.85f), 
-	vec3(0.99f, 0.83f, 0.619f), 
-	vec3(0.99f, 0.73f, 0.52f), 
-	vec3(0.99f, 0.55f, 0.35f), 
-	vec3(0.937f, 0.396f, 0.28f), 
-	vec3(0.843f, 0.188f, 0.121f), 
-	vec3(0.6f, 0.0f, 0.0f)
+// const int paletteNumColors = 7;
+// const vec3 palette[7] = vec3[7](
+// 	vec3(0.99f, 0.94f, 0.85f), 
+// 	vec3(0.99f, 0.83f, 0.619f), 
+// 	vec3(0.99f, 0.73f, 0.52f), 
+// 	vec3(0.99f, 0.55f, 0.35f), 
+// 	vec3(0.937f, 0.396f, 0.28f), 
+// 	vec3(0.843f, 0.188f, 0.121f), 
+// 	vec3(0.6f, 0.0f, 0.0f)
+// );
+
+const int paletteNumColors = 5;
+const vec3 palette[5] = vec3[5](
+    vec3(1.0f, 0.0f, 1.0f),
+    vec3(0.0f, 0.0f, 1.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(1.0f, 1.0f, 0.0f),
+    vec3(1.0f, 0.0f, 0.0f)
 );
 
 const uint isLeafMask = 1 << 31;
