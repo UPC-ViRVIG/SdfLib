@@ -42,6 +42,11 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     }
     trianglesCache[0] = &triangles[0][0];
 
+    uint32_t bitsPerIndex = static_cast<int32_t>(glm::ceil(glm::log2(static_cast<float>(numTriangles))));
+    uint32_t invBitsPerIndex = 32 - bitsPerIndex;
+    mBitsPerIndex = bitsPerIndex;
+
+
     TrianglesInfluenceStrategy trianglesInfluence;
     trianglesInfluence.initCaches(mBox, maxDepth);
 
@@ -226,14 +231,32 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
             if(node.depth == bitEncodingStartDepth)
             {
+                // uint32_t arrayStartIndex = mTrianglesSets.size();
+                // const uint32_t numTriangles = nodeTriangles.size();
+                // mTrianglesSets.resize(mTrianglesSets.size() + numTriangles + 1);
+
+                // octreeNode->trianglesArrayIndex = arrayStartIndex;
+
+                // mTrianglesSets[arrayStartIndex++] = numTriangles;
+                // std::memcpy(mTrianglesSets.data() + arrayStartIndex, nodeTriangles.data(), sizeof(uint32_t) * numTriangles);
+
                 uint32_t arrayStartIndex = mTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
-                mTrianglesSets.resize(mTrianglesSets.size() + numTriangles + 1);
+                const uint32_t arraySize = (numTriangles * bitsPerIndex + 31)/32;
+                mTrianglesSets.resize(mTrianglesSets.size() + arraySize + 1);
 
                 octreeNode->trianglesArrayIndex = arrayStartIndex;
 
                 mTrianglesSets[arrayStartIndex++] = numTriangles;
-                std::memcpy(mTrianglesSets.data() + arrayStartIndex, nodeTriangles.data(), sizeof(uint32_t) * numTriangles);
+                uint32_t bIdx = 0;
+                for(uint32_t t=0; t < numTriangles; t++, bIdx += bitsPerIndex)
+                {
+                    const uint32_t index = nodeTriangles[t];
+                    uint32_t idx = bIdx >> 5;
+                    uint32_t bit = bIdx & 0b0011111;
+                    mTrianglesSets[arrayStartIndex + idx] |= (index << invBitsPerIndex) >> bit;
+                    mTrianglesSets[arrayStartIndex + idx + 1] |= (static_cast<uint64_t>(index) << (64 - (bit + bitsPerIndex)));
+                }
 
                 mMaxTrianglesEncodedInLeafs = glm::max(mMaxTrianglesEncodedInLeafs, numTriangles);
             }
@@ -407,14 +430,32 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
             if(node.depth <= bitEncodingStartDepth)
             {
+                // uint32_t arrayStartIndex = mTrianglesSets.size();
+                // const uint32_t numTriangles = nodeTriangles.size();
+                // mTrianglesSets.resize(mTrianglesSets.size() + numTriangles + 1);
+
+                // octreeNode->trianglesArrayIndex = arrayStartIndex;
+
+                // mTrianglesSets[arrayStartIndex++] = numTriangles;
+                // std::memcpy(mTrianglesSets.data() + arrayStartIndex, nodeTriangles.data(), sizeof(uint32_t) * numTriangles);
+
                 uint32_t arrayStartIndex = mTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
-                mTrianglesSets.resize(mTrianglesSets.size() + numTriangles + 1);
+                const uint32_t arraySize = (numTriangles * bitsPerIndex + 31)/32;
+                mTrianglesSets.resize(mTrianglesSets.size() + arraySize + 1);
 
                 octreeNode->trianglesArrayIndex = arrayStartIndex;
 
                 mTrianglesSets[arrayStartIndex++] = numTriangles;
-                std::memcpy(mTrianglesSets.data() + arrayStartIndex, nodeTriangles.data(), sizeof(uint32_t) * numTriangles);
+                uint32_t bIdx = 0;
+                for(uint32_t t=0; t < numTriangles; t++, bIdx += bitsPerIndex)
+                {
+                    const uint32_t index = nodeTriangles[t];
+                    uint32_t idx = bIdx >> 5;
+                    uint32_t bit = bIdx & 0b0011111;
+                    mTrianglesSets[arrayStartIndex + idx] |= (index << invBitsPerIndex) >> bit;
+                    mTrianglesSets[arrayStartIndex + idx + 1] |= (static_cast<uint64_t>(index) << (64 - (bit + bitsPerIndex)));
+                }
             }
 
             #ifdef PRINT_STATISTICS

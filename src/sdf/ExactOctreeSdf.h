@@ -95,13 +95,13 @@ public:
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
+        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mBitsPerIndex, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
+        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mBitsPerIndex, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
@@ -131,6 +131,7 @@ private:
 
     uint32_t mMaxTrianglesEncodedInLeafs;
     uint32_t mBitEncodingStartDepth;
+    uint32_t mBitsPerIndex;
 
     int mStartGridSize = 0;
     int mStartGridXY = 0;

@@ -67,9 +67,14 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
         uint32_t leafIndex = currentNode->trianglesArrayIndex;
         const uint32_t numTriangles = mTrianglesSets[leafIndex++];
 
-        for(uint32_t t=0; t < numTriangles; t++)
+        uint32_t bIdx = 0;
+        for(uint32_t t=0; t < numTriangles; t++, bIdx += mBitsPerIndex)
         {
-            const uint32_t tIndex = mTrianglesSets[leafIndex + t];
+            uint32_t idx = bIdx >> 5;
+            uint32_t bit = bIdx & 0b0011111;
+            const uint32_t tIndex = ((mTrianglesSets[leafIndex + idx] << bit) >> (32-mBitsPerIndex)) |
+                                static_cast<uint32_t>(static_cast<uint64_t>(mTrianglesSets[leafIndex + idx + 1]) >> (64 - (bit + mBitsPerIndex)));
+
             const float dist = TriangleUtils::getSqDistPointAndTriangle(sample, mTrianglesData[tIndex]);
             if(dist < minDist)
             {
@@ -81,11 +86,47 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
         return TriangleUtils::getSignedDistPointAndTriangle(sample, mTrianglesData[minIndex]);
     }
 
+
     uint32_t setIndex = currentNode->trianglesArrayIndex;
+
+    // Pass to next child
+    {
+    const uint32_t childIdx = (roundFloat(fracPart.z) << 2) + 
+                                  (roundFloat(fracPart.y) << 1) + 
+                                   roundFloat(fracPart.x);
+
+    currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
+    fracPart = glm::fract(2.0f * fracPart);
+    }
+
     uint32_t numTriangles = mTrianglesSets[setIndex++];
-    const uint32_t* parentTriangles = mTrianglesSets.data() + setIndex;
-    const uint32_t* inputTriangles = parentTriangles;
-    uint32_t* otherArray = mTrianglesCache[0].data();
+    uint32_t* inputTriangles = mTrianglesCache[0].data();
+    {
+        const uint8_t* mask = mTrianglesMasks.data() + currentNode->trianglesArrayIndex;
+
+        uint32_t newTriangles = 0;
+        uint32_t t = 0;
+        uint32_t bIdx = 0;
+        for(uint32_t b=0; t < numTriangles; b++)
+        {
+            uint32_t i=0;
+            uint8_t code = mask[b];
+            for(; i < 8; i++, t++, bIdx += mBitsPerIndex)
+            {
+                if(code & 0b10000000) 
+                {
+                    uint32_t idx = bIdx >> 5;
+                    uint32_t bit = bIdx & 0b0011111;
+                    inputTriangles[newTriangles++] = ((mTrianglesSets[setIndex + idx] << bit) >> (32-mBitsPerIndex)) |
+                                                     static_cast<uint32_t>(static_cast<uint64_t>(mTrianglesSets[setIndex + idx + 1]) >> (64 - (bit + mBitsPerIndex)));;
+                }
+                code = code << 1;
+            }
+        }
+
+        numTriangles = newTriangles;
+    }
+
     uint32_t* outputTriangles = mTrianglesCache[1].data();
     while(!currentNode->isLeaf())
     {
@@ -116,13 +157,12 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
 
         numTriangles = newTriangles;
 
-        std::swap(outputTriangles, otherArray);
-        inputTriangles = otherArray;
+        std::swap(outputTriangles, inputTriangles);
     }
 
     for(uint32_t t=0; t < numTriangles; t++)
     {
-        const uint32_t tIndex = otherArray[t];
+        const uint32_t tIndex = inputTriangles[t];
         const float dist = TriangleUtils::getSqDistPointAndTriangle(sample, mTrianglesData[tIndex]);
         if(dist < minDist)
         {
