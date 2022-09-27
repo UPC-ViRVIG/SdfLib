@@ -28,12 +28,8 @@ public:
         static constexpr uint32_t IS_LEAF_MASK = 1 << 31;
         static constexpr uint32_t CHILDREN_INDEX_MASK = ~IS_LEAF_MASK;
         
-        union
-        {
-            uint32_t childrenIndex;
-            uint32_t size;
-            uint32_t triangleIndex;
-        };
+        uint32_t childrenIndex;
+        uint32_t trianglesArrayIndex;
 
         inline bool isLeaf() const
         {
@@ -55,6 +51,7 @@ public:
         void serialize( Archive & ar )
         {
             ar(childrenIndex);
+            ar(trianglesArrayIndex);
         }
     };
 
@@ -75,16 +72,36 @@ public:
     float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
     SdfFormat getFormat() const override { return SdfFormat::EXACT_OCTREE; }
 
+    void test(glm::vec3 sample)
+    {
+        float dist = getDistance(sample);
+        float minDist = INFINITY;
+        uint32_t minIndex = 0;
+        for(uint32_t t=0; t < mTrianglesData.size(); t++)
+        {
+            const float dist = TriangleUtils::getSqDistPointAndTriangle(sample, mTrianglesData[t]);
+            if(dist < minDist)
+            {
+                minIndex = t;
+                minDist = dist;
+            }
+        }
+
+        float dist2 = TriangleUtils::getSignedDistPointAndTriangle(sample, mTrianglesData[minIndex]);
+        
+        std::cout << dist << " // " << dist2 << std::endl;
+    }
+
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesData);
+        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesData);
+        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
@@ -107,6 +124,7 @@ private:
 
     uint32_t mMaxDepth;
     std::vector<OctreeNode> mOctreeData;
+    std::vector<uint32_t> mTrianglesSets;
     std::vector<TriangleUtils::TriangleData> mTrianglesData;
 
     template<typename TrianglesInfluenceStrategy>
