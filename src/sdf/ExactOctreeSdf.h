@@ -95,36 +95,52 @@ public:
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesData);
+        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesData);
+        archive(mBox, mStartGridSize, mStartDepth, mMinTrianglesInLeafs, mMaxTrianglesInLeafs, mMaxTrianglesEncodedInLeafs, mBitEncodingStartDepth, mMaxDepth, mOctreeData, mTrianglesSets, mTrianglesMasks, mTrianglesData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
+
+        mTrianglesCache[0].resize(mMaxTrianglesEncodedInLeafs);
+        mTrianglesCache[1].resize(mMaxTrianglesEncodedInLeafs);
+
+        std::cout << "Octree Data: " << mOctreeData.size() * sizeof(OctreeNode) << std::endl;
+        std::cout << "Triangle Sets: " << mTrianglesSets.size() * sizeof(uint32_t) << std::endl;
+        std::cout << "Triangle Masks: " << mTrianglesMasks.size() << std::endl;
+        std::cout << "Triangle Data: " << mTrianglesData.size() << std::endl;
     } 
 
 private:
 
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
+    static constexpr uint32_t BIT_ENCODING_DEPTH = 2;
 
     BoundingBox mBox;
+
+    mutable std::array<std::vector<uint32_t>, 2> mTrianglesCache;
 
     // Store the node with the leaf node with the maximum number of triangles
     uint32_t mMinTrianglesInLeafs;
     uint32_t mMaxTrianglesInLeafs;
 
+    uint32_t mMaxTrianglesEncodedInLeafs;
+    uint32_t mBitEncodingStartDepth;
+
     int mStartGridSize = 0;
     int mStartGridXY = 0;
+    uint32_t mStartDepth = 0;
     float mStartGridCellSize = 0.0f;
 
     uint32_t mMaxDepth;
     std::vector<OctreeNode> mOctreeData;
     std::vector<uint32_t> mTrianglesSets;
+    std::vector<uint8_t> mTrianglesMasks;
     std::vector<TriangleUtils::TriangleData> mTrianglesData;
 
     template<typename TrianglesInfluenceStrategy>

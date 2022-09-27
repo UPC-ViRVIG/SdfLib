@@ -14,6 +14,7 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
 
     mStartGridSize = 1 << startDepth;
     mStartGridXY = mStartGridSize * mStartGridSize;
+    mStartDepth = startDepth;
 
     mStartGridCellSize = maxSize / static_cast<float>(mStartGridSize);
 
@@ -22,6 +23,8 @@ ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDe
     initOctree<PerNodeRegionTrianglesInfluence<NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
     //initOctree<PerVertexTrianglesInfluence<1, NoneInterpolation>>(mesh, startDepth, maxDepth, minTrianglesPerNode);
     // calculateStatistics();
+    mTrianglesCache[0].resize(mMaxTrianglesEncodedInLeafs);
+    mTrianglesCache[1].resize(mMaxTrianglesEncodedInLeafs);
 }
 
 inline uint32_t roundFloat(float a)
@@ -39,22 +42,31 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
        startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
        startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
     {
-        return mBox.getDistance(sample) + glm::sqrt(3.0) * mBox.getSize().x;
+        return mBox.getDistance(sample) + glm::sqrt(3.0f) * mBox.getSize().x;
     }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
 
     float minDist = INFINITY;
     uint32_t minIndex = 0;
+    uint32_t depth = mStartDepth;
 
-    while(!currentNode->isLeaf())
+    while(!currentNode->isLeaf() && depth < mBitEncodingStartDepth)
     {
         const uint32_t childIdx = (roundFloat(fracPart.z) << 2) + 
                                   (roundFloat(fracPart.y) << 1) + 
                                    roundFloat(fracPart.x);
 
+        currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
+        fracPart = glm::fract(2.0f * fracPart);
+        depth++;
+    }
+
+    if(currentNode->isLeaf())
+    {
         uint32_t leafIndex = currentNode->trianglesArrayIndex;
         const uint32_t numTriangles = mTrianglesSets[leafIndex++];
+
         for(uint32_t t=0; t < numTriangles; t++)
         {
             const uint32_t tIndex = mTrianglesSets[leafIndex + t];
@@ -66,16 +78,51 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
             }
         }
 
-        currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
-        fracPart = glm::fract(2.0f * fracPart);
+        return TriangleUtils::getSignedDistPointAndTriangle(sample, mTrianglesData[minIndex]);
     }
 
-    uint32_t leafIndex = currentNode->trianglesArrayIndex;
-    const uint32_t numTriangles = mTrianglesSets[leafIndex++];
+    uint32_t setIndex = currentNode->trianglesArrayIndex;
+    uint32_t numTriangles = mTrianglesSets[setIndex++];
+    const uint32_t* parentTriangles = mTrianglesSets.data() + setIndex;
+    const uint32_t* inputTriangles = parentTriangles;
+    uint32_t* otherArray = mTrianglesCache[0].data();
+    uint32_t* outputTriangles = mTrianglesCache[1].data();
+    while(!currentNode->isLeaf())
+    {
+        const uint32_t childIdx = (roundFloat(fracPart.z) << 2) + 
+                                  (roundFloat(fracPart.y) << 1) + 
+                                   roundFloat(fracPart.x);
+
+        currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
+        fracPart = glm::fract(2.0f * fracPart);
+
+        const uint8_t* mask = mTrianglesMasks.data() + currentNode->trianglesArrayIndex;
+
+        uint32_t newTriangles = 0;
+        uint32_t idx = 0;
+        for(uint32_t b=0; idx < numTriangles; b++)
+        {
+            uint32_t i=0;
+            uint8_t code = mask[b];
+            for(; i < 8; i++, idx++)
+            {
+                if(code & 0b10000000) 
+                {
+                    outputTriangles[newTriangles++] = inputTriangles[idx];
+                }
+                code = code << 1;
+            }
+        }
+
+        numTriangles = newTriangles;
+
+        std::swap(outputTriangles, otherArray);
+        inputTriangles = otherArray;
+    }
 
     for(uint32_t t=0; t < numTriangles; t++)
     {
-        const uint32_t tIndex = mTrianglesSets[leafIndex + t];
+        const uint32_t tIndex = otherArray[t];
         const float dist = TriangleUtils::getSqDistPointAndTriangle(sample, mTrianglesData[tIndex]);
         if(dist < minDist)
         {

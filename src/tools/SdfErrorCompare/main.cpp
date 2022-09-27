@@ -8,6 +8,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "sdf/SdfFunction.h"
+#include "sdf/ExactOctreeSdf.h"
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
 
@@ -200,6 +201,11 @@ int main(int argc, char** argv)
         method2MaxError = glm::max(method2MaxError, glm::abs(exactSdfDist2[s] - exactSdfDist[s]));
         maxError = glm::max(maxError, glm::abs(exactSdfDist1[s]-exactSdfDist2[s]));
         method2Error += static_cast<double>(pow2(glm::abs(exactSdfDist2[s]) - glm::abs(exactSdfDist[s])));
+
+        if(glm::abs(exactSdfDist1[s] - exactSdfDist[s]) > 1e-2)
+        {
+            reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->test(samples[s]);
+        }
     }
     accError = glm::sqrt(accError / static_cast<double>(numSamples));
 

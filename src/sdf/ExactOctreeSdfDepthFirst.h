@@ -116,6 +116,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     std::array<glm::vec3, 3> triangle;
 
     std::array<std::vector<uint32_t>, 8> outputTrianglesCache;
+    std::array<std::vector<uint8_t>, 8> outputTrianglesMaskCache;
     outputTrianglesCache.fill(std::vector<uint32_t>());
 
     const std::vector<glm::vec3>& vertices = mesh.getVertices();
@@ -127,14 +128,16 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     std::vector<uint32_t> endedNodes(maxDepth + 1, 0);
     std::vector<float> elapsedTime(maxDepth + 1, 0.0f);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth + 1, 0);
-    std::vector<uint32_t> mergedNodes(maxDepth + 1, 0);
-    std::vector<uint32_t> numMergeCalls(maxDepth + 1, 0);
     uint64_t numTrianglesInLeafs = 0;
     uint64_t numLeafs = 0;
     Timer timer;
 #endif
 
     mMaxTrianglesInLeafs = 0;
+    mMaxTrianglesEncodedInLeafs = 0;
+
+    uint32_t bitEncodingStartDepth = maxDepth - BIT_ENCODING_DEPTH;
+    mBitEncodingStartDepth = bitEncodingStartDepth;
 
     while(!nodes.empty())
     {
@@ -163,6 +166,12 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
             std::vector<uint32_t>& nodeTriangles = triangles[rDepth][node.childIndex];
             std::vector<uint32_t> oldTriangles = nodeTriangles;
+
+            for(uint32_t c=0; c < 8; c++)
+            {
+                outputTrianglesMaskCache[c].resize((nodeTriangles.size() + 7) / 8, 0);
+            }
+
             nodeTriangles.clear();
             const std::array<std::vector<uint32_t>, 8> chTriangles = triangles[rDepth + 1];
             std::array<uint32_t, 8> chIndices;
@@ -188,39 +197,34 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                     }
                 }
 
-                if(numCollisions >= 7)
+                if(numCollisions > 0)
                 {
+                    uint32_t maskIdx = nodeTriangles.size()/8;
+                    uint8_t maskBit = 1 << (7 - (nodeTriangles.size() & 0b0111));
                     nodeTriangles.push_back(minIndex);
                     for(uint32_t c=0; c < numCollisions; c++)
                     {
                         chIndices[childrenCache[c]]++;
-                    }
-                }
-                else
-                {
-                    for(uint32_t c=0; c < numCollisions; c++)
-                    {
-                        outputTrianglesCache[childrenCache[c]].push_back(minIndex);
-                        chIndices[childrenCache[c]]++;
+                        outputTrianglesMaskCache[childrenCache[c]][maskIdx] |= maskBit;
                     }
                 }
             } while(numCollisions > 0);
 
             for(uint32_t c=0; c < 8; c++)
             {
-                uint32_t arrayStartIndex = mTrianglesSets.size();
-                const uint32_t numTriangles = outputTrianglesCache[c].size();
-                mTrianglesSets.resize(mTrianglesSets.size() + numTriangles + 1);
+                uint32_t arrayStartIndex = mTrianglesMasks.size();
+                const uint32_t numTriangles = nodeTriangles.size();
+                const uint32_t numBytes = (numTriangles + 7) / 8;
+                mTrianglesMasks.resize(mTrianglesMasks.size() + numBytes);
 
                 octreeNodesChildren[c].trianglesArrayIndex = arrayStartIndex;
 
-                mTrianglesSets[arrayStartIndex++] = numTriangles;
-                std::memcpy(mTrianglesSets.data() + arrayStartIndex, outputTrianglesCache[c].data(), sizeof(uint32_t) * numTriangles);
+                std::memcpy(mTrianglesMasks.data() + arrayStartIndex, outputTrianglesMaskCache[c].data(), numBytes);
 
-                outputTrianglesCache[c].clear();
+                outputTrianglesMaskCache[c].clear();
             }
 
-            if(node.depth == startDepth)
+            if(node.depth == bitEncodingStartDepth)
             {
                 uint32_t arrayStartIndex = mTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
@@ -230,10 +234,9 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
                 mTrianglesSets[arrayStartIndex++] = numTriangles;
                 std::memcpy(mTrianglesSets.data() + arrayStartIndex, nodeTriangles.data(), sizeof(uint32_t) * numTriangles);
-            }
 
-            mergedNodes[node.depth] += nodeTriangles.size();
-            numMergeCalls[node.depth]++;
+                mMaxTrianglesEncodedInLeafs = glm::max(mMaxTrianglesEncodedInLeafs, numTriangles);
+            }
 
             continue;
         }
@@ -257,13 +260,12 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             // const float oldoldNumTriangles = (rDepth > 1) ? static_cast<float>(triangles[rDepth-2].size()) : oldNumTriangles;
             // isTerminalNode = (0.7f * (1.0f - newNumTriangles / oldNumTriangles) + 0.3f * (1.0f - oldNumTriangles / oldoldNumTriangles)) * (newNumTriangles-32) < static_cast<float>(minTrianglesPerNode);
         }
-        else
-        {
-            nodes.pop();
-        }
+    
 
         if(!isTerminalNode && node.depth < maxDepth)
         {
+            if(node.depth < bitEncodingStartDepth) nodes.pop();
+
             std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
             std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
@@ -403,7 +405,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             octreeNode->setValues(true, std::numeric_limits<uint32_t>::max());
             nodes.pop();
 
-            if(node.depth == startDepth)
+            if(node.depth <= bitEncodingStartDepth)
             {
                 uint32_t arrayStartIndex = mTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
@@ -456,7 +458,6 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
         //SPDLOG_INFO("Depth {}, ended nodes: {}%", d, 100.0f * static_cast<float>(endedNodes[d]) / static_cast<float>(1 << (3 * (d-1))));
-        SPDLOG_INFO("Depth {}, merged nodes: {}", d, static_cast<float>(mergedNodes[d]) / static_cast<float>(numMergeCalls[d]));
         SPDLOG_INFO("Depth {}, ended nodes: {}", d, endedNodes[d]);
     }
 
