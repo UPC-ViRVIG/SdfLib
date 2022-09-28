@@ -112,7 +112,12 @@ public:
         std::cout << "Octree Data: " << mOctreeData.size() * sizeof(OctreeNode) << std::endl;
         std::cout << "Triangle Sets: " << mTrianglesSets.size() * sizeof(uint32_t) << std::endl;
         std::cout << "Triangle Masks: " << mTrianglesMasks.size() << std::endl;
-        std::cout << "Triangle Data: " << mTrianglesData.size() << std::endl;
+        std::cout << "Triangle Data: " << mTrianglesData.size() * sizeof(TriangleUtils::TriangleData) << std::endl;
+
+        float total = mOctreeData.size() * sizeof(OctreeNode) + mTrianglesSets.size() * sizeof(uint32_t) + mTrianglesMasks.size() + mTrianglesData.size() * sizeof(TriangleUtils::TriangleData);
+        std::cout << "Total in MB: " << (total/1048576.0f) << std::endl;
+        total = mOctreeData.size() * sizeof(OctreeNode) + mTrianglesSets.size() * sizeof(uint32_t) + mTrianglesMasks.size();
+        std::cout << "Octree MB: " << (total/1048576.0f) << std::endl;
     } 
 
 private:
