@@ -109,12 +109,23 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    std::array<float, 40> histMeanTimeExact;
+	histMeanTimeExact.fill(0.0f);
+
+    std::array<float, 40> histMeanTimeICG;
+	histMeanTimeICG.fill(0.0f);
+
+    std::array<float, 40> histMeanTimeCGAL;
+	histMeanTimeCGAL.fill(0.0f);
+
     Mesh mesh(args::get(modelPathArg));
     // Mesh mesh("../models/bunny.ply");
     // Normalize model units
     const glm::vec3 boxSize = mesh.getBoudingBox().getSize();
     mesh.applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
                                     glm::translate(glm::mat4(1.0), -mesh.getBoudingBox().getCenter()));
+
+	float invDiag = 1.0f / glm::length(mesh.getBoudingBox().max - mesh.getBoudingBox().min);
     std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile(args::get(sdfPathArg));
     std::unique_ptr<SdfFunction> exactSdf = SdfFunction::loadFromFile(args::get(exactSdfPathArg));
 	
@@ -135,8 +146,16 @@ int main(int argc, char** argv)
     const uint32_t numSamples = 100000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
     std::vector<glm::vec3> samples(numSamples);
     
-    glm::vec3 center = sdf->getSampleArea().getCenter();
-    glm::vec3 size = sdf->getSampleArea().getSize() - glm::vec3(1e-5);
+    glm::vec3 center = exactSdf->getSampleArea().getCenter();
+    glm::vec3 size = exactSdf->getSampleArea().getSize() - glm::vec3(1e-5);
+    // auto getRandomSample = [&] () -> glm::vec3
+    // {
+    //     glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+    //                         static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+    //                         static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+    //     return center + (p - 0.5f) * size;
+    // };
+
     auto getRandomSample = [&] () -> glm::vec3
     {
         glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
@@ -147,14 +166,14 @@ int main(int argc, char** argv)
 
     std::generate(samples.begin(), samples.end(), getRandomSample);
 
-    std::vector<float> sdfDist(numSamples);
-    timer.start();
-    for(uint32_t s=0; s < numSamples; s++)
-    {
-        sdfDist[s] = sdf->getDistance(samples[s]);
-    }
-    float sdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	SPDLOG_INFO("Sdf us per query: {}", sdfTimePerSample, timer.getElapsedSeconds());
+    // std::vector<float> sdfDist(numSamples);
+    // timer.start();
+    // for(uint32_t s=0; s < numSamples; s++)
+    // {
+    //     sdfDist[s] = sdf->getDistance(samples[s]);
+    // }
+    // float sdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	// SPDLOG_INFO("Sdf us per query: {}", sdfTimePerSample, timer.getElapsedSeconds());
 
     std::vector<float> exactSdfDist(numSamples);
     timer.start();
@@ -166,22 +185,22 @@ int main(int argc, char** argv)
 	SPDLOG_INFO("Exact Sdf us per query: {}", exactSdfTimePerSample, timer.getElapsedSeconds());
 
     std::vector<float> exactSdfDist1(numSamples);
-    timer.start();
-    for(uint32_t s=0; s < numSamples; s++)
-    {
-        exactSdfDist1[s] = icg.getDistance(samples[s]);
-    }
-    float exact1SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	SPDLOG_INFO("ICG us per query: {}", exact1SdfTimePerSample, timer.getElapsedSeconds());
+    // timer.start();
+    // for(uint32_t s=0; s < numSamples; s++)
+    // {
+    //     exactSdfDist1[s] = icg.getDistance(samples[s]);
+    // }
+    // float exact1SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	// SPDLOG_INFO("ICG us per query: {}", exact1SdfTimePerSample, timer.getElapsedSeconds());
 
     std::vector<float> exactSdfDist2(numSamples);
-    timer.start();
-    for(uint32_t s=0; s < numSamples; s++)
-    {
-        exactSdfDist2[s] = cgalTree.getDistance(samples[s]);
-    }
-    float exact2SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	SPDLOG_INFO("CGal us per query: {}", exact2SdfTimePerSample, timer.getElapsedSeconds());
+    // timer.start();
+    // for(uint32_t s=0; s < numSamples; s++)
+    // {
+    //     exactSdfDist2[s] = cgalTree.getDistance(samples[s]);
+    // }
+    // float exact2SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	// SPDLOG_INFO("CGal us per query: {}", exact2SdfTimePerSample, timer.getElapsedSeconds());
 
     // Calculate error
 
@@ -193,26 +212,96 @@ int main(int argc, char** argv)
     float method1MaxError = 0.0f;
     float method2MaxError = 0.0f;
     float maxError = 0.0f;
+
+    std::array<std::vector<glm::vec3>, 40> samplesPerDist;
+    samplesPerDist.fill(std::vector<glm::vec3>());
+
     for(uint32_t s=0; s < numSamples; s++)
     {
-        accError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
-        method1Error += static_cast<double>(pow2(exactSdfDist1[s] - exactSdfDist[s]));
-        method1MaxError = glm::max(method1MaxError, glm::abs(exactSdfDist1[s] - exactSdfDist[s]));
-        method2MaxError = glm::max(method2MaxError, glm::abs(exactSdfDist2[s] - exactSdfDist[s]));
-        maxError = glm::max(maxError, glm::abs(exactSdfDist1[s]-exactSdfDist2[s]));
-        method2Error += static_cast<double>(pow2(glm::abs(exactSdfDist2[s]) - glm::abs(exactSdfDist[s])));
+        // accError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
+        // method1Error += static_cast<double>(pow2(exactSdfDist1[s] - exactSdfDist[s]));
+        // method1MaxError = glm::max(method1MaxError, glm::abs(exactSdfDist1[s] - exactSdfDist[s]));
+        // method2MaxError = glm::max(method2MaxError, glm::abs(exactSdfDist2[s] - exactSdfDist[s]));
+        // maxError = glm::max(maxError, glm::abs(exactSdfDist1[s]-exactSdfDist2[s]));
+        // method2Error += static_cast<double>(pow2(glm::abs(exactSdfDist2[s]) - glm::abs(exactSdfDist[s])));
 
-        if(glm::abs(exactSdfDist1[s] - exactSdfDist[s]) > 1e-2)
-        {
-            reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->test(samples[s]);
-        }
+        uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 20.0f)), 39u);
+        samplesPerDist[idx].push_back(samples[s]);
+        // uint32_t idx = static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 100.0f)) - 80;
+        // if(idx >= 0 && idx < 40)
+        // {
+        //     samplesPerDist[idx].push_back(samples[s]);
+        // }
+
+        // if(glm::abs(exactSdfDist1[s] - exactSdfDist[s]) > 1e-2)
+        // {
+        //     reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->test(samples[s]);
+        // }
     }
+
+    for(uint32_t r=0; r < 40; r++)
+    {
+        std::vector<glm::vec3>& s = samplesPerDist[r];
+        uint32_t len = s.size();
+        timer.start();
+        for(uint32_t i=0; i < len; i++)
+        {
+            exactSdf->getDistance(s[i]);
+        }
+        histMeanTimeExact[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+
+        timer.start();
+        for(uint32_t i=0; i < len; i++)
+        {
+            icg.getDistance(s[i]);
+        }
+        histMeanTimeICG[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+
+        timer.start();
+        for(uint32_t i=0; i < len; i++)
+        {
+            cgalTree.getDistance(s[i]);
+        }
+        histMeanTimeCGAL[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+    }
+
+    for(int i=0; i < 40; i++)
+    {
+        SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeExact[i] * 1e6);
+    }
+
+    for(int i=0; i < 40; i++)
+    {
+        SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeICG[i] * 1e6);
+    }
+
+    for(int i=0; i < 40; i++)
+    {
+        SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeCGAL[i] * 1e6);
+    }
+
+    // for(int i=0; i < 40; i++)
+    // {
+    //     SPDLOG_INFO("{}%: {}", (i-20), histMeanTimeExact[i] * 1e6);
+    // }
+
+    // for(int i=0; i < 40; i++)
+    // {
+    //     SPDLOG_INFO("{}%: {}", (i-20), histMeanTimeICG[i] * 1e6);
+    // }
+
+    // for(int i=0; i < 40; i++)
+    // {
+    //     SPDLOG_INFO("{}%: {}", (i-20), histMeanTimeCGAL[i] * 1e6);
+    // }
+
+
     accError = glm::sqrt(accError / static_cast<double>(numSamples));
 
-    SPDLOG_INFO("Method1 max error: {}", method1MaxError);
-    SPDLOG_INFO("Method2 max error: {}", method2MaxError);
-    SPDLOG_INFO("Methods max error: {}", maxError);
-    SPDLOG_INFO("Method1 RMSE: {}", method1Error);
-    SPDLOG_INFO("Method2 RMSE: {}", method2Error);
+    // SPDLOG_INFO("Method1 max error: {}", method1MaxError);
+    // SPDLOG_INFO("Method2 max error: {}", method2MaxError);
+    // SPDLOG_INFO("Methods max error: {}", maxError);
+    // SPDLOG_INFO("Method1 RMSE: {}", method1Error);
+    // SPDLOG_INFO("Method2 RMSE: {}", method2Error);
     SPDLOG_INFO("RMSE: {}", accError);
 }

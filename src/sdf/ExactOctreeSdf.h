@@ -124,7 +124,7 @@ private:
 
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
-    static constexpr uint32_t BIT_ENCODING_DEPTH = 2;
+    static constexpr uint32_t BIT_ENCODING_DEPTH = 0;
 
     BoundingBox mBox;
 
