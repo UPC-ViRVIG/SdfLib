@@ -19,6 +19,7 @@ public:
         DF_UNIFORM, // All zones are subdivided to the maximum depth
         DF_ADAPTATIVE, // Not preserve continuity
         BF_ADAPTATIVE, // Preserve continuity
+        GPU_IMPLEMENTATION
     };
 
     struct OctreeNode
@@ -154,6 +155,9 @@ private:
                                   float terminationThreshold, TerminationRule terminationRule);
     
     void initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth); // For testing propouses
+
+    void initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                         float terminationThreshold, TerminationRule terminationRule);
 };
 
 #include "OctreeSdfDepthFirst.h"

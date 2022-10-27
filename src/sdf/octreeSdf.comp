@@ -1,0 +1,580 @@
+#version 460 core
+
+// layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x = 64) in;
+
+struct TriangleData
+{
+    vec3 origin;
+    mat3x3 transform;
+
+    // Edge direction normalized in the triangle space
+    // The a vector is always the x-axis
+    vec2 b;
+    vec2 c;
+
+    // Vertices position in triangle space
+    // v1 is always at the origin
+    float v2; // In x-axis
+    vec2 v3;
+
+    // Triangle normals transformed
+    vec3 edgesNormal[3];
+    vec3 verticesNormal[3];
+};
+
+
+layout(binding = 0, offset = 0) uniform atomic_uint tasksCount;
+
+layout(binding = 1, offset = 0) uniform atomic_uint trianglesCount;
+
+layout(binding = 2, offset = 0) uniform atomic_uint outputOctreeSize;
+
+layout(shared, binding = 3) buffer trianglesDataBuffer
+{
+    TriangleData trianglesData[];
+};
+
+struct Task
+{
+    vec3 center;
+    float halfSize;
+    uint indexParentTriangles;
+    uint numParentTriangles;
+    uint octreeNodeIndex;
+    uint depth;
+    // uint verticesIndex[8];
+    // float verticesDist[8];
+};
+
+layout(std430, binding = 4) buffer inputTasksBuffer
+{
+    Task inputTasks[];
+};
+
+layout(std430, binding = 5) buffer outputTasksBuffer
+{
+    Task outputTasks[];
+};
+
+layout(std430, binding = 6) buffer inputTrianglesBuffer
+{
+    uint inputTriangles[];
+};
+
+layout(std430, binding = 7) buffer outputTrianglesBuffer
+{
+    uint outputTriangles[];
+};
+
+layout(std430, binding = 8) buffer outputOctreeBuffer
+{
+    uint outputOctree[];
+};
+
+layout(std430, binding = 9) buffer meshIndicesBuffer
+{
+    uint meshIndices[];
+};
+
+layout(std430, binding = 10) buffer meshVerticesBuffer
+{
+    vec3 meshVertices[];
+};
+
+layout(std430, binding = 11) buffer currentNumTasksBuffer
+{
+    uint currentNumTasks;
+};
+
+float getSignedDistanceToTriangle(vec3 point, inout TriangleData triData)
+{
+    vec3 projPoint = triData.transform * (point - triData.origin);
+
+    float de1 = -projPoint.y;
+    float de2 = (projPoint.x - triData.v2) * triData.b.y - projPoint.y * triData.b.x;
+    float de3 = projPoint.x * triData.c.y - projPoint.y * triData.c.x;
+
+    if(de1 >= 0)
+    {
+        if(projPoint.x <= 0) // Its near v1
+        {
+            return sign(dot(triData.verticesNormal[0], projPoint)) * sqrt(dot(projPoint, projPoint));
+        }
+        else if(projPoint.x >= triData.v2) // Its near v2
+        {
+            vec3 p = projPoint - vec3(triData.v2, 0.0, 0.0);
+            return sign(dot(triData.verticesNormal[1], p)) * sqrt(dot(p, p));
+        }
+        else // Its near edge 1
+        {
+            return sign(dot(triData.edgesNormal[0], projPoint)) * sqrt(de1 * de1 + projPoint.z * projPoint.z);
+        }
+    }
+    else if(de2 >= 0)
+    {
+        if((projPoint.x - triData.v2) * triData.b.x + projPoint.y * triData.b.y <= 0) // Its near v2
+        {
+            vec3 p = projPoint - vec3(triData.v2, 0.0, 0.0);
+            return sign(dot(triData.verticesNormal[1], p)) * sqrt(dot(p, p));
+        }
+        else if((projPoint.x - triData.v3.x) * triData.b.x + (projPoint.y - triData.v3.y) * triData.b.y >= 0) // Its near v3
+        {
+            vec3 p = projPoint - vec3(triData.v3.x, triData.v3.y, 0.0);
+            return sign(dot(triData.verticesNormal[2], p)) * sqrt(dot(p, p));
+        }
+        else // Its near edge 2
+        {
+            return sign(dot(triData.edgesNormal[1], projPoint - vec3(triData.v2, 0.0f, 0.0f))) * sqrt(de2 * de2 + projPoint.z * projPoint.z);
+        }
+    }
+    else if(de3 >= 0)
+    {
+        if(projPoint.x * triData.c.x + projPoint.y * triData.c.y >= 0) // Its near v1
+        {
+            return sign(dot(triData.verticesNormal[0], projPoint)) * sqrt(dot(projPoint, projPoint));
+        }
+        else if((projPoint.x - triData.v3.x) * triData.c.x + (projPoint.y - triData.v3.y) * triData.c.y <= 0) // Its near v3
+        {
+            vec3 p = projPoint - vec3(triData.v3.x, triData.v3.y, 0.0);
+            return sign(dot(triData.verticesNormal[2], p)) * sqrt(dot(p, p));
+        }
+        else // Its near edge 3
+        {
+            return sign(dot(triData.edgesNormal[2], projPoint)) * sqrt(de3 * de3 + projPoint.z * projPoint.z);
+        }
+    }
+
+    return projPoint.z;
+}
+
+float getSqDistanceToTriangle(vec3 point, inout TriangleData triData)
+{
+    vec3 projPoint = triData.transform * (point - triData.origin);
+
+    float de1 = -projPoint.y;
+    float de2 = (projPoint.x - triData.v2) * triData.b.y - projPoint.y * triData.b.x;
+    float de3 = projPoint.x * triData.c.y - projPoint.y * triData.c.x;
+
+    if(de1 >= 0)
+    {
+        if(projPoint.x <= 0) // Its near v1
+        {
+            return dot(projPoint, projPoint);
+        }
+        else if(projPoint.x >= triData.v2) // Its near v2
+        {
+            vec3 p = projPoint - vec3(triData.v2, 0.0, 0.0);
+            return dot(p, p);
+        }
+        else // Its near edge 1
+        {
+            return de1 * de1 + projPoint.z * projPoint.z;
+        }
+    }
+    else if(de2 >= 0)
+    {
+        if((projPoint.x - triData.v2) * triData.b.x + projPoint.y * triData.b.y <= 0) // Its near v2
+        {
+            vec3 p = projPoint - vec3(triData.v2, 0.0, 0.0);
+            return dot(p, p);
+        }
+        else if((projPoint.x - triData.v3.x) * triData.b.x + (projPoint.y - triData.v3.y) * triData.b.y >= 0) // Its near v3
+        {
+            vec3 p = projPoint - vec3(triData.v3.x, triData.v3.y, 0.0);
+            return dot(p, p);
+        }
+        else // Its near edge 2
+        {
+            return de2 * de2 + projPoint.z * projPoint.z;
+        }
+    }
+    else if(de3 >= 0)
+    {
+        if(projPoint.x * triData.c.x + projPoint.y * triData.c.y >= 0) // Its near v1
+        {
+            return dot(projPoint, projPoint);
+        }
+        else if((projPoint.x - triData.v3.x) * triData.c.x + (projPoint.y - triData.v3.y) * triData.c.y <= 0) // Its near v3
+        {
+            vec3 p = projPoint - vec3(triData.v3.x, triData.v3.y, 0.0);
+            return dot(p, p);
+        }
+        else // Its near edge 3
+        {
+            return de3 * de3 + projPoint.z * projPoint.z;
+        }
+    }
+
+    return projPoint.z * projPoint.z;
+}
+
+// float getDistance(vec3 point, uint startIndex, uint numTriangles, out uint minIndex)
+// {
+//     float minDist = 1e8;
+//     minIndex = 0;
+//     for(uint i=startIndex; i < startIndex + numTriangles; i++)
+//     {
+//         float dist = getSqDistanceToTriangle(point, inputTriangles[i]);
+//         if(dist < minDist)
+//         {
+//             minDist = dist;
+//             minIndex = inputTriangles[i];
+//         }
+//     }
+
+//     return getSignedDistanceToTriangle(point, minIndex);
+// }
+
+const vec3 childrens[8] =
+{
+    vec3(-1.0f, -1.0f, -1.0f),
+    vec3(1.0f, -1.0f, -1.0f),
+    vec3(-1.0f, 1.0f, -1.0f),
+    vec3(1.0f, 1.0f, -1.0f),
+    vec3(-1.0f, -1.0f, 1.0f),
+    vec3(1.0f, -1.0f, 1.0f),
+    vec3(-1.0f, 1.0f, 1.0f),
+    vec3(1.0f, 1.0f, 1.0f)
+};
+
+const vec3 nodeSamplePoints[19] =
+{
+    vec3(0.0f, -1.0f, -1.0f),
+    vec3(-1.0f, 0.0f, -1.0f),
+    vec3(0.0f, 0.0f, -1.0f),
+    vec3(1.0f, 0.0f, -1.0f),
+    vec3(0.0f, 1.0f, -1.0f),
+    vec3(-1.0f, -1.0f, 0.0f),
+    vec3(0.0f, -1.0f, 0.0f),
+    vec3(1.0f, -1.0f, 0.0f),
+    vec3(-1.0f, 0.0f, 0.0f),
+    vec3(0.0f),
+    vec3(1.0f, 0.0f, 0.0f),
+    vec3(-1.0f, 1.0f, 0.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(1.0f, 1.0f, 0.0f),
+    vec3(0.0f, -1.0f, 1.0f),
+    vec3(-1.0f, 0.0f, 1.0f),
+    vec3(0.0f, 0.0f, 1.0f),
+    vec3(1.0f, 0.0f, 1.0f),
+    vec3(0.0f, 1.0f, 1.0f),
+};
+
+// Octree attributes
+const uint isLeafMask = 1 << 31;
+const uint childrenIndexMask = ~(1 << 31);
+
+vec3 findFurthestPointTriangle(vec3 triangle[3], vec3 direction)
+{
+    float d1 = dot(triangle[0], direction);
+    float d2 = dot(triangle[1], direction);
+    float d3 = dot(triangle[2], direction);
+
+    if(d1 > d2) return (d1 > d3) ? triangle[0] : triangle[2];
+    else return (d2 > d3) ? triangle[1] : triangle[2];
+}
+
+vec3 findFurthestPointNode(float halfNodeSize, float vertRadius[8], vec3 direction)
+{
+    float maxValue = dot(vec3(-halfNodeSize), direction) + vertRadius[0];
+    int maxIndex = 0;
+    for(int i=1; i < 8; i++)
+    {
+        const float value = dot(childrens[i] * halfNodeSize, direction) + vertRadius[i];
+        if(value > maxValue)
+        {
+            maxValue = value;
+            maxIndex = i;
+        }
+    }
+
+    return childrens[maxIndex] * halfNodeSize + vertRadius[maxIndex] * direction;
+}
+
+
+void main()
+{ 
+    uint taskId = gl_GlobalInvocationID.x;
+    uint threadId = gl_LocalInvocationID.x;
+
+    Task task = inputTasks[taskId];
+    TriangleData triData;
+
+    if(taskId >= currentNumTasks)
+    {
+        return;
+    }
+
+    uint minIndices[8];
+    float minDistToVertices[8] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
+    {
+        float minDistToSamplePoints[19] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
+        for(uint t=task.indexParentTriangles; t < task.indexParentTriangles + task.numParentTriangles; t++)
+        {
+            uint inputTriangleIndex = inputTriangles[t];
+            triData = trianglesData[inputTriangleIndex];
+            for(uint i=0; i < 8; i++)
+            {
+                float dist = getSqDistanceToTriangle(task.center + task.halfSize * childrens[i], triData);
+                if(dist < minDistToVertices[i])
+                {
+                    minDistToVertices[i] = dist;
+                    minIndices[i] = inputTriangleIndex;
+                }
+            }
+
+            for(uint i=0; i < 19; i++)
+            {
+                float dist = getSqDistanceToTriangle(task.center + task.halfSize * nodeSamplePoints[i], triData);
+                minDistToSamplePoints[i] = min(minDistToSamplePoints[i], dist);
+            }
+        }
+
+        if(task.depth >= 8)
+        {
+            uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
+            outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
+            for(uint i=0; i < 8; i++)
+            {
+                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(task.verticesDist[i]);
+                triData = trianglesData[minIndices[i]];
+                outputOctree[outOctreeStartIndex + i] = floatBitsToUint(getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData));
+            }
+            return;
+        }
+    }
+
+    // Filter triangles
+    uint outTrianglesStartIndex = atomicCounterAdd(trianglesCount, task.numParentTriangles);
+    uint outTrianglesEndIndex = outTrianglesStartIndex;
+    {
+        float triangleRegions[8][8];
+
+        for(uint i=0; i < 8; i++)
+        {
+            triData = trianglesData[minIndices[i]];
+            minDistToVertices[i] = sqrt(minDistToVertices[i]);
+            for(uint c=0; c < 8; c++)
+            {
+                triangleRegions[i][c] = sqrt(getSqDistanceToTriangle(task.center + task.halfSize * childrens[c], triData)) - minDistToVertices[i];
+            }
+        }
+
+        vec3 triangle[3];
+
+        for(uint t=0; t < task.numParentTriangles; t++)
+        {
+            uint idx = inputTriangles[task.indexParentTriangles + t];
+            triangle[0] = meshVertices[meshIndices[3 * idx]] - task.center;
+            triangle[1] = meshVertices[meshIndices[3 * idx + 1]] - task.center;
+            triangle[2] = meshVertices[meshIndices[3 * idx + 2]] - task.center;
+
+            vec3 point = 0.3333333f * (triangle[0] + triangle[1] + triangle[2]);
+            uint vId = ((point.z > 0) ? 4 : 0) + 
+                    ((point.y > 0) ? 2 : 0) + 
+                    ((point.x > 0) ? 1 : 0);
+
+            if(minIndices[vId] != idx) {
+                uint iter = 0;
+                float distToP;
+                float distToO;
+                float d;
+                bool isNear = false;
+                float sqDistThreshold = minDistToVertices[vId] * minDistToVertices[vId];
+                vec3 currentPoint = -triangle[0];
+
+                do {
+                    vec3 gradient = normalize(-currentPoint);
+                    vec3 p = findFurthestPointNode(task.halfSize, triangleRegions[vId], gradient) - findFurthestPointTriangle(triangle, -gradient);
+                    distToP = dot(gradient, p - currentPoint);
+                    distToO = dot(gradient, -currentPoint);
+
+                    vec3 dir = p - currentPoint;
+                    float d = dot(dir, -currentPoint);
+                    if (d < 1.0e-5) break;
+                    currentPoint += dir * min(d / dot(dir, dir), 1.0f);
+                    isNear = dot(currentPoint, currentPoint) < sqDistThreshold;
+                } while(!isNear && distToO <= distToP + minDistToVertices[vId] && ++iter < 15);
+
+                bool isInside = (d < 1.0e-5) ? (distToO <= distToP + minDistToVertices[vId]) : (isNear || iter >= 15);
+
+                if(isInside)
+                {
+                    outputTriangles[outTrianglesEndIndex++] = idx;   
+                }
+            }
+            else
+            {
+                outputTriangles[outTrianglesEndIndex++] = idx;   
+            }
+        }
+    }
+
+    // float minDist[19] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
+    // uint minIndices[19];
+    // vec3 points[19];
+    // for(uint i=0; i < 19; i++)
+    // {
+    //     points[i] = task.center + task.halfSize * nodeSamplePoints[i];
+    // }
+    // for(uint t=outTrianglesStartIndex; t < outTrianglesEndIndex; t++)
+    // {
+    //     uint inputTriangleIndex = outputTriangles[t];
+    //     TriangleData triData = trianglesData[inputTriangleIndex];
+    //     for(uint i=0; i < 19; i++)
+    //     {
+    //         float dist = getSqDistanceToTriangle(points[i], triData);
+    //         if(dist < minDist[i])
+    //         {
+    //             minDist[i] = dist;
+    //             minIndices[i] = inputTriangleIndex;
+    //         }
+    //     }
+    // }
+
+    // for(uint i=0; i < 19; i++)
+    // {
+    //     TriangleData triData = trianglesData[minIndices[i]];
+    //     minDist[i] = getSignedDistanceToTriangle(points[i], triData);
+    // }
+    
+    vec3 center = task.center;
+    task.halfSize = 0.5f * task.halfSize;
+    task.indexParentTriangles = outTrianglesStartIndex;
+    task.numParentTriangles = outTrianglesEndIndex - outTrianglesStartIndex;
+    task.depth = task.depth + 1;
+
+    uint outTasksStartIndex = atomicCounterAdd(tasksCount, 8);
+    uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
+
+    outputOctree[task.octreeNodeIndex] = childrenIndexMask & outOctreeStartIndex;
+    for(uint c=0; c < 8; c++)
+    {
+        task.center = center + task.halfSize * childrens[c];
+        task.octreeNodeIndex = outOctreeStartIndex + c;
+        outputTasks[outTasksStartIndex + c] = task; 
+    }
+    
+    // Task outTask;
+    // outTask.halfSize = 0.5f * task.halfSize;
+    // outTask.indexParentTriangles = outTrianglesStartIndex;
+    // outTask.numParentTriangles = outTrianglesEndIndex - outTrianglesStartIndex;
+    // outTask.depth = task.depth + 1;
+
+    // uint outTasksStartIndex = atomicCounterAdd(tasksCount, 8);
+    // uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
+
+    // outputOctree[task.octreeNodeIndex] = childrenIndexMask & outOctreeStartIndex;
+    // for(uint c=0; c < 8; c++)
+    // {
+    //     outTask.center = task.center + outTask.halfSize * childrens[c];
+    //     outTask.octreeNodeIndex = outOctreeStartIndex + c;
+    //     outputTasks[outTasksStartIndex + c] = outTask; 
+    // }
+    
+    // outTask.center = task.center + outTask.halfSize * childrens[0];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 0;
+    // outTask.verticesDist[0] = task.verticesDist[0]; outTask.verticesDist[1] = minDist[0]; 
+    // outTask.verticesDist[2] = minDist[1]; outTask.verticesDist[3] = minDist[2];
+    // outTask.verticesDist[4] = minDist[5]; outTask.verticesDist[5] = minDist[6];
+    // outTask.verticesDist[6] = minDist[8]; outTask.verticesDist[7] = minDist[9];
+
+    // outTask.verticesIndex[0] = task.verticesIndex[0]; outTask.verticesIndex[1] = minIndices[0]; 
+    // outTask.verticesIndex[2] = minIndices[1]; outTask.verticesIndex[3] = minIndices[2];
+    // outTask.verticesIndex[4] = minIndices[5]; outTask.verticesIndex[5] = minIndices[6];
+    // outTask.verticesIndex[6] = minIndices[8]; outTask.verticesIndex[7] = minIndices[9];
+    // outputTasks[outTasksStartIndex + 0] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[1];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 1;
+    // outTask.verticesDist[0] = minDist[0]; outTask.verticesDist[1] = task.verticesDist[1];
+    // outTask.verticesDist[2] = minDist[2]; outTask.verticesDist[3] = minDist[3];
+    // outTask.verticesDist[4] = minDist[6]; outTask.verticesDist[5] = minDist[7];
+    // outTask.verticesDist[6] = minDist[9]; outTask.verticesDist[7] = minDist[10];
+
+    // outTask.verticesIndex[0] = minIndices[0]; outTask.verticesIndex[1] = task.verticesIndex[1];
+    // outTask.verticesIndex[2] = minIndices[2]; outTask.verticesIndex[3] = minIndices[3];
+    // outTask.verticesIndex[4] = minIndices[6]; outTask.verticesIndex[5] = minIndices[7];
+    // outTask.verticesIndex[6] = minIndices[9]; outTask.verticesIndex[7] = minIndices[10];
+    // outputTasks[outTasksStartIndex + 1] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[2];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 2;
+    // outTask.verticesDist[0] = minDist[1]; outTask.verticesDist[1] = minDist[2];
+    // outTask.verticesDist[2] = task.verticesDist[2]; outTask.verticesDist[3] = minDist[4];
+    // outTask.verticesDist[4] = minDist[8]; outTask.verticesDist[5] = minDist[9];
+    // outTask.verticesDist[6] = minDist[11]; outTask.verticesDist[7] = minDist[12];
+
+    // outTask.verticesIndex[0] = minIndices[1]; outTask.verticesIndex[1] = minIndices[2];
+    // outTask.verticesIndex[2] = task.verticesIndex[2]; outTask.verticesIndex[3] = minIndices[4];
+    // outTask.verticesIndex[4] = minIndices[8]; outTask.verticesIndex[5] = minIndices[9];
+    // outTask.verticesIndex[6] = minIndices[11]; outTask.verticesIndex[7] = minIndices[12];
+    // outputTasks[outTasksStartIndex + 2] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[3];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 3;
+    // outTask.verticesDist[0] = minDist[2]; outTask.verticesDist[1] = minDist[3];
+    // outTask.verticesDist[2] = minDist[4]; outTask.verticesDist[3] = task.verticesDist[3];
+    // outTask.verticesDist[4] = minDist[9]; outTask.verticesDist[5] = minDist[10];
+    // outTask.verticesDist[6] = minDist[12]; outTask.verticesDist[7] = minDist[13];
+
+    // outTask.verticesIndex[0] = minIndices[2]; outTask.verticesIndex[1] = minIndices[3];
+    // outTask.verticesIndex[2] = minIndices[4]; outTask.verticesIndex[3] = task.verticesIndex[3];
+    // outTask.verticesIndex[4] = minIndices[9]; outTask.verticesIndex[5] = minIndices[10];
+    // outTask.verticesIndex[6] = minIndices[12]; outTask.verticesIndex[7] = minIndices[13];
+    // outputTasks[outTasksStartIndex + 3] = outTask;
+
+
+    // outTask.center = task.center + outTask.halfSize * childrens[4];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 4;
+    // outTask.verticesDist[0] = minDist[5]; outTask.verticesDist[1] = minDist[6];
+    // outTask.verticesDist[2] = minDist[8]; outTask.verticesDist[3] = minDist[9];
+    // outTask.verticesDist[4] = task.verticesDist[4]; outTask.verticesDist[5] = minDist[14];
+    // outTask.verticesDist[6] = minDist[15]; outTask.verticesDist[7] = minDist[16];
+
+    // outTask.verticesIndex[0] = minIndices[5]; outTask.verticesIndex[1] = minIndices[6];
+    // outTask.verticesIndex[2] = minIndices[8]; outTask.verticesIndex[3] = minIndices[9];
+    // outTask.verticesIndex[4] = task.verticesIndex[4]; outTask.verticesIndex[5] = minIndices[14];
+    // outTask.verticesIndex[6] = minIndices[15]; outTask.verticesIndex[7] = minIndices[16];
+    // outputTasks[outTasksStartIndex + 4] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[5];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 5;
+    // outTask.verticesDist[0] = minDist[6]; outTask.verticesDist[1] = minDist[7];
+    // outTask.verticesDist[2] = minDist[9]; outTask.verticesDist[3] = minDist[10];
+    // outTask.verticesDist[4] = minDist[14]; outTask.verticesDist[5] = task.verticesDist[5];
+    // outTask.verticesDist[6] = minDist[16]; outTask.verticesDist[7] = minDist[17];
+
+    // outTask.verticesIndex[0] = minIndices[6]; outTask.verticesIndex[1] = minIndices[7];
+    // outTask.verticesIndex[2] = minIndices[9]; outTask.verticesIndex[3] = minIndices[10];
+    // outTask.verticesIndex[4] = minIndices[14]; outTask.verticesIndex[5] = task.verticesIndex[5];
+    // outTask.verticesIndex[6] = minIndices[16]; outTask.verticesIndex[7] = minIndices[17];
+    // outputTasks[outTasksStartIndex + 5] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[6];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 6;
+    // outTask.verticesDist[0] = minDist[8]; outTask.verticesDist[1] = minDist[9];
+    // outTask.verticesDist[2] = minDist[11]; outTask.verticesDist[3] = minDist[12];
+    // outTask.verticesDist[4] = minDist[15]; outTask.verticesDist[5] = minDist[16];
+    // outTask.verticesDist[6] = task.verticesDist[6]; outTask.verticesDist[7] = minDist[18];
+
+    // outTask.verticesIndex[0] = minIndices[8]; outTask.verticesIndex[1] = minIndices[9];
+    // outTask.verticesIndex[2] = minIndices[11]; outTask.verticesIndex[3] = minIndices[12];
+    // outTask.verticesIndex[4] = minIndices[15]; outTask.verticesIndex[5] = minIndices[16];
+    // outTask.verticesIndex[6] = task.verticesIndex[6]; outTask.verticesIndex[7] = minIndices[18];
+    // outputTasks[outTasksStartIndex + 6] = outTask;
+
+    // outTask.center = task.center + outTask.halfSize * childrens[7];
+    // outTask.octreeNodeIndex = outOctreeStartIndex + 7;
+    // outTask.verticesDist[0] = minDist[9]; outTask.verticesDist[1] = minDist[10];
+    // outTask.verticesDist[2] = minDist[12]; outTask.verticesDist[3] = minDist[13];
+    // outTask.verticesDist[4] = minDist[16]; outTask.verticesDist[5] = minDist[17];
+    // outTask.verticesDist[6] = minDist[18]; outTask.verticesDist[7] = task.verticesDist[7];
+
+    // outTask.verticesIndex[0] = minIndices[9]; outTask.verticesIndex[1] = minIndices[10];
+    // outTask.verticesIndex[2] = minIndices[12]; outTask.verticesIndex[3] = minIndices[13];
+    // outTask.verticesIndex[4] = minIndices[16]; outTask.verticesIndex[5] = minIndices[17];
+    // outTask.verticesIndex[6] = minIndices[18]; outTask.verticesIndex[7] = task.verticesIndex[7];
+    // outputTasks[outTasksStartIndex + 7] = outTask;
+}

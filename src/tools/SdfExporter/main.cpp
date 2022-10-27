@@ -43,8 +43,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "exact_octree";
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/sphere.glb";
+    std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/bunny.ply";
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
     Mesh mesh(modelPath);
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
     {
         std::optional<OctreeSdf::TerminationRule> terminationRule((terminationRuleArg) ? 
                     OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg)) : 
-                    std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE));
+                    std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::NONE));
 
         if(!terminationRule.has_value())
         {
@@ -85,11 +85,12 @@ int main(int argc, char** argv)
             return 0;
         }
 
-        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "df";
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "gpu";
         OctreeSdf::InitAlgorithm initAlgorithm;
         if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
         else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
         else if(initAlgorithmStr == "bf") initAlgorithm = OctreeSdf::InitAlgorithm::BF_ADAPTATIVE;
+        else if(initAlgorithmStr == "gpu") initAlgorithm = OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION;
         else
         {
             std::cerr << initAlgorithmStr << " is not a valid supported octree generation algorithm" << std::endl;

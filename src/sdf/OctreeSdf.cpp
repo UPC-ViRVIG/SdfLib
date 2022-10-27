@@ -7,8 +7,8 @@
 #include <array>
 #include <stack>
 
-//typedef TriLinearInterpolation InterpolationMethod;
-typedef TriCubicInterpolation InterpolationMethod;
+typedef TriLinearInterpolation InterpolationMethod;
+// typedef TriCubicInterpolation InterpolationMethod;
 
 OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, 
                      uint32_t depth, uint32_t startDepth,
@@ -38,6 +38,15 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
             initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            break;
+        case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
+            Timer time;
+            // time.start();
+            // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            // SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
+            time.start();
+            initOctreeInGPU(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            SPDLOG_INFO("GPU version takes: {}s", time.getElapsedSeconds());
             break;
     }
 }
