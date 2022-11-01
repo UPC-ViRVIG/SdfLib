@@ -1,7 +1,9 @@
 #version 460 core
 
+#define LOCAL_SIZE 64
+
 // layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-layout (local_size_x = 32) in;
+layout (local_size_x = 64) in;
 
 struct TriangleData
 {
@@ -25,10 +27,11 @@ struct TriangleData
 
 
 layout(binding = 0, offset = 0) uniform atomic_uint tasksCount;
-
-layout(binding = 1, offset = 0) uniform atomic_uint trianglesCount;
+layout(binding = 0, offset = 4) uniform atomic_uint nextNumWorkGroup;
+layout(binding = 0, offset = 8) uniform atomic_uint trianglesCount;
 
 layout(binding = 2, offset = 0) uniform atomic_uint outputOctreeSize;
+
 
 layout(shared, binding = 3) buffer trianglesDataBuffer
 {
@@ -396,7 +399,7 @@ void main()
             // outputOctree[8 + i] = floatBitsToUint(minDistToSamplePoints[i]);
         }
 
-        if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 1e-6)
+        if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 0.0f)
         // if(task.depth >= 8)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
@@ -521,6 +524,8 @@ void main()
         task.octreeNodeIndex = outOctreeStartIndex + c;
         outputTasks[outTasksStartIndex + c] = task; 
     }
+
+    atomicCounterMax(nextNumWorkGroup, (outTasksStartIndex + 8 + LOCAL_SIZE-1) / LOCAL_SIZE);
     
     // Task outTask;
     // outTask.halfSize = 0.5f * task.halfSize;
