@@ -129,7 +129,7 @@ public:
 
 private:
     // Option to delay the node termination and recyle the distances already calculated
-    static constexpr bool DELAY_NODE_TERMINATION = true;
+    static constexpr bool DELAY_NODE_TERMINATION = false;
 
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;

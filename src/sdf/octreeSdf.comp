@@ -1,7 +1,7 @@
 #version 460 core
 
 // layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-layout (local_size_x = 64) in;
+layout (local_size_x = 32) in;
 
 struct TriangleData
 {
@@ -292,6 +292,52 @@ vec3 findFurthestPointNode(float halfNodeSize, float vertRadius[8], vec3 directi
     return childrens[maxIndex] * halfNodeSize + vertRadius[maxIndex] * direction;
 }
 
+float pow2(float a)
+{
+    return a * a;
+}
+
+float interpolateValue(float values[8], vec3 fracPart)
+{
+    float d00 = values[0] * (1.0f - fracPart.x) +
+                values[1] * fracPart.x;
+    float d01 = values[2] * (1.0f - fracPart.x) +
+                values[3] * fracPart.x;
+    float d10 = values[4] * (1.0f - fracPart.x) +
+                values[5] * fracPart.x;
+    float d11 = values[6] * (1.0f - fracPart.x) +
+                values[7] * fracPart.x;
+
+    float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+    float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+
+    return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
+}
+
+float estimateErrorFunctionIntegralByTrapezoidRule( float interpolationCoeff[8], float middlePoints[19])
+{
+    return 2.0f / 64.0f * pow2(middlePoints[0] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.0f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[1] - interpolateValue(interpolationCoeff, vec3(0.0f, 0.5f, 0.0f))) +
+           4.0f / 64.0f * pow2(middlePoints[2] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.5f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[3] - interpolateValue(interpolationCoeff, vec3(1.0f, 0.5f, 0.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[4] - interpolateValue(interpolationCoeff, vec3(0.5f, 1.0f, 0.0f))) +
+
+           2.0f / 64.0f * pow2(middlePoints[5] - interpolateValue(interpolationCoeff, vec3(0.0f, 0.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[6] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.0f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[7] - interpolateValue(interpolationCoeff, vec3(1.0f, 0.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[8] - interpolateValue(interpolationCoeff, vec3(0.0f, 0.5f, 0.5f))) +
+           8.0f / 64.0f * pow2(middlePoints[9] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.5f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[10] - interpolateValue(interpolationCoeff, vec3(1.0f, 0.5f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[11] - interpolateValue(interpolationCoeff, vec3(0.0f, 1.0f, 0.5f))) +
+           4.0f / 64.0f * pow2(middlePoints[12] - interpolateValue(interpolationCoeff, vec3(0.5f, 1.0f, 0.5f))) +
+           2.0f / 64.0f * pow2(middlePoints[13] - interpolateValue(interpolationCoeff, vec3(1.0f, 1.0f, 0.5f))) +
+
+           2.0f / 64.0f * pow2(middlePoints[14] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.0f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[15] - interpolateValue(interpolationCoeff, vec3(0.0f, 0.5f, 1.0f))) +
+           4.0f / 64.0f * pow2(middlePoints[16] - interpolateValue(interpolationCoeff, vec3(0.5f, 0.5f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[17] - interpolateValue(interpolationCoeff, vec3(1.0f, 0.5f, 1.0f))) +
+           2.0f / 64.0f * pow2(middlePoints[18] - interpolateValue(interpolationCoeff, vec3(0.5f, 1.0f, 1.0f)));
+}
 
 void main()
 { 
@@ -310,6 +356,7 @@ void main()
     float minDistToVertices[8] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
     {
         float minDistToSamplePoints[19] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
+        uint minIndicesToSamplePoints[19];
         for(uint t=task.indexParentTriangles; t < task.indexParentTriangles + task.numParentTriangles; t++)
         {
             uint inputTriangleIndex = inputTriangles[t];
@@ -327,19 +374,39 @@ void main()
             for(uint i=0; i < 19; i++)
             {
                 float dist = getSqDistanceToTriangle(task.center + task.halfSize * nodeSamplePoints[i], triData);
-                minDistToSamplePoints[i] = min(minDistToSamplePoints[i], dist);
+                if(dist < minDistToSamplePoints[i])
+                {
+                    minDistToSamplePoints[i] = dist;
+                    minIndicesToSamplePoints[i] = inputTriangleIndex;
+                }
             }
         }
 
-        if(task.depth >= 8)
+        for(uint i=0; i < 8; i++)
+        {
+            triData = trianglesData[minIndices[i]];
+            minDistToVertices[i] = getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData);
+            // outputOctree[i] = floatBitsToUint(minDistToVertices[i]);
+        }
+
+        for(uint i=0; i < 19; i++)
+        {
+            triData = trianglesData[minIndicesToSamplePoints[i]];
+            minDistToSamplePoints[i] = getSignedDistanceToTriangle(task.center + task.halfSize * nodeSamplePoints[i], triData);
+            // outputOctree[8 + i] = floatBitsToUint(minDistToSamplePoints[i]);
+        }
+
+        if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 1e-6)
+        // if(task.depth >= 8)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
             outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
             for(uint i=0; i < 8; i++)
             {
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(task.verticesDist[i]);
                 triData = trianglesData[minIndices[i]];
-                outputOctree[outOctreeStartIndex + i] = floatBitsToUint(getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData));
+                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData));
+                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(sqrt(minDistToVertices[i]));
+                outputOctree[outOctreeStartIndex + i] = floatBitsToUint(minDistToVertices[i]);
             }
             return;
         }
@@ -354,10 +421,11 @@ void main()
         for(uint i=0; i < 8; i++)
         {
             triData = trianglesData[minIndices[i]];
-            minDistToVertices[i] = sqrt(minDistToVertices[i]);
+            // minDistToVertices[i] = sqrt(minDistToVertices[i]);
+            minDistToVertices[i] = abs(minDistToVertices[i]);
             for(uint c=0; c < 8; c++)
             {
-                triangleRegions[i][c] = sqrt(getSqDistanceToTriangle(task.center + task.halfSize * childrens[c], triData)) - minDistToVertices[i];
+                triangleRegions[i][c] = max(0.0f, sqrt(getSqDistanceToTriangle(task.center + task.halfSize * childrens[c], triData)) - minDistToVertices[i]);
             }
         }
 
@@ -375,31 +443,29 @@ void main()
                     ((point.y > 0) ? 2 : 0) + 
                     ((point.x > 0) ? 1 : 0);
 
-            if(minIndices[vId] != idx) {
+            if(minIndices[vId] != idx) 
+            {
                 uint iter = 0;
-                float distToP;
-                float distToO;
-                float d;
-                bool isNear = false;
+                float distToP = 1e8f;
+                float distToO = 0.0f;
+                float stepSize = 1.0f;
                 float sqDistThreshold = minDistToVertices[vId] * minDistToVertices[vId];
                 vec3 currentPoint = -triangle[0];
 
-                do {
+                bool isNear = dot(currentPoint, currentPoint) < sqDistThreshold;
+                while(!isNear && distToO <= distToP + minDistToVertices[vId] && stepSize > 1e-8 && iter++ < 15) {
                     vec3 gradient = normalize(-currentPoint);
                     vec3 p = findFurthestPointNode(task.halfSize, triangleRegions[vId], gradient) - findFurthestPointTriangle(triangle, -gradient);
                     distToP = dot(gradient, p - currentPoint);
                     distToO = dot(gradient, -currentPoint);
 
                     vec3 dir = p - currentPoint;
-                    float d = dot(dir, -currentPoint);
-                    if (d < 1.0e-5) break;
-                    currentPoint += dir * min(d / dot(dir, dir), 1.0f);
+                    stepSize = min(dot(dir, -currentPoint) / dot(dir, dir), 1.0f);
+                    currentPoint += dir * stepSize;
                     isNear = dot(currentPoint, currentPoint) < sqDistThreshold;
-                } while(!isNear && distToO <= distToP + minDistToVertices[vId] && ++iter < 15);
+                }
 
-                bool isInside = (d < 1.0e-5) ? (distToO <= distToP + minDistToVertices[vId]) : (isNear || iter >= 15);
-
-                if(isInside)
+                if((distToO <= distToP + minDistToVertices[vId] && isNear) || iter >= 15)
                 {
                     outputTriangles[outTrianglesEndIndex++] = idx;   
                 }

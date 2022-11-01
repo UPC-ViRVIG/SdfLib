@@ -77,7 +77,7 @@ int main(int argc, char** argv)
     {
         std::optional<OctreeSdf::TerminationRule> terminationRule((terminationRuleArg) ? 
                     OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg)) : 
-                    std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::NONE));
+                    std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE));
 
         if(!terminationRule.has_value())
         {
@@ -100,7 +100,7 @@ int main(int argc, char** argv)
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
-            (depthArg) ? args::get(depthArg) : 6,
+            (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),

@@ -125,6 +125,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 #ifdef PRINT_STATISTICS
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
     verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    std::vector<uint32_t> notEndedNodes(maxDepth + 1, 0);
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
     Timer timer;
@@ -311,6 +312,11 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[4] = pointsInfo[16]; child.verticesInfo[5] = pointsInfo[17];
 					child.verticesInfo[6] = pointsInfo[18]; child.verticesInfo[7] = node.verticesInfo[7];
 				}
+                #ifdef PRINT_STATISTICS
+                    verticesStatistics[node.depth].first += triangles[rDepth].size();
+                    verticesStatistics[node.depth].second += 1;
+                    notEndedNodes[node.depth]++;
+                #endif
             }
             else
             {
@@ -335,8 +341,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
 #ifdef PRINT_STATISTICS
             {
-                verticesStatistics[node.depth].first += triangles[rDepth].size();
-                verticesStatistics[node.depth].second += 1;
                 elapsedTime[node.depth] += timer.getElapsedSeconds();
                 numTrianglesEvaluated[node.depth] += triangles[rDepth-1].size();
             }
@@ -382,6 +386,12 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         else
         {
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
+        }
+
+        SPDLOG_INFO("Depth {}, not ended nodes {}", d, 8 * notEndedNodes[d]);
+        if(d > 1)
+        {
+            SPDLOG_INFO("Depth {}, ended nodes {}", d, 8 * notEndedNodes[d-1] - notEndedNodes[d]);
         }
     }
 
