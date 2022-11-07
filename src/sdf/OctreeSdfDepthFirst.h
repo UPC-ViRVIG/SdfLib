@@ -117,8 +117,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
     mValueRange = 0.0f;
 
-    std::array<glm::vec3, 3> triangle;
-
     const std::vector<glm::vec3>& vertices = mesh.getVertices();
     const std::vector<uint32_t>& indices = mesh.getIndices();
 

@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     }
 
     std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/bunny.ply";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/armadillo.ply";
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
     Mesh mesh(modelPath);
@@ -102,7 +102,7 @@ int main(int argc, char** argv)
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 0.0f,
+            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),
             initAlgorithm));
     }

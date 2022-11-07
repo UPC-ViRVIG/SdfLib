@@ -69,6 +69,14 @@ target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
+
+find_package(OpenMP)
+if(NOT OpenMP_CXX_FOUND)
+	message(FATAL_ERROR  "OpenMP not found")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
+
 #target_link_libraries(${PROJECT_NAME} PUBLIC vulkan)
 
 # Add executable

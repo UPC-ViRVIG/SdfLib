@@ -163,8 +163,8 @@ struct NodeTask
     uint32_t numParentTriangles;
     uint32_t octreeNodeIndex;
     uint32_t depth;
-    // std::array<uint32_t, 8> verticesIndex;
-    // std::array<float, 8> verticesDist;
+    std::array<uint32_t, 8> verticesIndex;
+    std::array<float, 8> verticesDist;
 };
 
 struct TriangleDataPadding
@@ -385,12 +385,12 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
                         k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
                         startOctreeDepth
                     };
-                    // std::array<float, TriLinearInterpolation::NUM_COEFFICIENTS> nullArray;
-                    // perNodeRegionTrianglesInfluence.calculateVerticesInfo(startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize, inputTriangles,
-                    //                                                         childrens, 0u, nullArray,
-                    //                                                         *reinterpret_cast<std::array<std::array<float, 1>, 8>*>(&tasks[k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i].verticesDist),
-                    //                                                         tasks[k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i].verticesIndex,
-                    //                                                         mesh, trianglesData);
+                    std::array<float, TriLinearInterpolation::NUM_COEFFICIENTS> nullArray;
+                    perNodeRegionTrianglesInfluence.calculateVerticesInfo(startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize, inputTriangles,
+                                                                            childrens, 0u, nullArray,
+                                                                            *reinterpret_cast<std::array<std::array<float, 1>, 8>*>(&tasks[k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i].verticesDist),
+                                                                            tasks[k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i].verticesIndex,
+                                                                            mesh, trianglesData);
                 }
             }
         }
@@ -401,6 +401,8 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
     unsigned int outputTasksBufferBinding = 5;
     setShaderStorage<NodeTask>(5, outputTasksBuffer, maxNumTasks);
+
+    checkForOpenGLErrors();
 
     uint32_t maxNumTriangles = 32 * maxNumTasks;
     // uint32_t maxNumTriangles = 20000 * maxNumTasks;
@@ -630,7 +632,7 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     // OctreeNode* octreeData = reinterpret_cast<OctreeNode*>(dataPtr);
     SPDLOG_INFO("Get octree data {}s", timer.getElapsedSeconds());
 
-    std::cout << maxNumTasks << std::endl;
+    std::cout << octreeBufferSize << std::endl;
     std::cout << mOctreeData.size() << " // " << octreeSize << std::endl;
     {
         float accError = 0.0f;
