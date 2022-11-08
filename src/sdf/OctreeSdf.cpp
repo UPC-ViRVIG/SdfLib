@@ -14,7 +14,8 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
                      uint32_t depth, uint32_t startDepth,
                      float terminationThreshold,
 					 OctreeSdf::TerminationRule terminationRule,
-                     OctreeSdf::InitAlgorithm initAlgorithm)
+                     OctreeSdf::InitAlgorithm initAlgorithm,
+                     uint32_t numThreads)
 {
     mMaxDepth = depth;
 
@@ -34,7 +35,7 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
             initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);

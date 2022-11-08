@@ -32,6 +32,7 @@ int main(int argc, char** argv)
     args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: df_uniform, df, bf", {"algorithm"});
     args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
+    args::ValueFlag<uint32_t> numThreadsArg(parser, "num_threads", "Set the application maximum number of threads", {"num_threads"});
 
     try
     {
@@ -85,7 +86,7 @@ int main(int argc, char** argv)
             return 0;
         }
 
-        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "gpu";
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "df";
         OctreeSdf::InitAlgorithm initAlgorithm;
         if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
         else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
@@ -100,11 +101,12 @@ int main(int argc, char** argv)
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
-            (depthArg) ? args::get(depthArg) : 8,
+            (depthArg) ? args::get(depthArg) : 6,
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),
-            initAlgorithm));
+            initAlgorithm,
+            (numThreadsArg) ? args::get(numThreadsArg) : 1));
     }
     else if(sdfFormat == "exact_octree")
     {

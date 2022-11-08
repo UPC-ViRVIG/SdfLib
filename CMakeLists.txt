@@ -70,12 +70,18 @@ target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
 
-find_package(OpenMP)
-if(NOT OpenMP_CXX_FOUND)
-	message(FATAL_ERROR  "OpenMP not found")
+# Add openMP
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    message("Enabling openmp llvm extension")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp:llvm")
+else()
+    find_package(OpenMP)
+    if(NOT OpenMP_CXX_FOUND)
+    	message(FATAL_ERROR  "OpenMP not found")
+    endif()
+    message("OpenMP version ${OpenMP_CXX_VERSION}")
+    target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
 endif()
-
-target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
 
 #target_link_libraries(${PROJECT_NAME} PUBLIC vulkan)
 
@@ -120,7 +126,7 @@ add_library(SdfLib SHARED src/tools/SdfLib/SdfExportFunc.h
                           src/tools/SdfLib/SdfExportFunc.cpp)
 target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})                          
 
-# Uncomment to test with the other methods
+## Uncomment to test with the other methods
 set(CGAL_DIR C:/Users/eduard/vcpkg/installed/x64-windows/share/cgal)
 set(GMP_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x64-windows/include)
 set(GMP_LIBRARIES C:/Users/eduard/vcpkg/installed/x64-windows/lib/gmp.lib)

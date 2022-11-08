@@ -7,6 +7,7 @@
 #include "OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#include <omp.h>
 
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfo
@@ -22,30 +23,65 @@ struct DepthFirstNodeInfo
     std::array<VertexInfo, 8> verticesInfo;
 };
 
-
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                           float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
+                           float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
+                           uint32_t numThreads)
 {
     typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    struct ThreadContext
+    {
+        std::vector<std::vector<uint32_t>> triangles;
+        TrianglesInfluenceStrategy trianglesInfluence;
+        std::stack<NodeInfo> nodesStack;
+        uint32_t startDepth;
+        uint32_t startOctreeDepth;
+        uint32_t maxDepth;
+        OctreeSdf::TerminationRule terminationRule;
+        float sqTerminationThreshold;
+        float valueRange;
+        uint32_t padding[16];
+
+#ifdef PRINT_STATISTICS
+        std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics;
+        std::vector<uint32_t> notEndedNodes;
+        std::vector<float> elapsedTime;
+        std::vector<uint32_t> numTrianglesEvaluated;
+        Timer timer;
+#endif
+    };
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
-    
     const uint32_t startOctreeDepth = glm::min(startDepth, START_OCTREE_DEPTH);
 
+    ThreadContext mainThread;
+    mainThread.triangles.resize(maxDepth - startOctreeDepth + 1);
+    mainThread.trianglesInfluence.initCaches(mBox, maxDepth);
+    mainThread.startDepth = startDepth;
+    mainThread.startOctreeDepth = startOctreeDepth;
+    mainThread.maxDepth = maxDepth;
+    mainThread.terminationRule = terminationRule;
+    mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    mainThread.valueRange = 0.0f;
+
+    #ifdef PRINT_STATISTICS
+        mainThread.verticesStatistics.resize(maxDepth, std::make_pair(0, 0));
+        mainThread.verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+        mainThread.notEndedNodes.resize(maxDepth + 1, 0);
+        mainThread.elapsedTime.resize(maxDepth);
+        mainThread.numTrianglesEvaluated.resize(maxDepth, 0);
+    #endif
+
+    // TODO: create thread contexts
+
     const uint32_t numTriangles = trianglesData.size();
-    std::vector<std::vector<uint32_t>> triangles(maxDepth - startOctreeDepth + 1);
-	triangles[0].resize(numTriangles);
+	mainThread.triangles[0].resize(numTriangles);
     for(uint32_t i=0; i < numTriangles; i++)
     {
-        triangles[0][i] = i;
+        mainThread.triangles[0][i] = i;
     }
-
-    TrianglesInfluenceStrategy trianglesInfluence;
-    trianglesInfluence.initCaches(mBox, maxDepth);
 
     const std::array<glm::vec3, 8> childrens = 
     {
@@ -59,40 +95,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         glm::vec3(-1.0f, 1.0f, 1.0f),
         glm::vec3(1.0f, 1.0f, 1.0f)
     };
-
-    const std::array<glm::vec3, 19> nodeSamplePoints =
+        
     {
-        glm::vec3(0.0f, -1.0f, -1.0f),
-        glm::vec3(-1.0f, 0.0f, -1.0f),
-        glm::vec3(0.0f, 0.0f, -1.0f),
-        glm::vec3(1.0f, 0.0f, -1.0f),
-        glm::vec3(0.0f, 1.0f, -1.0f),
-
-        glm::vec3(-1.0f, -1.0f, 0.0f),
-        glm::vec3(0.0f, -1.0f, 0.0f),
-        glm::vec3(1.0f, -1.0f, 0.0f),
-        glm::vec3(-1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f),
-        glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(-1.0f, 1.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 0.0f),
-
-        glm::vec3(0.0f, -1.0f, 1.0f),
-        glm::vec3(-1.0f, 0.0f, 1.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f),
-        glm::vec3(1.0f, 0.0f, 1.0f),
-        glm::vec3(0.0f, 1.0f, 1.0f),
-    };
-
-    // Create the grid
-    {
-        const uint32_t voxlesPerAxis = 1 << startDepth;
-        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
-    }
-    
-    std::stack<NodeInfo> nodes;
-    {
+        std::stack<NodeInfo>& nodes = mainThread.nodesStack;
         float newSize = 0.5f * mBox.getSize().x * glm::pow(0.5f, startOctreeDepth);
         const glm::vec3 startCenter = mBox.min + newSize;
         const uint32_t voxlesPerAxis = 1 << startOctreeDepth;
@@ -106,7 +111,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                     nodes.push(NodeInfo(std::numeric_limits<uint32_t>::max(), startOctreeDepth, startCenter + glm::vec3(i, j, k) * 2.0f * newSize, newSize));
                     NodeInfo& n = nodes.top();
 					std::array<float, InterpolationMethod::NUM_COEFFICIENTS> nullArray;
-                    trianglesInfluence.calculateVerticesInfo(n.center, n.size, triangles[0], childrens,
+                    mainThread.trianglesInfluence.calculateVerticesInfo(n.center, n.size, mainThread.triangles[0], childrens,
                                                              0u, nullArray,
                                                              n.verticesValues, n.verticesInfo,
                                                              mesh, trianglesData);
@@ -115,62 +120,64 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         }
     }
 
-    mValueRange = 0.0f;
-
-    const std::vector<glm::vec3>& vertices = mesh.getVertices();
-    const std::vector<uint32_t>& indices = mesh.getIndices();
-
-#ifdef PRINT_STATISTICS
-    std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
-    std::vector<uint32_t> notEndedNodes(maxDepth + 1, 0);
-    std::vector<float> elapsedTime(maxDepth);
-    std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
-    Timer timer;
-#endif
-
-    while(!nodes.empty())
+    auto processNode = [&mesh, &trianglesData] (const NodeInfo& node, ThreadContext& tContext, std::vector<OctreeNode>& outputOctree)
     {
+        const std::array<glm::vec3, 19> nodeSamplePoints =
+        {
+            glm::vec3(0.0f, -1.0f, -1.0f),
+            glm::vec3(-1.0f, 0.0f, -1.0f),
+            glm::vec3(0.0f, 0.0f, -1.0f),
+            glm::vec3(1.0f, 0.0f, -1.0f),
+            glm::vec3(0.0f, 1.0f, -1.0f),
+
+            glm::vec3(-1.0f, -1.0f, 0.0f),
+            glm::vec3(0.0f, -1.0f, 0.0f),
+            glm::vec3(1.0f, -1.0f, 0.0f),
+            glm::vec3(-1.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f),
+            glm::vec3(1.0f, 0.0f, 0.0f),
+            glm::vec3(-1.0f, 1.0f, 0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f),
+            glm::vec3(1.0f, 1.0f, 0.0f),
+
+            glm::vec3(0.0f, -1.0f, 1.0f),
+            glm::vec3(-1.0f, 0.0f, 1.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f),
+            glm::vec3(1.0f, 0.0f, 1.0f),
+            glm::vec3(0.0f, 1.0f, 1.0f),
+        };
+
         #ifdef PRINT_STATISTICS
-        timer.start();
+            tContext.timer.start();
         #endif
-        const NodeInfo node = nodes.top();
-        nodes.pop();
 
         OctreeNode* octreeNode = (node.nodeIndex < std::numeric_limits<uint32_t>::max()) 
-                                    ? &mOctreeData[node.nodeIndex]
+                                    ? &outputOctree[node.nodeIndex]
                                     : nullptr;
 
-        if(node.depth == startDepth)
-        {
-            assert(octreeNode == nullptr);
-            glm::ivec3 startArrayPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
-            octreeNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
-        }
-
-        const uint32_t rDepth = node.depth - startOctreeDepth + 1;
+        const uint32_t rDepth = node.depth - tContext.startOctreeDepth + 1;
         std::array<float, InterpolationMethod::NUM_COEFFICIENTS> interpolationCoeff;
 
-        if(!node.isTerminalNode && node.depth < maxDepth)
+        if(!node.isTerminalNode && node.depth < tContext.maxDepth)
         {
-            trianglesInfluence.filterTriangles(node.center, node.size, triangles[rDepth-1], 
-                                               triangles[rDepth], node.verticesValues, node.verticesInfo,
+            tContext.trianglesInfluence.filterTriangles(node.center, node.size, tContext.triangles[rDepth-1], 
+                                               tContext.triangles[rDepth], node.verticesValues, node.verticesInfo,
                                                mesh, trianglesData);
 
             std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
             std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
-            trianglesInfluence.calculateVerticesInfo(node.center, node.size, triangles[rDepth], nodeSamplePoints,
+            tContext.trianglesInfluence.calculateVerticesInfo(node.center, node.size, tContext.triangles[rDepth], nodeSamplePoints,
                                                      0u, interpolationCoeff,
                                                      midPointsValues, pointsInfo,
                                                      mesh, trianglesData);
             
             bool generateTerminalNodes = false;
-            if(node.depth >= startDepth)
+            if(node.depth >= tContext.startDepth)
             {
-                InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, triangles[rDepth], mesh, trianglesData, interpolationCoeff);
+                InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, tContext.triangles[rDepth], mesh, trianglesData, interpolationCoeff);
                 float value;
-                switch(terminationRule)
+                switch(tContext.terminationRule)
                 {
                     case TerminationRule::TRAPEZOIDAL_RULE:
                         value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
@@ -183,7 +190,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                         break;
                 }
 
-                generateTerminalNodes = value < sqTerminationThreshold;
+                generateTerminalNodes = value < tContext.sqTerminationThreshold;
             }
 
 			if(DELAY_NODE_TERMINATION || !generateTerminalNodes) 
@@ -191,16 +198,16 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 				// Generate new childrens
 				const float newSize = 0.5f * node.size;
 
-				uint32_t childIndex = (node.depth >= startDepth) ? mOctreeData.size() : std::numeric_limits<uint32_t>::max();
-                uint32_t childOffsetMask = (node.depth >= startDepth) ? ~0 : 0;
+				uint32_t childIndex = (node.depth >= tContext.startDepth) ? outputOctree.size() : std::numeric_limits<uint32_t>::max();
+                uint32_t childOffsetMask = (node.depth >= tContext.startDepth) ? ~0 : 0;
 				if(octreeNode != nullptr) octreeNode->setValues(false, childIndex);
 
-				if(node.depth >= startDepth) mOctreeData.resize(mOctreeData.size() + 8);
+				if(node.depth >= tContext.startDepth) outputOctree.resize(outputOctree.size() + 8);
 
 				// Low Z children
-				nodes.push(NodeInfo(childIndex, node.depth + 1, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				tContext.nodesStack.push(NodeInfo(childIndex, node.depth + 1, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = node.verticesValues[0]; child.verticesValues[1] = midPointsValues[0]; 
                     child.verticesValues[2] = midPointsValues[1]; child.verticesValues[3] = midPointsValues[2];
 					child.verticesValues[4] = midPointsValues[5]; child.verticesValues[5] = midPointsValues[6];
@@ -212,9 +219,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[8]; child.verticesInfo[7] = pointsInfo[9];
 				}
 
-				nodes.push(NodeInfo(childIndex + (childOffsetMask & 1), node.depth + 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
+				tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 1), node.depth + 1, node.center + glm::vec3(newSize, -newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[0]; child.verticesValues[1] = node.verticesValues[1];
 					child.verticesValues[2] = midPointsValues[2]; child.verticesValues[3] = midPointsValues[3];
 					child.verticesValues[4] = midPointsValues[6]; child.verticesValues[5] = midPointsValues[7];
@@ -226,9 +233,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[9]; child.verticesInfo[7] = pointsInfo[10];
 				}
 
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 2), node.depth + 1, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 2), node.depth + 1, node.center + glm::vec3(-newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[1]; child.verticesValues[1] = midPointsValues[2];
 					child.verticesValues[2] = node.verticesValues[2]; child.verticesValues[3] = midPointsValues[4];
 					child.verticesValues[4] = midPointsValues[8]; child.verticesValues[5] = midPointsValues[9];
@@ -240,9 +247,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[11]; child.verticesInfo[7] = pointsInfo[12];
 				}
 
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 3), node.depth + 1, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 3), node.depth + 1, node.center + glm::vec3(newSize, newSize, -newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[2]; child.verticesValues[1] = midPointsValues[3];
 					child.verticesValues[2] = midPointsValues[4]; child.verticesValues[3] = node.verticesValues[3];
 					child.verticesValues[4] = midPointsValues[9]; child.verticesValues[5] = midPointsValues[10];
@@ -255,9 +262,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 				}
 
                 // High Z children
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 4), node.depth + 1, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 4), node.depth + 1, node.center + glm::vec3(-newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[5]; child.verticesValues[1] = midPointsValues[6];
 					child.verticesValues[2] = midPointsValues[8]; child.verticesValues[3] = midPointsValues[9];
 					child.verticesValues[4] = node.verticesValues[4]; child.verticesValues[5] = midPointsValues[14];
@@ -269,9 +276,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[15]; child.verticesInfo[7] = pointsInfo[16];
 				}
 
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 5), node.depth + 1, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 5), node.depth + 1, node.center + glm::vec3(newSize, -newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[6]; child.verticesValues[1] = midPointsValues[7];
 					child.verticesValues[2] = midPointsValues[9]; child.verticesValues[3] = midPointsValues[10];
 					child.verticesValues[4] = midPointsValues[14]; child.verticesValues[5] = node.verticesValues[5];
@@ -283,9 +290,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[16]; child.verticesInfo[7] = pointsInfo[17];
 				}
 
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 6), node.depth + 1, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 6), node.depth + 1, node.center + glm::vec3(-newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[8]; child.verticesValues[1] = midPointsValues[9];
 					child.verticesValues[2] = midPointsValues[11]; child.verticesValues[3] = midPointsValues[12];
 					child.verticesValues[4] = midPointsValues[15]; child.verticesValues[5] = midPointsValues[16];
@@ -297,9 +304,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = node.verticesInfo[6]; child.verticesInfo[7] = pointsInfo[18];
 				}
 
-                nodes.push(NodeInfo(childIndex + (childOffsetMask & 7), node.depth + 1, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
+                tContext.nodesStack.push(NodeInfo(childIndex + (childOffsetMask & 7), node.depth + 1, node.center + glm::vec3(newSize, newSize, newSize), newSize, generateTerminalNodes));
 				{
-					NodeInfo& child = nodes.top();
+					NodeInfo& child = tContext.nodesStack.top();
 					child.verticesValues[0] = midPointsValues[9]; child.verticesValues[1] = midPointsValues[10];
 					child.verticesValues[2] = midPointsValues[12]; child.verticesValues[3] = midPointsValues[13];
 					child.verticesValues[4] = midPointsValues[16]; child.verticesValues[5] = midPointsValues[17];
@@ -311,89 +318,193 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[6] = pointsInfo[18]; child.verticesInfo[7] = node.verticesInfo[7];
 				}
                 #ifdef PRINT_STATISTICS
-                    verticesStatistics[node.depth].first += triangles[rDepth].size();
-                    verticesStatistics[node.depth].second += 1;
-                    notEndedNodes[node.depth]++;
+                    tContext.verticesStatistics[node.depth].first += tContext.triangles[rDepth].size();
+                    tContext.verticesStatistics[node.depth].second += 1;
+                    tContext.notEndedNodes[node.depth]++;
                 #endif
             }
             else
             {
-                assert(node.depth >= startDepth);
-                uint32_t childIndex = mOctreeData.size();
+                assert(node.depth >= tContext.startDepth);
+                uint32_t childIndex = outputOctree.size();
                 assert(octreeNode != nullptr);
                 octreeNode->setValues(true, childIndex);
 
-                InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, triangles[rDepth], mesh, trianglesData, interpolationCoeff);
-                mOctreeData.resize(mOctreeData.size() + InterpolationMethod::NUM_COEFFICIENTS);
+                InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, tContext.triangles[rDepth], mesh, trianglesData, interpolationCoeff);
+                outputOctree.resize(outputOctree.size() + InterpolationMethod::NUM_COEFFICIENTS);
 
                 for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
                 {
-                    mOctreeData[childIndex + i].value = interpolationCoeff[i];
+                    outputOctree[childIndex + i].value = interpolationCoeff[i];
                 }
 
                 for(uint32_t i=0; i < 8; i++)
                 {
-                    mValueRange = glm::max(mValueRange, glm::abs(node.verticesValues[i][0]));
+                    tContext.valueRange = glm::max(tContext.valueRange, glm::abs(node.verticesValues[i][0]));
                 }
             }
 
 #ifdef PRINT_STATISTICS
             {
-                elapsedTime[node.depth] += timer.getElapsedSeconds();
-                numTrianglesEvaluated[node.depth] += triangles[rDepth-1].size();
+                tContext.elapsedTime[node.depth] += tContext.timer.getElapsedSeconds();
+                tContext.numTrianglesEvaluated[node.depth] += tContext.triangles[rDepth-1].size();
             }
 #endif
         }
         else
         {
-            assert(node.depth >= startDepth);
-            uint32_t childIndex = mOctreeData.size();
+            assert(node.depth >= tContext.startDepth);
+            uint32_t childIndex = outputOctree.size();
             assert(octreeNode != nullptr);
             octreeNode->setValues(true, childIndex);
 
-            InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, triangles[rDepth-1], mesh, trianglesData, interpolationCoeff);
-            mOctreeData.resize(mOctreeData.size() + InterpolationMethod::NUM_COEFFICIENTS);
+            InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, tContext.triangles[rDepth-1], mesh, trianglesData, interpolationCoeff);
+            outputOctree.resize(outputOctree.size() + InterpolationMethod::NUM_COEFFICIENTS);
 
             for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
             {
-                mOctreeData[childIndex + i].value = interpolationCoeff[i];
+                outputOctree[childIndex + i].value = interpolationCoeff[i];
             }
 
             for(uint32_t i=0; i < 8; i++)
             {
-                mValueRange = glm::max(mValueRange, glm::abs(node.verticesValues[i][0]));
+                tContext.valueRange = glm::max(tContext.valueRange, glm::abs(node.verticesValues[i][0]));
             }
         }
+    };
+
+    const uint32_t voxlesPerAxis = 1 << startDepth;
+    if(numThreads < 2)
+    {
+        // Create the grid
+        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
+
+        while(!mainThread.nodesStack.empty())
+        {
+            NodeInfo node = mainThread.nodesStack.top();
+            mainThread.nodesStack.pop();
+            
+            if(node.depth == startDepth)
+            {
+                glm::ivec3 startArrayPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+                node.nodeIndex = startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x;
+            }
+
+            processNode(node, mainThread, mOctreeData);
+        }
+
+        mValueRange = mainThread.valueRange;
+    }
+    else
+    {
+        std::vector<ThreadContext> threadsContext(numThreads, mainThread);
+
+        struct OctreeDataWithPadding
+        {
+            OctreeDataWithPadding() {}
+            std::vector<OctreeNode> octreeData;
+            uint32_t padding[16];
+        };
+        std::vector<OctreeDataWithPadding> subOctrees(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
+
+        omp_set_dynamic(0);
+        omp_set_num_threads(numThreads);
+
+        #pragma omp parallel default(shared)
+        #pragma omp single
+        while(!mainThread.nodesStack.empty())
+        {
+            NodeInfo node = mainThread.nodesStack.top();
+            mainThread.nodesStack.pop();
+            
+            if(node.depth == startDepth)
+            {
+                glm::ivec3 startArrayPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+                node.nodeIndex = 0;
+                std::vector<OctreeNode>* subOctreePtr = &subOctrees[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x].octreeData;
+                subOctreePtr->resize(1);
+                const uint32_t rDepth = startDepth - mainThread.startOctreeDepth;
+                std::vector<uint32_t> startTriangles = mainThread.triangles[rDepth];
+                #pragma omp task shared(threadsContext) firstprivate(node, subOctreePtr, rDepth, startTriangles)
+                {
+                    std::vector<OctreeNode>& subOctree = *subOctreePtr;
+                    const uint32_t tId = omp_get_thread_num();
+                    ThreadContext& threadContext = threadsContext[tId];
+                    threadContext.triangles[rDepth] = std::move(startTriangles);
+                    threadContext.nodesStack = std::stack<NodeInfo>(); // Reset stack
+                    threadContext.nodesStack.push(node);
+                    while(!threadContext.nodesStack.empty())
+                    {
+                        NodeInfo node1 = threadContext.nodesStack.top();
+                        threadContext.nodesStack.pop();
+
+                        processNode(node1, threadContext, subOctree);
+                    }
+                }
+            }
+            else
+            {
+                processNode(node, mainThread, mOctreeData);
+            }
+        }
+
+        // Merge all the subtrees
+        for(OctreeDataWithPadding& octreeDataPad : subOctrees)
+        {
+            mOctreeData.insert(mOctreeData.end(), octreeDataPad.octreeData.begin(), octreeDataPad.octreeData.end());
+        }
+
+        mValueRange = 0.0f;
+        for(ThreadContext& tCtx : threadsContext)
+        {
+            mValueRange = glm::max(mValueRange, tCtx.valueRange);
+        }
+
+        #ifdef PRINT_STATISTICS
+            for(ThreadContext& tCtx : threadsContext)
+            {
+                for(uint32_t d=0; d < maxDepth; d++)
+                {
+                    mainThread.verticesStatistics[d].first += tCtx.verticesStatistics[d].first;
+                    mainThread.verticesStatistics[d].second += tCtx.verticesStatistics[d].second;
+
+                    mainThread.elapsedTime[d] += tCtx.elapsedTime[d];
+
+                    mainThread.numTrianglesEvaluated[d] += tCtx.numTrianglesEvaluated[d];
+                    mainThread.notEndedNodes[d] += tCtx.notEndedNodes[d];
+                }
+            }
+        #endif
     }
 	
 #ifdef PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
     for(uint32_t d=0; d < maxDepth; d++)
     {
-        const float mean = static_cast<float>(verticesStatistics[d].first) / 
-                           static_cast<float>(glm::max(1u, verticesStatistics[d].second));
-        SPDLOG_INFO("Depth {}, mean of triangles per node: {} [{}s]", d, mean, elapsedTime[d]);
-        if(numTrianglesEvaluated[d] < 1000)
+        const float mean = static_cast<float>(mainThread.verticesStatistics[d].first) / 
+                           static_cast<float>(glm::max(1u, mainThread.verticesStatistics[d].second));
+        SPDLOG_INFO("Depth {}, mean of triangles per node: {} [{}s]", d, mean, mainThread.elapsedTime[d]);
+        if(mainThread.numTrianglesEvaluated[d] < 1000)
         {
-            SPDLOG_INFO("Depth {}, number of evaluations: {}", d, numTrianglesEvaluated[d]);
+            SPDLOG_INFO("Depth {}, number of evaluations: {}", d, mainThread.numTrianglesEvaluated[d]);
         }
-        else if(numTrianglesEvaluated[d] < 1000000)
+        else if(mainThread.numTrianglesEvaluated[d] < 1000000)
         {
-            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}K", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-3);
+            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}K", d, static_cast<float>(mainThread.numTrianglesEvaluated[d]) * 1e-3);
         }
         else
         {
-            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
+            SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(mainThread.numTrianglesEvaluated[d]) * 1e-6);
         }
 
-        SPDLOG_INFO("Depth {}, not ended nodes {}", d, 8 * notEndedNodes[d]);
+        SPDLOG_INFO("Depth {}, not ended nodes {}", d, 8 * mainThread.notEndedNodes[d]);
         if(d > 1)
         {
-            SPDLOG_INFO("Depth {}, ended nodes {}", d, 8 * notEndedNodes[d-1] - notEndedNodes[d]);
+            SPDLOG_INFO("Depth {}, ended nodes {}", d, 8 * mainThread.notEndedNodes[d-1] - mainThread.notEndedNodes[d]);
         }
     }
 
-    trianglesInfluence.printStatistics();
+    mainThread.trianglesInfluence.printStatistics();
 #endif
 }
 
