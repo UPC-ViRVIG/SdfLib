@@ -10,6 +10,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+//#define PRINT_TRIANGLES_STATS
 
 void compareTrees(uint32_t tIndex1, uint32_t tIndex2, OctreeSdf::OctreeNode* tree1, OctreeSdf::OctreeNode* tree2, float& accError, uint32_t& numSamples, float& maxError)
 {
@@ -92,7 +93,7 @@ void setShaderStorage(uint32_t binding, unsigned int& bufferId, std::vector<T> a
     glGenBuffers(1, &bufferId);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferId);
     glBufferData(GL_SHADER_STORAGE_BUFFER, array.size() * sizeof(T), array.data(), GL_STREAM_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, bufferId);
+    if(binding != std::numeric_limits<uint32_t>::max()) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, bufferId);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
@@ -111,7 +112,7 @@ void setShaderStorage(uint32_t binding, unsigned int& bufferId, uint32_t size)
     glGenBuffers(1, &bufferId);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferId);
     glBufferData(GL_SHADER_STORAGE_BUFFER, size * sizeof(T), NULL, GL_STREAM_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, bufferId);
+    if(binding != std::numeric_limits<uint32_t>::max()) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, bufferId);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
@@ -217,13 +218,16 @@ struct DispatchIndirectCommand
     uint32_t num_groups_z;
 };
 
-void checkForOpenGLErrors()
+GLenum checkForOpenGLErrors()
 {
     GLenum errorCode;
     while((errorCode = glGetError()) != GL_NO_ERROR)
     {
         SPDLOG_ERROR("OpenGL error with code {}", errorCode);
+        return errorCode;
     }
+
+    return GL_NO_ERROR;
 }
 
 constexpr uint32_t WORK_GROUP_SIZE = 64;
@@ -266,7 +270,16 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
 #endif
 	}
 
-    glShaderSource(computeShaderId, 1, &fileShader, NULL);
+    std::string resFileShader;
+    resFileShader.append("#version 460 core\n\n");
+    resFileShader.append("#define LOCAL_SIZE " + std::to_string(WORK_GROUP_SIZE) + "\n");
+    resFileShader.append("#define MAX_DEPTH " + std::to_string(maxDepth) + "\n");
+    resFileShader.append("#define SQ_TERMINATION_THRESHOLD " + std::to_string(terminationThreshold*terminationThreshold) + "\n\n");
+    resFileShader.append("layout (local_size_x = " + std::to_string(WORK_GROUP_SIZE) + ") in;\n\n");
+    resFileShader.append(fileShader);
+
+    const char* resFileShaderPtr = resFileShader.c_str();
+    glShaderSource(computeShaderId, 1, &resFileShaderPtr, NULL);
 	glCompileShader(computeShaderId);
 
     int success;
@@ -343,8 +356,13 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
 
     // Load and reserve data
+    /*
+        The atomic counter counters stores:
+        -> Counter of tasks
+        -> Counter of next number of work groups
+        -> Counter of tasks triangles
+    */
     setAtomicCounters(0, counters, 3);
-    // setAtomicCounter(1, trianglesCounter);
     setAtomicCounter(2, outputOctreeSizeCounter);
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
@@ -359,6 +377,12 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     uint32_t maxNumTasks = 1 << (3 * maxDepth);
     unsigned int inputTasksBufferBinding = 4;
     setShaderStorage<NodeTask>(4, inputTasksBuffer, maxNumTasks);
+
+    if(checkForOpenGLErrors() == GL_OUT_OF_MEMORY)
+    {
+        SPDLOG_ERROR("Cannot allocate the task array in the GPU");
+        return;
+    }
 
     std::vector<uint32_t> inputTriangles(trianglesData.size());
     for(uint32_t i=0; i < inputTriangles.size(); i++) inputTriangles[i] = i;
@@ -402,19 +426,37 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     unsigned int outputTasksBufferBinding = 5;
     setShaderStorage<NodeTask>(5, outputTasksBuffer, maxNumTasks);
 
-    checkForOpenGLErrors();
-
     uint32_t maxNumTriangles = 32 * maxNumTasks;
-    // uint32_t maxNumTriangles = 20000 * maxNumTasks;
+    // {
+    //     float meanTrianglesPerLevel = static_cast<float>(trianglesData.size());
+    //     for(uint32_t d=2; d < maxDepth; d++) meanTrianglesPerLevel = 0.22f * meanTrianglesPerLevel;
+
+    //     maxNumTriangles = maxNumTasks * static_cast<uint32_t>(glm::ceil(meanTrianglesPerLevel));
+    // }
     unsigned int inputTrianglesBufferBinding = 6;
     setShaderStorage<uint32_t>(6, inputTrianglesBuffer, maxNumTriangles);
-    checkForOpenGLErrors();
+
+    if(checkForOpenGLErrors() == GL_OUT_OF_MEMORY)
+    {
+        SPDLOG_ERROR("Cannot allocate the triangles cache array in the GPU");
+        return;
+    }
+
     setShaderStorageData(inputTrianglesBuffer, 0, inputTriangles);
 
     unsigned int outputTrianglesBufferBinding = 7;
     setShaderStorage<uint32_t>(7, outputTrianglesBuffer, maxNumTriangles);
-    unsigned int octreeBufferSize = 16 * maxNumTasks;
+
+    unsigned int octreeBufferSize = 0;
+    for(uint32_t d=startDepth; d <= (maxDepth+1); d++) octreeBufferSize += 1 << (3 * d);
+    octreeBufferSize = static_cast<uint32_t>(glm::ceil(1.0f * static_cast<float>(octreeBufferSize)));
     setShaderStorage<uint32_t>(8, outputOctreeBuffer, octreeBufferSize);
+
+    if(checkForOpenGLErrors() == GL_OUT_OF_MEMORY)
+    {
+        SPDLOG_ERROR("Cannot allocate the octree array in the GPU");
+        return;
+    }
 
     setShaderStorage(9, meshIndicesBuffer, mesh.getIndices());
     std::vector<glm::vec4> gpuVertices(mesh.getVertices().size());
@@ -428,14 +470,16 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     std::vector<uint32_t> currentNumTasks(1, tasks.size());
     setShaderStorage(11, currentNumTasksBuffer, currentNumTasks);
 
-    checkForOpenGLErrors();
-
     unsigned int dispatchIndirectBuffer;
     std::vector<DispatchIndirectCommand> dispatchIndirectData(1);
     dispatchIndirectData[0].num_groups_x = tasks.size();
     dispatchIndirectData[0].num_groups_y = 1;
     dispatchIndirectData[0].num_groups_z = 1;
     setDispatchIndirectBuffer(dispatchIndirectBuffer, dispatchIndirectData);
+
+    std::vector<uint32_t> countersCacheData(3 * maxDepth, 0);
+    unsigned int countersCacheBuffer;
+    setShaderStorage(std::numeric_limits<uint32_t>::max(), countersCacheBuffer, countersCacheData);
 
     checkForOpenGLErrors();
 
@@ -459,121 +503,78 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, meshIndicesBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, meshVerticesBuffer);
 
-    // glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, dispatchIndirectBuffer);
-    // void* taskPtr = glMapBuffer(GL_DISPATCH_INDIRECT_BUFFER, GL_READ_ONLY);
-
-    // uint32_t numTasksToExecute = reinterpret_cast<unsigned int*>(taskPtr)[0];
-    
-    // std::cout << "Num tasks to execute " << numTasksToExecute << std::endl;
-
-    // glUnmapBuffer(GL_DISPATCH_INDIRECT_BUFFER);
-
-    std::cout << "First dispatch" << std::endl;
     // glDispatchCompute((tasks.size() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE, 1, 1);
     
     glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, dispatchIndirectBuffer);
     glDispatchComputeIndirect(0);
 
     // checkForOpenGLErrors();
-    std::cout << "end first dispatch" << std::endl;
-
-    // auto getItDistance = [&](glm::vec3 point)
-    // {
-    //     float minDist = INFINITY;
-    //     uint32_t minIndex;
-
-    //     for(uint32_t i=0; i < trianglesData.size(); i++)
-    //     {
-    //         const float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesData[i]);
-    //         if(dist < minDist)
-    //         {
-    //             minDist = dist;
-    //             minIndex = i;
-    //         }
-    //     }
-
-    //     return TriangleUtils::getSignedDistPointAndTriangle(point, trianglesData[minIndex]);
-    // };
-
-    // glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputOctreeBuffer);
-    // void* dataPtr1 = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    // float* values = reinterpret_cast<float*>(dataPtr1);
-    // {
-    //     for(uint32_t i=0; i < 8; i++)
-    //     {
-    //         // std::cout << values[i] << " // " << getItDistance(tasks[0].center + tasks[0].halfSize * childrens[i]) << std::endl;
-    //         std::cout << values[i] << std::endl;
-    //     }
-
-    //     // for(uint32_t i=0; i < 19; i++)
-    //     // {
-    //     //     std::cout << values[8 + i] << " // " << getItDistance(tasks[0].center + tasks[0].halfSize * nodeSamplePoints[i]) << std::endl;
-    //     // }
-    // }
-    // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    // return;
 
     SPDLOG_INFO("Depth 0, computation time: {}s", timer.getElapsedSeconds());
 
     uint32_t lastNotEndedNodes = 8;
     for(uint32_t d=2; d <= maxDepth; d++)
     {
+        #ifdef PRINT_STATISTICS
         timer.start();
+        #endif
 
-        // uint32_t numTasks;
-        // glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, counters);
-        // glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(uint32_t), &numTasks);
-        // SPDLOG_INFO("Depth {}, num tasks {}", d-1, numTasks);
-        // SPDLOG_INFO("Depth {}, ended nodes {}", d-1, 8*lastNotEndedNodes - numTasks/8);
-        // lastNotEndedNodes = numTasks/8;
+        #ifdef PRINT_TRIANGLES_STATS
+        uint32_t numTasks;
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, counters);
+        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(uint32_t), &numTasks);
+        SPDLOG_INFO("Depth {}, num tasks {}", d-1, numTasks);
+        SPDLOG_INFO("Depth {}, ended nodes {}", d-1, 8*lastNotEndedNodes - numTasks/8);
+        lastNotEndedNodes = numTasks/8;
 
-        // glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+        glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
 
-        // uint32_t numTriangles;
-        // glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, counters);
-        // glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 8, sizeof(uint32_t), &numTriangles);
+        uint32_t numTriangles;
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, counters);
+        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 8, sizeof(uint32_t), &numTriangles);
 
-        // if(numTriangles > maxNumTriangles)
-        // {
-        //     SPDLOG_ERROR("Max num of triangles reach");
-        // }
+        if(numTriangles > maxNumTriangles)
+        {
+            SPDLOG_ERROR("Max num of triangles reach");
+        }
 
-        // glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputTasksBuffer);
-        // void* dataPtr = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        // {
-        //     NodeTask* outTasksArray = reinterpret_cast<NodeTask*>(dataPtr);
-        //     uint32_t sumTriangles = 0;
-        //     float sumHalfSize = 0.0f;
-        //     float maxHalfSize = 0.0f;
-        //     float minHalfSize = INFINITY;
-        //     std::vector<std::pair<uint32_t, uint32_t>> tasksTriIntervals;
-        //     for(uint32_t t=0; t < numTasks; t+=8)
-        //     {
-        //         maxHalfSize = glm::max(maxHalfSize, outTasksArray[t].halfSize);
-        //         minHalfSize = glm::min(minHalfSize, outTasksArray[t].halfSize);
-        //         sumTriangles += outTasksArray[t].numParentTriangles;
-        //         tasksTriIntervals.push_back(std::make_pair(outTasksArray[t].indexParentTriangles, outTasksArray[t].numParentTriangles));
-        //     }
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputTasksBuffer);
+        void* dataPtr = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        {
+            NodeTask* outTasksArray = reinterpret_cast<NodeTask*>(dataPtr);
+            uint32_t sumTriangles = 0;
+            float sumHalfSize = 0.0f;
+            float maxHalfSize = 0.0f;
+            float minHalfSize = INFINITY;
+            std::vector<std::pair<uint32_t, uint32_t>> tasksTriIntervals;
+            for(uint32_t t=0; t < numTasks; t+=8)
+            {
+                maxHalfSize = glm::max(maxHalfSize, outTasksArray[t].halfSize);
+                minHalfSize = glm::min(minHalfSize, outTasksArray[t].halfSize);
+                sumTriangles += outTasksArray[t].numParentTriangles;
+                tasksTriIntervals.push_back(std::make_pair(outTasksArray[t].indexParentTriangles, outTasksArray[t].numParentTriangles));
+            }
 
-        //     std::sort(tasksTriIntervals.begin(), tasksTriIntervals.end(), 
-        //         [] (const std::pair<uint32_t, uint32_t>& p1, const std::pair<uint32_t, uint32_t>& p2) {
-        //             return p1.first < p2.first;
-        //         });
+            std::sort(tasksTriIntervals.begin(), tasksTriIntervals.end(), 
+                [] (const std::pair<uint32_t, uint32_t>& p1, const std::pair<uint32_t, uint32_t>& p2) {
+                    return p1.first < p2.first;
+                });
             
 
-        //     for(uint32_t i=1; i < tasksTriIntervals.size(); i++)
-        //     {
-        //         if(tasksTriIntervals[i-1].first + tasksTriIntervals[i-1].second > tasksTriIntervals[i].first)
-        //         {
-        //             std::cout << "triangle interval error" << std::endl;
-        //         }
-        //     }
+            for(uint32_t i=1; i < tasksTriIntervals.size(); i++)
+            {
+                if(tasksTriIntervals[i-1].first + tasksTriIntervals[i-1].second > tasksTriIntervals[i].first)
+                {
+                    std::cout << "triangle interval error" << std::endl;
+                }
+            }
 
-        //     SPDLOG_INFO("Depth {}, half size interval [{}, {}]", d-1, minHalfSize, maxHalfSize);
-        //     SPDLOG_INFO("Depth {}, mean triangles per node {}", d-1, static_cast<float>(sumTriangles) / static_cast<float>(numTasks/8));
-        //     SPDLOG_INFO("Depth {}, depth {}", d-1, outTasksArray[0].depth);
-        // }
-        // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            SPDLOG_INFO("Depth {}, half size interval [{}, {}]", d-1, minHalfSize, maxHalfSize);
+            SPDLOG_INFO("Depth {}, mean triangles per node {}", d-1, static_cast<float>(sumTriangles) / static_cast<float>(numTasks/8));
+            SPDLOG_INFO("Depth {}, depth {}", d-1, outTasksArray[0].depth);
+        }
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        #endif
 
         glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, counters);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, currentNumTasksBuffer);
@@ -581,6 +582,9 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
         glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, dispatchIndirectBuffer);
         glCopyBufferSubData(GL_ATOMIC_COUNTER_BUFFER, GL_DISPATCH_INDIRECT_BUFFER, 4, 0, sizeof(uint32_t));
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, countersCacheBuffer);
+        glCopyBufferSubData(GL_ATOMIC_COUNTER_BUFFER, GL_SHADER_STORAGE_BUFFER, 0, d * 3 * sizeof(uint32_t), 3 * sizeof(uint32_t));
 
         std::swap(inputTasksBuffer, outputTasksBuffer);
         std::swap(inputTrianglesBuffer, outputTrianglesBuffer);
@@ -594,17 +598,15 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
         // Reset counter
         setAtomicCountersData(counters, 3, 0);
 
-        SPDLOG_INFO("Depth {}, set / get data time: {}s", d, timer.getElapsedSeconds());
-        timer.start();
         // glDispatchCompute((numTasks + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE, 1, 1);
         glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, dispatchIndirectBuffer);
         glDispatchComputeIndirect(0);
 
+        #ifdef PRINT_STATISTICS
         glFinish();
         glMemoryBarrier(GL_ALL_BARRIER_BITS);
-
-        // checkForOpenGLErrors();
         SPDLOG_INFO("Depth {}, computation time {}s", d, timer.getElapsedSeconds());
+        #endif
     }
 
     glFinish();
@@ -612,14 +614,8 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     SPDLOG_INFO("Total computation time {}s", totalTimer.getElapsedSeconds());
     timer.start();
 
-    std::cout << "end call" << std::endl;
-
-    // glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, outputOctreeSizeCounter);
-    // void* counterPtr = glMapBuffer(GL_ATOMIC_COUNTER_BUFFER, GL_READ_ONLY);
-
-    // uint32_t octreeSize = reinterpret_cast<uint32_t*>(counterPtr)[0];
-
-    // glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, countersCacheBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, 3 * maxDepth * sizeof(uint32_t), countersCacheData.data());
 
     uint32_t octreeSize;
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, outputOctreeSizeCounter);
@@ -628,59 +624,65 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     std::vector<OctreeNode> octreeData(octreeSize);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputOctreeBuffer);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, octreeData.size() * sizeof(OctreeNode), octreeData.data());
-    // void* dataPtr = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    // OctreeNode* octreeData = reinterpret_cast<OctreeNode*>(dataPtr);
+
     SPDLOG_INFO("Get octree data {}s", timer.getElapsedSeconds());
 
-    std::cout << octreeBufferSize << std::endl;
-    std::cout << mOctreeData.size() << " // " << octreeSize << std::endl;
+    if(octreeSize > octreeBufferSize)
     {
-        float accError = 0.0f;
-        uint32_t numSamples = 0;
-        float maxError = 0.0f;
-        uint32_t numEndNodesCPU = 0;
-        uint32_t numEndNodesGPU = 0;
-        const uint32_t startOctreeDepth = START_OCTREE_DEPTH;
-        const uint32_t voxelsPerAxis = 1 << startOctreeDepth;
-        for(uint32_t k=0; k < voxelsPerAxis; k++)
+        SPDLOG_ERROR("The final octree is bigger than the allocated memory");
+        return;
+    }
+
+    for(uint32_t d=1; d < maxDepth; d++)
+    {
+        uint32_t numTasks = countersCacheData[3 * d];
+        uint32_t sumTriangles = countersCacheData[3 * d + 2];
+        SPDLOG_INFO("Depth {}, not ended nodes {}", d, numTasks);
+        //SPDLOG_INFO("Depth {}, mean triangles per node {}", d, static_cast<float>(sumTriangles) / static_cast<float>(numTasks/8));
+        if(sumTriangles > maxNumTriangles)
         {
-            for(uint32_t j=0; j < voxelsPerAxis; j++)
+            SPDLOG_ERROR("At depth {}, the number of triangles saved was bigger than the triangles array", d);
+            return;
+        }
+    }
+
+    if(mOctreeData.size() != 0)
+    {
+        std::cout << mOctreeData.size() << " // " << octreeSize << std::endl;
+        {
+            float accError = 0.0f;
+            uint32_t numSamples = 0;
+            float maxError = 0.0f;
+            uint32_t numEndNodesCPU = 0;
+            uint32_t numEndNodesGPU = 0;
+            const uint32_t startOctreeDepth = START_OCTREE_DEPTH;
+            const uint32_t voxelsPerAxis = 1 << startOctreeDepth;
+            for(uint32_t k=0; k < voxelsPerAxis; k++)
             {
-                for(uint32_t i=0; i < voxelsPerAxis; i++)
+                for(uint32_t j=0; j < voxelsPerAxis; j++)
                 {
-                    compareTrees(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i, k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
-                                mOctreeData.data(), octreeData.data(),
-                                accError, numSamples, maxError);
+                    for(uint32_t i=0; i < voxelsPerAxis; i++)
+                    {
+                        compareTrees(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i, k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
+                                    mOctreeData.data(), octreeData.data(),
+                                    accError, numSamples, maxError);
 
 
-                    countNodes(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
-                                mOctreeData.data(), numEndNodesCPU, 0);
+                        countNodes(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
+                                    mOctreeData.data(), numEndNodesCPU, 0);
 
-                    countNodes(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
-                                octreeData.data(), numEndNodesGPU, 0);
+                        countNodes(k * voxelsPerAxis * voxelsPerAxis + j * voxelsPerAxis + i,
+                                    octreeData.data(), numEndNodesGPU, 0);
+                    }
                 }
             }
+
+            std::cout << numEndNodesCPU << " // " << numEndNodesGPU << std::endl;
+
+            SPDLOG_INFO("Mean error {}", accError / static_cast<float>(numSamples));
+            SPDLOG_INFO("Max error {}", maxError);
         }
-
-        std::cout << numEndNodesCPU << " // " << numEndNodesGPU << std::endl;
-
-        SPDLOG_INFO("Mean error {}", accError / static_cast<float>(numSamples));
-        SPDLOG_INFO("Max error {}", maxError);
     }
-    // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-
-    // glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, taskCounter);
-    // void* counterPtr = glMapBuffer(GL_ATOMIC_COUNTER_BUFFER, GL_READ_ONLY);
-
-    // uint32_t numTasks = reinterpret_cast<unsigned int*>(counterPtr)[0];
-    // std::cout << "NumTasks: " << reinterpret_cast<unsigned int*>(counterPtr)[0] << std::endl;
-
-    // glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
-
-    // glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, trianglesCounter);
-    // counterPtr = glMapBuffer(GL_ATOMIC_COUNTER_BUFFER, GL_READ_ONLY);
     
-    // std::cout << "NumTriangles: " << reinterpret_cast<unsigned int*>(counterPtr)[0] << std::endl;
-
-    // glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+    mOctreeData = std::move(octreeData);
 }

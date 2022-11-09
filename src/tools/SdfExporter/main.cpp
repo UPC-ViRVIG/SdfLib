@@ -86,7 +86,7 @@ int main(int argc, char** argv)
             return 0;
         }
 
-        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "df";
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "gpu";
         OctreeSdf::InitAlgorithm initAlgorithm;
         if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
         else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
@@ -101,7 +101,7 @@ int main(int argc, char** argv)
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
-            (depthArg) ? args::get(depthArg) : 6,
+            (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),

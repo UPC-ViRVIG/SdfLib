@@ -1,9 +1,8 @@
-#version 460 core
+// #version 460 core
 
-#define LOCAL_SIZE 64
+// #define LOCAL_SIZE 64
 
-// layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-layout (local_size_x = 64) in;
+// layout (local_size_x = 64) in;
 
 struct TriangleData
 {
@@ -400,7 +399,7 @@ void main()
         // }
 
         // if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 0.0f)
-        if(task.depth >= 8)
+        if(task.depth >= MAX_DEPTH)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
             outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
@@ -511,7 +510,7 @@ void main()
         }
 
         // if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 0.0f)
-        if(estimateErrorFunctionIntegralByTrapezoidRule(task.verticesDist, minDist) < 1e-6)
+        if(estimateErrorFunctionIntegralByTrapezoidRule(task.verticesDist, minDist) < SQ_TERMINATION_THRESHOLD)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
             outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
