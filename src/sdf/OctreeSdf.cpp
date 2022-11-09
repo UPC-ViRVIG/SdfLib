@@ -42,9 +42,9 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             break;
         case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
             Timer time;
-            // time.start();
-            // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 6);
-            // SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
+            time.start();
+            initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 1);
+            SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
             time.start();
             initOctreeInGPU(mesh, startDepth, depth, terminationThreshold, terminationRule);
             SPDLOG_INFO("GPU version takes: {}s", time.getElapsedSeconds());

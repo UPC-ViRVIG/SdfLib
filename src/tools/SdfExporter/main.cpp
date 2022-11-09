@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 
     Mesh mesh(modelPath);
     BoundingBox box = mesh.getBoudingBox();
-    if(normalizeBBArg) {
+    if(true || normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
@@ -103,7 +103,7 @@ int main(int argc, char** argv)
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
+            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-4f,
             terminationRule.value(),
             initAlgorithm,
             (numThreadsArg) ? args::get(numThreadsArg) : 1));
