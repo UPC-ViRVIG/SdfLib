@@ -211,23 +211,6 @@ float getSqDistanceToTriangle(vec3 point, inout TriangleData triData)
     return projPoint.z * projPoint.z;
 }
 
-// float getDistance(vec3 point, uint startIndex, uint numTriangles, out uint minIndex)
-// {
-//     float minDist = 1e8;
-//     minIndex = 0;
-//     for(uint i=startIndex; i < startIndex + numTriangles; i++)
-//     {
-//         float dist = getSqDistanceToTriangle(point, inputTriangles[i]);
-//         if(dist < minDist)
-//         {
-//             minDist = dist;
-//             minIndex = inputTriangles[i];
-//         }
-//     }
-
-//     return getSignedDistanceToTriangle(point, minIndex);
-// }
-
 const vec3 childrens[8] =
 {
     vec3(-1.0f, -1.0f, -1.0f),
@@ -354,61 +337,14 @@ void main()
         return;
     }
 
-    // uint minIndices[8];
     float minDistToVertices[8] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
     {
-        // float minDistToSamplePoints[19] = {1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8, 1e8};
-        // uint minIndicesToSamplePoints[19];
-        // for(uint t=task.indexParentTriangles; t < task.indexParentTriangles + task.numParentTriangles; t++)
-        // {
-        //     uint inputTriangleIndex = inputTriangles[t];
-        //     triData = trianglesData[inputTriangleIndex];
-        //     for(uint i=0; i < 8; i++)
-        //     {
-        //         float dist = getSqDistanceToTriangle(task.center + task.halfSize * childrens[i], triData);
-        //         if(dist < minDistToVertices[i])
-        //         {
-        //             minDistToVertices[i] = dist;
-        //             minIndices[i] = inputTriangleIndex;
-        //         }
-        //     }
-
-        //     for(uint i=0; i < 19; i++)
-        //     {
-        //         float dist = getSqDistanceToTriangle(task.center + task.halfSize * nodeSamplePoints[i], triData);
-        //         if(dist < minDistToSamplePoints[i])
-        //         {
-        //             minDistToSamplePoints[i] = dist;
-        //             minIndicesToSamplePoints[i] = inputTriangleIndex;
-        //         }
-        //     }
-        // }
-
-        // for(uint i=0; i < 8; i++)
-        // {
-        //     triData = trianglesData[minIndices[i]];
-        //     minDistToVertices[i] = getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData);
-        //     // outputOctree[i] = floatBitsToUint(minDistToVertices[i]);
-        // }
-
-        // for(uint i=0; i < 19; i++)
-        // {
-        //     triData = trianglesData[minIndicesToSamplePoints[i]];
-        //     minDistToSamplePoints[i] = getSignedDistanceToTriangle(task.center + task.halfSize * nodeSamplePoints[i], triData);
-        //     // outputOctree[8 + i] = floatBitsToUint(minDistToSamplePoints[i]);
-        // }
-
-        // if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 0.0f)
         if(task.depth >= MAX_DEPTH)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
             outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
             for(uint i=0; i < 8; i++)
             {
-                // triData = trianglesData[minIndices[i]];
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData));
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(sqrt(minDistToVertices[i]));
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(minDistToVertices[i]);
                 outputOctree[outOctreeStartIndex + i] = floatBitsToUint(task.verticesDist[i]);
             }
             return;
@@ -424,7 +360,6 @@ void main()
         for(uint i=0; i < 8; i++)
         {
             triData = trianglesData[task.verticesIndex[i]];
-            // minDistToVertices[i] = sqrt(minDistToVertices[i]);
             minDistToVertices[i] = abs(task.verticesDist[i]);
             for(uint c=0; c < 8; c++)
             {
@@ -509,39 +444,17 @@ void main()
             minDist[i] = getSignedDistanceToTriangle(points[i], triData);
         }
 
-        // if(task.depth >= 8 || estimateErrorFunctionIntegralByTrapezoidRule(minDistToVertices, minDistToSamplePoints) < 0.0f)
         if(estimateErrorFunctionIntegralByTrapezoidRule(task.verticesDist, minDist) < SQ_TERMINATION_THRESHOLD)
         {
             uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
             outputOctree[task.octreeNodeIndex] = isLeafMask | (childrenIndexMask & outOctreeStartIndex);
             for(uint i=0; i < 8; i++)
             {
-                // triData = trianglesData[minIndices[i]];
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(getSignedDistanceToTriangle(task.center + task.halfSize * childrens[i], triData));
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(sqrt(minDistToVertices[i]));
-                // outputOctree[outOctreeStartIndex + i] = floatBitsToUint(minDistToVertices[i]);
                 outputOctree[outOctreeStartIndex + i] = floatBitsToUint(task.verticesDist[i]);
             }
             return;
         }
-        
-        // vec3 center = task.center;
-        // task.halfSize = 0.5f * task.halfSize;
-        // task.indexParentTriangles = outTrianglesStartIndex;
-        // task.numParentTriangles = outTrianglesEndIndex - outTrianglesStartIndex;
-        // task.depth = task.depth + 1;
-
-        // uint outTasksStartIndex = atomicCounterAdd(tasksCount, 8);
-        // uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
-
-        // outputOctree[task.octreeNodeIndex] = childrenIndexMask & outOctreeStartIndex;
-        // for(uint c=0; c < 8; c++)
-        // {
-        //     task.center = center + task.halfSize * childrens[c];
-        //     task.octreeNodeIndex = outOctreeStartIndex + c;
-        //     outputTasks[outTasksStartIndex + c] = task; 
-        // }
-        
+                
         Task outTask;
         outTask.halfSize = 0.5f * task.halfSize;
         outTask.indexParentTriangles = outTrianglesStartIndex;
@@ -552,12 +465,6 @@ void main()
         uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
 
         outputOctree[task.octreeNodeIndex] = childrenIndexMask & outOctreeStartIndex;
-        // for(uint c=0; c < 8; c++)
-        // {
-        //     outTask.center = task.center + outTask.halfSize * childrens[c];
-        //     outTask.octreeNodeIndex = outOctreeStartIndex + c;
-        //     outputTasks[outTasksStartIndex + c] = outTask; 
-        // }
         
         outTask.center = task.center + outTask.halfSize * childrens[0];
         outTask.octreeNodeIndex = outOctreeStartIndex + 0;

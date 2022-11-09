@@ -1,0 +1,113 @@
+// #version 460 core
+
+// #define LOCAL_SIZE 64
+
+// layout (local_size_x = 64) in;
+
+struct TriangleData
+{
+    vec3 origin;
+    mat3x3 transform;
+
+    // Edge direction normalized in the triangle space
+    // The a vector is always the x-axis
+    vec2 b;
+    vec2 c;
+
+    // Vertices position in triangle space
+    // v1 is always at the origin
+    float v2; // In x-axis
+    vec2 v3;
+
+    // Triangle normals transformed
+    vec3 edgesNormal[3];
+    vec3 verticesNormal[3];
+};
+
+
+layout(binding = 0, offset = 0) uniform atomic_uint tasksCount;
+layout(binding = 0, offset = 4) uniform atomic_uint nextNumWorkGroup;
+layout(binding = 0, offset = 8) uniform atomic_uint trianglesCount;
+
+layout(binding = 2, offset = 0) uniform atomic_uint outputOctreeSize;
+
+
+layout(shared, binding = 3) buffer trianglesDataBuffer
+{
+    TriangleData trianglesData[];
+};
+
+struct Task
+{
+    vec3 center;
+    float halfSize;
+    uint indexParentTriangles;
+    uint numParentTriangles;
+    uint octreeNodeIndex;
+    uint depth;
+    uint verticesIndex[8];
+    float verticesDist[8];
+};
+
+layout(std430, binding = 4) buffer inputTasksBuffer
+{
+    Task inputTasks[];
+};
+
+layout(std430, binding = 5) buffer outputTasksBuffer
+{
+    Task outputTasks[];
+};
+
+layout(std430, binding = 6) buffer inputTrianglesBuffer
+{
+    uint inputTriangles[];
+};
+
+layout(std430, binding = 7) buffer outputTrianglesBuffer
+{
+    uint outputTriangles[];
+};
+
+layout(std430, binding = 8) buffer outputOctreeBuffer
+{
+    uint outputOctree[];
+};
+
+layout(std430, binding = 9) buffer meshIndicesBuffer
+{
+    uint meshIndices[];
+};
+
+layout(std430, binding = 10) buffer meshVerticesBuffer
+{
+    vec3 meshVertices[];
+};
+
+layout(std430, binding = 11) buffer currentNumTasksBuffer
+{
+    uint currentNumTasks;
+};
+
+// Octree attributes
+const uint isLeafMask = 1 << 31;
+const uint childrenIndexMask = ~(1 << 31);
+
+void main()
+{ 
+    uint taskId = gl_GlobalInvocationID.x;
+    uint threadId = gl_LocalInvocationID.x;
+
+    Task task = inputTasks[taskId];
+
+    if(taskId >= currentNumTasks)
+    {
+        return;
+    }
+
+    uint outOctreeStartIndex = atomicCounterAdd(outputOctreeSize, 8);
+    for(uint i=0; i < 8; i++)
+    {
+        outputOctree[outOctreeStartIndex + i] = floatBitsToUint(task.verticesDist[i]);
+    }
+}
