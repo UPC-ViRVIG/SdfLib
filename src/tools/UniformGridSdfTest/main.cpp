@@ -35,7 +35,7 @@ int main(int argc, char** argv)
 
     Mesh meshSphere(modelPath);
     
-    BoundingBox box = meshSphere.getBoudingBox();
+    BoundingBox box = meshSphere.getBoundingBox();
     SPDLOG_INFO("BB min: {}, {}, {}", box.min.x, box.min.y, box.min.z);
     SPDLOG_INFO("BB max: {}, {}, {}", box.max.x, box.max.y, box.max.z);
 

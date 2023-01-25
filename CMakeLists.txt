@@ -135,12 +135,16 @@ set(MPFR_LIBRARIES C:/Users/eduard/vcpkg/installed/x64-windows/lib/mpfr.lib)
 set(Boost_INCLUDE_DIR C:/Users/eduard/vcpkg/installed/x64-windows/include)
 find_package(CGAL CONFIG REQUIRED)
 
-add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
-target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL)
-
 add_executable(SdfOffsets src/tools/SdfOffsets/main.cpp)
 target_link_libraries(SdfOffsets PUBLIC ${PROJECT_NAME} CGAL::CGAL)
 
-add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
-target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL)
+list(APPEND CMAKE_MODULE_PATH "C:/Program Files/OpenVDB/lib/cmake/OpenVDB")
+set(BOOST_ROOT C:/Users/eduard/Documents/boost_1_76_0/stage/lib)
+set(Boost_INCLUDE_DIR C:/Users/eduard/Documents/boost_1_76_0)
+find_package(OpenVDB REQUIRED)
 
+add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
+
+add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
+target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)

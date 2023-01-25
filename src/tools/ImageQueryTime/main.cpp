@@ -8,8 +8,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "sdf/SdfFunction.h"
+#include "sdf/ExactOctreeSdf.h"
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
+#include "utils/TriangleUtils.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
@@ -20,6 +22,9 @@
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_triangle_primitive.h>
+#include <openvdb/openvdb.h>
+#include <openvdb/tools/MeshToVolume.h>
+#include <openvdb/tools/Interpolation.h>
 #endif
 
 class ICG
@@ -112,18 +117,123 @@ int main(int argc, char** argv)
     Mesh mesh(args::get(modelPathArg));
     // Mesh mesh("../models/bunny.ply");
 
+    Timer timer;
+
     // Normalize model units
-    const glm::vec3 boxSize = mesh.getBoudingBox().getSize();
+    const glm::vec3 boxSize = mesh.getBoundingBox().getSize();
     mesh.applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-                                    glm::translate(glm::mat4(1.0), -mesh.getBoudingBox().getCenter()));
+                                    glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
 
     std::unique_ptr<SdfFunction> exactSdf = SdfFunction::loadFromFile(args::get(exactSdfPathArg));
+    BoundingBox box = exactSdf->getSampleArea();
+
+    openvdb::initialize();
+    const uint32_t gridSize = 256;
+    const float voxelSize = box.getSize().x / gridSize;
+    float invModelDiagonal = 1.0f / voxelSize;
+    float exteriorNarrowBand = gridSize;
+    float interiorNarrowBand = gridSize;
+
+    // Compute the smallest narrow bands possible
+    exteriorNarrowBand = 0.0f;
+    interiorNarrowBand = 0.0f;
+    for(uint32_t k=0; k < 32; k++)
+    {
+        for(uint32_t j=0; j < 32; j++)
+        {
+            for(uint32_t i=0; i < 32; i++)
+            {
+                const glm::vec3 texCoords((static_cast<float>(i) + 0.5f) / 32.0f,
+                                    (static_cast<float>(j) + 0.5f) / 32.0f,
+                                    (static_cast<float>(k) + 0.5f) / 32.0f);
+                const glm::vec3 point = box.min + texCoords * box.getSize();
+                const float dist = exactSdf->getDistance(point);
+                if(dist >= 0.0f)
+                {
+                    exteriorNarrowBand = glm::max(exteriorNarrowBand, dist);
+                }
+                else
+                {
+                    interiorNarrowBand = glm::max(interiorNarrowBand, -dist);
+                }
+            }
+        }
+    }
+    // Add error margin and transform to voxel space
+    exteriorNarrowBand = (exteriorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+    interiorNarrowBand = (interiorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+
+    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(voxelSize);
+    glm::vec3 gridCenter = box.getCenter() + 0.5f * voxelSize;
+    linearTransform->postTranslate(openvdb::Vec3R(static_cast<double>(gridCenter.x), static_cast<double>(gridCenter.y), static_cast<double>(gridCenter.z)));
+
+    std::vector<openvdb::Vec4I> emptyMeshQuadIndices;
+    std::vector<openvdb::Vec3I> meshTraingleIndices(mesh.getIndices().size()/3);
+    std::memcpy(meshTraingleIndices.data(), mesh.getIndices().data(), mesh.getIndices().size() * sizeof(uint32_t));
+
+    timer.start();    
+    /*openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
+            *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices()),
+            meshTraingleIndices,
+            emptyMeshQuadIndices,
+            exteriorNarrowBand,
+            interiorNarrowBand);*/
+
+
+    std::vector<openvdb::Vec3s>& mPointsIn = *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices());
+
+    const size_t numPoints = mPointsIn.size();
+    std::unique_ptr<openvdb::Vec3s[]> indexSpacePoints{ new openvdb::Vec3s[numPoints] };
+
+    openvdb::Vec3d pos;
+
+    for (size_t n = 0; n < numPoints; ++n) 
+    {
+        const openvdb::Vec3s& wsP = mPointsIn[n];
+        pos[0] = double(wsP[0]);
+        pos[1] = double(wsP[1]);
+        pos[2] = double(wsP[2]);
+
+        pos = linearTransform->worldToIndex(pos);
+
+        openvdb::Vec3s& isP = indexSpacePoints[n];
+        isP[0] = typename openvdb::Vec3s::value_type(pos[0]);
+        isP[1] = typename openvdb::Vec3s::value_type(pos[1]);
+        isP[2] = typename openvdb::Vec3s::value_type(pos[2]);
+    }
+
+    const size_t numPrimitives = meshTraingleIndices.size();
+    std::unique_ptr<openvdb::Vec4I[]> prims{ new openvdb::Vec4I[numPrimitives] };
+
+    for (size_t n = 0, N = meshTraingleIndices.size(); n < N; ++n) {
+        const openvdb::Vec3I& triangle = meshTraingleIndices[n];
+        openvdb::Vec4I& prim = prims[n];
+        prim[0] = triangle[0];
+        prim[1] = triangle[1];
+        prim[2] = triangle[2];
+        prim[3] = openvdb::util::INVALID_IDX;
+    }
+
+    openvdb::tools::QuadAndTriangleDataAdapter<openvdb::Vec3s, openvdb::Vec4I>
+        meshvdb(indexSpacePoints.get(), numPoints, prims.get(), numPrimitives);
+
+    openvdb::util::NullInterrupter nullInterrupter;
+    using Int32GridType = typename openvdb::FloatGrid::template ValueConverter<openvdb::Int32>::Type;
+    typename Int32GridType::Ptr vdbIndexGrid;
+    vdbIndexGrid.reset(new Int32GridType(openvdb::Int32(openvdb::util::INVALID_IDX)));
+
+    openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(nullInterrupter, meshvdb, *linearTransform,
+                                        exteriorNarrowBand, interiorNarrowBand, 0, vdbIndexGrid.get());
+    
+    SPDLOG_INFO("OpenVDB init time: {}", timer.getElapsedSeconds());
+    vdbGrid->print();
+
+    openvdb::tools::GridSampler<Int32GridType, openvdb::tools::BoxSampler> vdbIndexSampler(*vdbIndexGrid);
+    openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
 
     ICG icg(mesh);
 
     CGALtree cgalTree(mesh);
-
-    BoundingBox box = exactSdf->getSampleArea();
 
     const float z = 0.163f;
     std::array<glm::vec3, 4> samplesQuad = {
@@ -133,7 +243,7 @@ int main(int argc, char** argv)
         glm::vec3(box.max.x, box.min.y, z),
     };
     
-    Timer timer; timer.start();
+    timer.start();
 
     uint32_t imageWidth = args::get(imageWidthArg);
 
@@ -178,52 +288,68 @@ int main(int argc, char** argv)
             const glm::vec3 pos = interpolate(interpolate(samplesQuad[0], samplesQuad[1], tx), 
                                               interpolate(samplesQuad[2], samplesQuad[3], tx), ty);
 
+            if(exactSdf->getDistance(pos) > 0.0f)
+            {
+                int vdbIndex = vdbIndexSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)));
+                glm::vec3 gradient;
+                outImage1[j * imageWidth + i] = glm::abs(exactSdf->getDistance(pos, gradient) - 
+                                                vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)))) * invModelDiagonal;
+                glm::vec3 vdbGradient;
+                TriangleUtils::getSignedDistPointAndTriangle(pos, reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->getTrianglesData()[vdbIndex], vdbGradient);
+                outImage1[j * imageWidth + i] = glm::acos(glm::dot(vdbGradient, gradient));
+                minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
+                maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
+            }
+            else
+            {
+                outImage1[j * imageWidth + i] = 0.0f;
+            }
             // const uint32_t samples = 1000;
-            const uint32_t samples = 1;
-            float dist1 = 0.0f;
+            // const uint32_t samples = 1;
+            // float dist1 = 0.0f;
 
-            timer.start();
-            for(uint32_t i=0; i < samples; i++)
-            {
-                dist1 = exactSdf->getDistance(pos);
-            }
+            // timer.start();
+            // for(uint32_t i=0; i < samples; i++)
+            // {
+            //     dist1 = exactSdf->getDistance(pos);
+            // }
 
-            const float t1 = timer.getElapsedMicroseconds() / static_cast<float>(samples);
-            outImage1[j * imageWidth + i] = t1;
-            uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((dist1 * invDiag + 1.0f) * 20.0f)), 39u);
-            histAccTime1[idx] += t1;
-			histCount1[idx]++;
-            minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
-            maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
+            // const float t1 = timer.getElapsedMicroseconds() / static_cast<float>(samples);
+            // outImage1[j * imageWidth + i] = t1;
+            // uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((dist1 * invDiag + 1.0f) * 20.0f)), 39u);
+            // histAccTime1[idx] += t1;
+			// histCount1[idx]++;
+            // minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
+            // maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
 
-            float dist2 = 0.0f;
+            // float dist2 = 0.0f;
 
-            timer.start();
-            for(uint32_t i=0; i < samples; i++)
-            {
-                dist2 = cgalTree.getDistance(pos);
-            }
+            // timer.start();
+            // for(uint32_t i=0; i < samples; i++)
+            // {
+            //     dist2 = cgalTree.getDistance(pos);
+            // }
 
-            const float t2 = timer.getElapsedMicroseconds() / static_cast<float>(samples);
-            outImage2[j * imageWidth + i] = t2;
-            histAccTime2[idx] += t2;
-			histCount2[idx]++;
-            minImage2 = glm::min(minImage2, outImage2[j * imageWidth + i]);
-            maxImage2 = glm::max(maxImage2, outImage2[j * imageWidth + i]);
+            // const float t2 = timer.getElapsedMicroseconds() / static_cast<float>(samples);
+            // outImage2[j * imageWidth + i] = t2;
+            // histAccTime2[idx] += t2;
+			// histCount2[idx]++;
+            // minImage2 = glm::min(minImage2, outImage2[j * imageWidth + i]);
+            // maxImage2 = glm::max(maxImage2, outImage2[j * imageWidth + i]);
 
-            maxError = glm::max(maxError, glm::abs(dist1 - dist2));
+            // maxError = glm::max(maxError, glm::abs(dist1 - dist2));
         }
 
-        if(maxError > 1e-5)
-        {
-            break;
-        }
+        // if(maxError > 1e-5)
+        // {
+        //     break;
+        // }
     }
 
     SPDLOG_INFO("Max error: {}", maxError);
 
     SPDLOG_INFO("Our method time interval ({},{})", minImage1, maxImage1);
-    SPDLOG_INFO("CGAL time interval ({},{})", minImage2, maxImage2);
+    // SPDLOG_INFO("CGAL time interval ({},{})", minImage2, maxImage2);
 
     const uint32_t length = outImage1.size();
     std::vector<uint32_t> finalImage1(length);
@@ -255,25 +381,25 @@ int main(int argc, char** argv)
                             (static_cast<uint32_t>(255.0f * finalColor.x));
             }
 
-            {
-            const float value = (outImage2[i] - minColorInterval) / (maxColorInterval - minColorInterval);
-            float index = glm::clamp(value * (colorsPalette.size()-1), 0.0f, float(colorsPalette.size()-1) - 0.01f);
-            const glm::vec3 finalColor = interpolate(colorsPalette[static_cast<uint32_t>(index)], 
-                                                    colorsPalette[static_cast<uint32_t>(index)+1], 
-                                                    glm::fract(index));
+            // {
+            // const float value = (outImage2[i] - minColorInterval) / (maxColorInterval - minColorInterval);
+            // float index = glm::clamp(value * (colorsPalette.size()-1), 0.0f, float(colorsPalette.size()-1) - 0.01f);
+            // const glm::vec3 finalColor = interpolate(colorsPalette[static_cast<uint32_t>(index)], 
+            //                                         colorsPalette[static_cast<uint32_t>(index)+1], 
+            //                                         glm::fract(index));
 
-            finalImage2[i] = (255 << 24) | 
-                            (static_cast<uint32_t>(255.0f * finalColor.z) << 16) |
-                            (static_cast<uint32_t>(255.0f * finalColor.y) << 8) |
-                            (static_cast<uint32_t>(255.0f * finalColor.x));
-            }
+            // finalImage2[i] = (255 << 24) | 
+            //                 (static_cast<uint32_t>(255.0f * finalColor.z) << 16) |
+            //                 (static_cast<uint32_t>(255.0f * finalColor.y) << 8) |
+            //                 (static_cast<uint32_t>(255.0f * finalColor.x));
+            // }
         }
 
         stbi_write_png((name + "1.png").c_str(), imageWidth, imageWidth, 4, static_cast<void*>(finalImage1.data()), 4 * imageWidth);
-        stbi_write_png((name + "2.png").c_str(), imageWidth, imageWidth, 4, static_cast<void*>(finalImage2.data()), 4 * imageWidth);
+        // stbi_write_png((name + "2.png").c_str(), imageWidth, imageWidth, 4, static_cast<void*>(finalImage2.data()), 4 * imageWidth);
     };
 
-    // printImage("half", 0.0f, 0.5f * glm::max(maxImage1, maxImage2));
+    printImage("image", minImage1, 0.1f);
 
     // printImage("quarter", 0.0f, 0.25f * glm::max(maxImage1, maxImage2));
 

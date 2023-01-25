@@ -82,10 +82,10 @@ public:
 			if(mNormalizeModel)
 			{
 				// Normalize model units
-				const glm::vec3 boxSize = mMesh.value().getBoudingBox().getSize();
-				glm::vec3 center = mMesh.value().getBoudingBox().getCenter();
+				const glm::vec3 boxSize = mMesh.value().getBoundingBox().getSize();
+				glm::vec3 center = mMesh.value().getBoundingBox().getCenter();
 				mMesh.value().applyTransform(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-											 glm::translate(glm::mat4(1.0), -mMesh.value().getBoudingBox().getCenter()));
+											 glm::translate(glm::mat4(1.0), -mMesh.value().getBoundingBox().getCenter()));
 
 				invTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
 											 glm::translate(glm::mat4(1.0), -center));
@@ -126,7 +126,7 @@ public:
 		else
 		{
 			assert(mModelPath.has_value());
-			BoundingBox box = mMesh.value().getBoudingBox();
+			BoundingBox box = mMesh.value().getBoundingBox();
 			const glm::vec3 modelBBSize = box.getSize();
 			box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 			Timer timer; timer.start();

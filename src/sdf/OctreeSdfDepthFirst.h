@@ -74,8 +74,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         mainThread.numTrianglesEvaluated.resize(maxDepth, 0);
     #endif
 
-    // TODO: create thread contexts
-
     const uint32_t numTriangles = trianglesData.size();
 	mainThread.triangles[0].resize(numTriangles);
     for(uint32_t i=0; i < numTriangles; i++)

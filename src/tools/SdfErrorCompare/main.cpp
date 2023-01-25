@@ -6,8 +6,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cstring>
 
 #include "sdf/SdfFunction.h"
+#include "sdf/OctreeSdf.h"
 #include "sdf/ExactOctreeSdf.h"
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
@@ -19,6 +21,9 @@
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_triangle_primitive.h>
+#include <openvdb/openvdb.h>
+#include <openvdb/tools/MeshToVolume.h>
+#include <openvdb/tools/Interpolation.h>
 #endif
 
 class ICG
@@ -88,6 +93,43 @@ private:
 	std::vector<Triangle> triangles;
 };
 
+
+// int main(int argc, char** argv)
+// {
+//     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+
+//     args::ArgumentParser parser("Calculate the error of a sdf", "");
+//     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
+//     // args::Positional<std::string> sdfPathArg(parser, "sdf_path", "Sdf path");
+//     // args::Positional<std::string> exactSdfPathArg(parser, "exact_sdf_path", "Exact sdf path");
+//     args::Positional<std::string> modelPathArg(parser, "model_path", "Mesh model path");
+//     args::Positional<uint32_t> millionsOfSamplesArg(parser, "num_samples_in_millions", "Number of samples to made in millions");
+    
+//     try
+//     {
+//         parser.ParseCLI(argc, argv);
+//     }
+//     catch(args::Help)
+//     {
+//         std::cerr << parser;
+//         return 0;
+//     }
+
+//     Mesh mesh(args::get(modelPathArg));
+
+    
+//     float value = sampler.wsSample(openvdb::Vec3R(0.25, 1.4, -1.1));
+//     std::cout << value << std::endl;
+// }
+
+//#define TEST_ICG
+//#define TEST_CGAL
+#define TEST_OCTREE_SDF
+#define TEST_EXACT_OCTREE_SDF
+#define TEST_OPENVDB
+
+//#define MAKE_HISTOGRAM
+
 int main(int argc, char** argv)
 {
     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
@@ -98,7 +140,7 @@ int main(int argc, char** argv)
     args::Positional<std::string> exactSdfPathArg(parser, "exact_sdf_path", "Exact sdf path");
     args::Positional<std::string> modelPathArg(parser, "model_path", "Mesh model path");
     args::Positional<uint32_t> millionsOfSamplesArg(parser, "num_samples_in_millions", "Number of samples to made in millions");
-    
+
     try
     {
         parser.ParseCLI(argc, argv);
@@ -109,6 +151,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
+#ifdef MAKE_HISTOGRAM
     std::array<float, 40> histMeanTimeExact;
 	histMeanTimeExact.fill(0.0f);
 
@@ -117,44 +160,111 @@ int main(int argc, char** argv)
 
     std::array<float, 40> histMeanTimeCGAL;
 	histMeanTimeCGAL.fill(0.0f);
-
+#endif
     Mesh mesh(args::get(modelPathArg));
-    // Mesh mesh("../models/bunny.ply");
-    // Normalize model units
-    const glm::vec3 boxSize = mesh.getBoudingBox().getSize();
-    mesh.applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-                                    glm::translate(glm::mat4(1.0), -mesh.getBoudingBox().getCenter()));
 
-	float invDiag = 1.0f / glm::length(mesh.getBoudingBox().max - mesh.getBoudingBox().min);
+    // Normalize model units
+    const glm::vec3 boxSize = mesh.getBoundingBox().getSize();
+    mesh.applyTransform( glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+                                    glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
+    
+    BoundingBox box = mesh.getBoundingBox();
+    float invModelDiagonal = 1.0f / glm::length(box.getSize());
+#ifdef TEST_OCTREE_SDF
     std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile(args::get(sdfPathArg));
+    box = sdf->getSampleArea();
+#endif
+
+#ifdef TEST_EXACT_OCTREE_SDF
     std::unique_ptr<SdfFunction> exactSdf = SdfFunction::loadFromFile(args::get(exactSdfPathArg));
-	
-	Timer timer; timer.start();
+    box = exactSdf->getSampleArea();
+    exactSdf->getDistance(glm::vec3(0.0f, 0.0f, 0.0f));
+#endif
+
+    float invDiag = 1.0f / glm::length(box.max - box.min);
+
+    Timer timer;
+
+#ifdef TEST_OPENVDB
+    openvdb::initialize();
+    const uint32_t gridSize = 256;
+    const float voxelSize = box.getSize().x / gridSize;
+    invModelDiagonal = 1.0f / voxelSize;
+    float exteriorNarrowBand = gridSize;
+    float interiorNarrowBand = gridSize;
+#ifdef TEST_EXACT_OCTREE_SDF
+    // Compute the smallest narrow bands possible
+    exteriorNarrowBand = 0.0f;
+    interiorNarrowBand = 0.0f;
+    for(uint32_t k=0; k < 32; k++)
+    {
+        for(uint32_t j=0; j < 32; j++)
+        {
+            for(uint32_t i=0; i < 32; i++)
+            {
+                const glm::vec3 texCoords((static_cast<float>(i) + 0.5f) / 32.0f,
+                                    (static_cast<float>(j) + 0.5f) / 32.0f,
+                                    (static_cast<float>(k) + 0.5f) / 32.0f);
+                const glm::vec3 point = box.min + texCoords * box.getSize();
+                const float dist = exactSdf->getDistance(point);
+                if(dist >= 0.0f)
+                {
+                    exteriorNarrowBand = glm::max(exteriorNarrowBand, dist);
+                }
+                else
+                {
+                    interiorNarrowBand = glm::max(interiorNarrowBand, -dist);
+                }
+            }
+        }
+    }
+    // Add error margin and transform to voxel space
+    exteriorNarrowBand = (exteriorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+    interiorNarrowBand = (interiorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+#endif
+
+    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(voxelSize);
+    glm::vec3 gridCenter = box.getCenter() + 0.5f * voxelSize;
+    linearTransform->postTranslate(openvdb::Vec3R(static_cast<double>(gridCenter.x), static_cast<double>(gridCenter.y), static_cast<double>(gridCenter.z)));
+
+    std::vector<openvdb::Vec4I> emptyMeshQuadIndices;
+    std::vector<openvdb::Vec3I> meshTraingleIndices(mesh.getIndices().size()/3);
+    std::memcpy(meshTraingleIndices.data(), mesh.getIndices().data(), mesh.getIndices().size() * sizeof(uint32_t));
+
+    timer.start();    
+    openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
+            *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices()),
+            meshTraingleIndices,
+            emptyMeshQuadIndices,
+            exteriorNarrowBand,
+            interiorNarrowBand);
+    
+    SPDLOG_INFO("OpenVDB init time: {}", timer.getElapsedSeconds());
+    vdbGrid->print();
+
+    openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
+#endif
+
+#ifdef TEST_ICG
+	timer.start();
     ICG icg(mesh);
 	SPDLOG_INFO("ICG init time: {}", timer.getElapsedSeconds());
+#endif
 
+#ifdef TEST_CGAL
 	timer.start();
     CGALtree cgalTree(mesh);
 	SPDLOG_INFO("CGAL init time: {}", timer.getElapsedSeconds());
-
-    // std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile("../output/OctreeDepth7Bunny.bin");
-    // std::unique_ptr<SdfFunction> exactSdf = SdfFunction::loadFromFile("../output/exactOctreeBunny.bin");
+#endif
 
 	SPDLOG_INFO("Models Loaded");
 
-    //const uint32_t numSamples = 1000000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
-    const uint32_t numSamples = 100000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
+    const uint32_t numSamples = 1000000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
+    // const uint32_t numSamples = 100000 * ((millionsOfSamplesArg) ? args::get(millionsOfSamplesArg) : 1);
     std::vector<glm::vec3> samples(numSamples);
     
-    glm::vec3 center = exactSdf->getSampleArea().getCenter();
-    glm::vec3 size = exactSdf->getSampleArea().getSize() - glm::vec3(1e-5);
-    // auto getRandomSample = [&] () -> glm::vec3
-    // {
-    //     glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-    //                         static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-    //                         static_cast<float>(rand())/static_cast<float>(RAND_MAX));
-    //     return center + (p - 0.5f) * size;
-    // };
+    glm::vec3 center = box.getCenter();
+    glm::vec3 size = box.getSize() - glm::vec3(1e-5);
 
     auto getRandomSample = [&] () -> glm::vec3
     {
@@ -166,15 +276,18 @@ int main(int argc, char** argv)
 
     std::generate(samples.begin(), samples.end(), getRandomSample);
 
-    // std::vector<float> sdfDist(numSamples);
-    // timer.start();
-    // for(uint32_t s=0; s < numSamples; s++)
-    // {
-    //     sdfDist[s] = sdf->getDistance(samples[s]);
-    // }
-    // float sdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	// SPDLOG_INFO("Sdf us per query: {}", sdfTimePerSample, timer.getElapsedSeconds());
+#ifdef TEST_OCTREE_SDF
+    std::vector<float> sdfDist(numSamples);
+    timer.start();
+    for(uint32_t s=0; s < numSamples; s++)
+    {
+        sdfDist[s] = sdf->getDistance(samples[s]);
+    }
+    float sdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	SPDLOG_INFO("Sdf us per query: {}", sdfTimePerSample, timer.getElapsedSeconds());
+#endif
 
+#ifdef TEST_EXACT_OCTREE_SDF
     std::vector<float> exactSdfDist(numSamples);
     timer.start();
     for(uint32_t s=0; s < numSamples; s++)
@@ -183,34 +296,59 @@ int main(int argc, char** argv)
     }
     float exactSdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
 	SPDLOG_INFO("Exact Sdf us per query: {}", exactSdfTimePerSample, timer.getElapsedSeconds());
+#endif
 
+#ifdef TEST_ICG
     std::vector<float> exactSdfDist1(numSamples);
-    // timer.start();
-    // for(uint32_t s=0; s < numSamples; s++)
-    // {
-    //     exactSdfDist1[s] = icg.getDistance(samples[s]);
-    // }
-    // float exact1SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	// SPDLOG_INFO("ICG us per query: {}", exact1SdfTimePerSample, timer.getElapsedSeconds());
+    timer.start();
+    for(uint32_t s=0; s < numSamples; s++)
+    {
+        exactSdfDist1[s] = icg.getDistance(samples[s]);
+    }
+    float exact1SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	SPDLOG_INFO("ICG us per query: {}", exact1SdfTimePerSample, timer.getElapsedSeconds());
+#endif
 
+#ifdef TEST_CGAL
     std::vector<float> exactSdfDist2(numSamples);
-    // timer.start();
-    // for(uint32_t s=0; s < numSamples; s++)
-    // {
-    //     exactSdfDist2[s] = cgalTree.getDistance(samples[s]);
-    // }
-    // float exact2SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
-	// SPDLOG_INFO("CGal us per query: {}", exact2SdfTimePerSample, timer.getElapsedSeconds());
+    timer.start();
+    for(uint32_t s=0; s < numSamples; s++)
+    {
+        exactSdfDist2[s] = cgalTree.getDistance(samples[s]);
+    }
+    float exact2SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	SPDLOG_INFO("CGal us per query: {}", exact2SdfTimePerSample, timer.getElapsedSeconds());
+#endif
+
+#ifdef TEST_OPENVDB
+    std::vector<float> sdfDist2(numSamples);
+    timer.start();
+    for(uint32_t s=0; s < numSamples; s++)
+    {
+        sdfDist2[s] = vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(samples[s].x), static_cast<double>(samples[s].y), static_cast<double>(samples[s].z)));
+    }
+    float exact3SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
+	SPDLOG_INFO("OpenVDB us per query: {}", exact3SdfTimePerSample, timer.getElapsedSeconds());
+#endif
 
     // Calculate error
-
     auto pow2 = [](float a) { return a * a; };
     
-    double accError = 0.0;
-    double method1Error = 0.0f;
-    double method2Error = 0.0f;
-    float method1MaxError = 0.0f;
-    float method2MaxError = 0.0f;
+    double sdfRMSE = 0.0;
+    double icgRMSE = 0.0f;
+    double cgalRMSE = 0.0f;
+    double vdbRMSE = 0.0f;
+
+    double sdfMAE = 0.0f;
+    double icgMAE = 0.0f;
+    double cgalMAE = 0.0f;
+    double vdbMAE = 0.0f;
+
+    float sdfMaxError = 0.0f;
+    float icgMaxError = 0.0f;
+    float cgalMaxError = 0.0f;
+    float vdbMaxError = 0.0f;
+
     float maxError = 0.0f;
 
     std::array<std::vector<glm::vec3>, 40> samplesPerDist;
@@ -218,67 +356,96 @@ int main(int argc, char** argv)
 
     for(uint32_t s=0; s < numSamples; s++)
     {
-        // accError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
-        // method1Error += static_cast<double>(pow2(exactSdfDist1[s] - exactSdfDist[s]));
-        // method1MaxError = glm::max(method1MaxError, glm::abs(exactSdfDist1[s] - exactSdfDist[s]));
-        // method2MaxError = glm::max(method2MaxError, glm::abs(exactSdfDist2[s] - exactSdfDist[s]));
-        // maxError = glm::max(maxError, glm::abs(exactSdfDist1[s]-exactSdfDist2[s]));
-        // method2Error += static_cast<double>(pow2(glm::abs(exactSdfDist2[s]) - glm::abs(exactSdfDist[s])));
-
+#ifdef TEST_OCTREE_SDF
+        sdfRMSE += static_cast<double>(pow2((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
+        sdfMAE += static_cast<double>(glm::abs((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
+        sdfMaxError = glm::max(sdfMaxError, glm::abs((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
+#endif
+#ifdef TEST_ICG
+        icgRMSE += static_cast<double>(pow2((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
+        icgMAE += static_cast<double>(glm::abs((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
+        icgMaxError = glm::max(icgMaxError, glm::abs((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
+#endif
+#ifdef TEST_CGAL
+        cgalRMSE += static_cast<double>(pow2((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        cgalMAE += static_cast<double>(glm::abs((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        cgalMaxError = glm::max(cgalMaxError, glm::abs((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+#endif
+#ifdef TEST_OPENVDB
+        vdbRMSE += static_cast<double>(pow2((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        vdbMAE += static_cast<double>(glm::abs((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        vdbMaxError = glm::max(vdbMaxError, glm::abs((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+#endif
+#ifdef TEST_ICG
+#ifdef TEST_CGAL
+        maxError = glm::max(maxError, glm::abs((exactSdfDist1[s]-exactSdfDist2[s]) * invModelDiagonal));
+#endif
+#endif
+#ifdef MAKE_HISTOGRAM
         uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 20.0f)), 39u);
-        samplesPerDist[idx].push_back(samples[s]);
         // uint32_t idx = static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 100.0f)) - 80;
-        // if(idx >= 0 && idx < 40)
-        // {
-        //     samplesPerDist[idx].push_back(samples[s]);
-        // }
-
-        // if(glm::abs(exactSdfDist1[s] - exactSdfDist[s]) > 1e-2)
-        // {
-        //     reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->test(samples[s]);
-        // }
+        // samplesPerDist[idx].push_back(samples[s]);
+        if(idx >= 0 && idx < 40)
+        {
+            samplesPerDist[idx].push_back(samples[s]);
+        }
+#endif
     }
 
+#ifdef MAKE_HISTOGRAM
     for(uint32_t r=0; r < 40; r++)
     {
         std::vector<glm::vec3>& s = samplesPerDist[r];
         uint32_t len = s.size();
+
+#ifdef TEST_EXACT_OCTREE_SDF
         timer.start();
         for(uint32_t i=0; i < len; i++)
         {
             exactSdf->getDistance(s[i]);
         }
         histMeanTimeExact[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+#endif
 
+#ifdef TEST_ICG
         timer.start();
         for(uint32_t i=0; i < len; i++)
         {
             icg.getDistance(s[i]);
         }
         histMeanTimeICG[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+#endif
 
+#ifdef TEST_CGAL
         timer.start();
         for(uint32_t i=0; i < len; i++)
         {
             cgalTree.getDistance(s[i]);
         }
         histMeanTimeCGAL[r] = timer.getElapsedSeconds() / static_cast<float>(len);
+#endif
     }
 
+#ifdef TEST_EXACT_OCTREE_SDF
     for(int i=0; i < 40; i++)
     {
         SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeExact[i] * 1e6);
     }
+#endif
 
+#ifdef TEST_ICG
     for(int i=0; i < 40; i++)
     {
         SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeICG[i] * 1e6);
     }
+#endif
 
+#ifdef TEST_CGAL
     for(int i=0; i < 40; i++)
     {
         SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeCGAL[i] * 1e6);
     }
+#endif
 
     // for(int i=0; i < 40; i++)
     // {
@@ -294,14 +461,32 @@ int main(int argc, char** argv)
     // {
     //     SPDLOG_INFO("{}%: {}", (i-20), histMeanTimeCGAL[i] * 1e6);
     // }
+#endif
 
+#ifdef TEST_OCTREE_SDF
+    SPDLOG_INFO("Octree Sdf RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(numSamples)));
+    SPDLOG_INFO("Octree Sdf MAE: {}", sdfMAE / static_cast<double>(numSamples));
+    SPDLOG_INFO("Octree Sdf max error: {}", sdfMaxError);
+#endif
+#ifdef TEST_ICG
+    SPDLOG_INFO("ICG RMSE: {}", glm::sqrt(icgRMSE / static_cast<double>(numSamples)));
+    SPDLOG_INFO("ICG MAE: {}", icgMAE / static_cast<double>(numSamples));
+    SPDLOG_INFO("ICG max error: {}", icgMaxError);
+#endif
+#ifdef TEST_CGAL
+    SPDLOG_INFO("CGAL RMSE: {}", glm::sqrt(cgalRMSE / static_cast<double>(numSamples)));
+    SPDLOG_INFO("CGAL MAE: {}", cgalMAE / static_cast<double>(numSamples));
+    SPDLOG_INFO("CGAL max error: {}", cgalMaxError);
+#endif
+#ifdef TEST_OPENVDB
+    SPDLOG_INFO("VDB RMSE: {}", glm::sqrt(vdbRMSE / static_cast<double>(numSamples)));
+    SPDLOG_INFO("VDB MAE: {}", vdbMAE / static_cast<double>(numSamples));
+    SPDLOG_INFO("VDB max error: {}", vdbMaxError);
+#endif
 
-    accError = glm::sqrt(accError / static_cast<double>(numSamples));
-
-    // SPDLOG_INFO("Method1 max error: {}", method1MaxError);
-    // SPDLOG_INFO("Method2 max error: {}", method2MaxError);
-    // SPDLOG_INFO("Methods max error: {}", maxError);
-    // SPDLOG_INFO("Method1 RMSE: {}", method1Error);
-    // SPDLOG_INFO("Method2 RMSE: {}", method2Error);
-    SPDLOG_INFO("RMSE: {}", accError);
+#ifdef TEST_ICG
+#ifdef TEST_CGAL
+    SPDLOG_INFO("Methods Max error: {}", maxError);
+#endif
+#endif
 }

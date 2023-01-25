@@ -57,7 +57,8 @@ public:
 
     ExactOctreeSdf() {}
     ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDepth,
-                   uint32_t startDepth=1, uint32_t minTrianglesPerNode = 128);
+                   uint32_t startDepth=1, uint32_t minTrianglesPerNode = 128,
+                   uint32_t numThreads=1);
 
     glm::ivec3 getStartGridSize() const { return glm::ivec3(mStartGridSize); }
     const BoundingBox& getGridBoundingBox() const { return mBox; }
@@ -124,7 +125,7 @@ private:
 
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
-    static constexpr uint32_t BIT_ENCODING_DEPTH = 0;
+    static constexpr uint32_t BIT_ENCODING_DEPTH = 2;
 
     BoundingBox mBox;
 
@@ -151,7 +152,7 @@ private:
 
     template<typename TrianglesInfluenceStrategy>
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                    uint32_t minTrianglesPerNode);
+                    uint32_t minTrianglesPerNode, uint32_t numThreads = 1);
 
     std::vector<uint32_t> ExactOctreeSdf::evalNode(uint32_t nodeIndex, uint32_t depth, 
                                                    std::vector<uint32_t>& mergedTriangles, 

@@ -128,7 +128,7 @@ class MyScene : public Scene
 
             for(Mesh& m : mMeshes)
             {
-                BoundingBox box = m.getBoudingBox();
+                BoundingBox box = m.getBoundingBox();
                 glm::vec3 size = box.getSize();
                 box.addMargin(0.2f * glm::max(size.x, glm::max(size.y, size.z)));
                 mObjectsSdf.emplace_back(m, box, 7, 3, 128);

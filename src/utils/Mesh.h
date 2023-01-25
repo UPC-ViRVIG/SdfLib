@@ -66,7 +66,7 @@ public:
     std::vector<glm::vec3>& getNormals() { return mNormals; }
     const std::vector<glm::vec3>& getNormals() const { return mNormals; }
 
-    const BoundingBox& getBoudingBox() const { return mBBox; }
+    const BoundingBox& getBoundingBox() const { return mBBox; }
 
     void computeBoundingBox();
     void computeNormals();

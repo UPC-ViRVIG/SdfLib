@@ -49,14 +49,14 @@ int main(int argc, char** argv)
     std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
 
     Mesh mesh(modelPath);
-    BoundingBox box = mesh.getBoudingBox();
+    BoundingBox box = mesh.getBoundingBox();
     if(true || normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
         mesh.applyTransform(	glm::scale(glm::mat4(1.0), glm::vec3(2.0f/maxSize)) *
                                 glm::translate(glm::mat4(1.0), -box.getCenter()));
-        box = mesh.getBoudingBox();
+        box = mesh.getBoundingBox();
     }
 
     const glm::vec3 modelBBSize = box.getSize();
@@ -106,7 +106,8 @@ int main(int argc, char** argv)
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-4f,
             terminationRule.value(),
             initAlgorithm,
-            (numThreadsArg) ? args::get(numThreadsArg) : 1));
+            (numThreadsArg) ? args::get(numThreadsArg) : 1
+        ));
     }
     else if(sdfFormat == "exact_octree")
     {
@@ -115,7 +116,8 @@ int main(int argc, char** argv)
             mesh, box,
             (depthArg) ? args::get(depthArg) : 5,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (minTrianglesPerNode) ? args::get(minTrianglesPerNode) : 32
+            (minTrianglesPerNode) ? args::get(minTrianglesPerNode) : 32,
+            (numThreadsArg) ? args::get(numThreadsArg) : 1
         ));
     }
     else

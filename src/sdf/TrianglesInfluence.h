@@ -7,6 +7,7 @@
 #include "InterpolationMethods.h"
 #include "utils/Timer.h"
 #include "utils/GJK.h"
+#include <InteractiveComputerGraphics/TriangleMeshDistance.h>
 
 #include <vector>
 #include <array>
@@ -825,16 +826,16 @@ struct PerNodeRegionTrianglesInfluence
                 isInside = false;
             }
 
-            //  if(isInside)
-            //  {
-            //      if(glm::abs(point.x) < glm::abs(point.y)) vId -= (glm::abs(point.x) < glm::abs(point.z)) ? sign(point.x, 1) : sign(point.z, 4);
-            //      else vId -= (glm::abs(point.y) < glm::abs(point.z)) ? sign(point.y, 2) : sign(point.z, 4);
+            //if(isInside)
+            //{
+            //    if(glm::abs(point.x) < glm::abs(point.y)) vId -= (glm::abs(point.x) < glm::abs(point.z)) ? sign(point.x, 1) : sign(point.z, 4);
+            //    else vId -= (glm::abs(point.y) < glm::abs(point.z)) ? sign(point.y, 2) : sign(point.z, 4);
 
-            //      if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
-            //      {
-            //          isInside = false;
-            //      }
-            //  }
+            //    if(verticesInfo[vId] != idx && !GJK::IsNearMinimize(nodeHalfSize, triangleRegions[vId], triangle, minDistToVertices[vId], &iter))
+            //    {
+            //        isInside = false;
+            //    }
+            //}
 
 #ifdef PRINT_GJK_STATS
             if(verticesInfo[vId] != idx)
@@ -879,6 +880,151 @@ struct PerNodeRegionTrianglesInfluence
             SPDLOG_INFO("Inter {}: {}%", p, 100.0f * static_cast<float>(gjkIterHistogramInside[p] + gjkIterHistogramOutside[p]) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
         }
 #endif
+    }
+};
+
+class ICG
+{
+public:
+    ICG(const Mesh& mesh)
+    : mesh_distance(toDoubleVector(mesh.getVertices()),
+                    *reinterpret_cast<const std::vector<std::array<int, 3>>*>(&mesh.getIndices()))
+    {}
+
+    inline float getDistance(glm::vec3 samplePoint)
+    {
+        tmd::Result result = mesh_distance.signed_distance({ samplePoint.x, samplePoint.y, samplePoint.z });
+        return result.distance;
+    }
+
+    inline uint32_t getNearestTriangle(glm::vec3 samplePoint)
+    {
+        tmd::Result result = mesh_distance.signed_distance({ samplePoint.x, samplePoint.y, samplePoint.z });
+        numEvaluatedTriangles += static_cast<uint32_t>(result.numEvalTriangles);
+        numQueries++;
+        return static_cast<uint32_t>(result.triangle_id);
+    }
+
+    inline uint32_t getNumQueries() const { return numQueries; }
+    inline uint32_t getNumEvaluatedTriangles() { return numEvaluatedTriangles; }
+private:
+    tmd::TriangleMeshDistance mesh_distance;
+    uint64_t numQueries = 0;
+    uint32_t numEvaluatedTriangles = 0;
+
+    std::vector<std::array<double, 3>> toDoubleVector(const std::vector<glm::vec3>& vec)
+    {
+        std::vector<std::array<double, 3>> res(vec.size());
+        for(uint32_t i=0; i < vec.size(); i++)
+        {
+            res[i] = { static_cast<double>(vec[i].x), static_cast<double>(vec[i].y), static_cast<double>(vec[i].z) };
+        }
+
+        return res;
+    }
+};
+
+template<typename T>
+struct VHQueries
+{
+    typedef T InterpolationMethod;
+
+    typedef uint32_t VertexInfo;
+    struct {} NodeInfo;
+
+    uint64_t gjkIter = 0;
+    uint64_t gjkCallsInside = 0;
+    std::array<uint64_t, 20> gjkIterHistogramInside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    uint64_t gjkCallsOutside = 0;
+    std::array<uint64_t, 20> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    float filterTime = 0.0f;
+
+    const uint32_t CACHE_AXIS_POWER = 5;
+    const uint32_t CACHE_AXIS_MASK = (1 << CACHE_AXIS_POWER) - 1;
+    const uint32_t CACHE_AXIS_SIZE = 1 << CACHE_AXIS_POWER;
+    std::vector<std::pair<glm::uvec3, VertexInfo>> vertexInfoCache;
+    std::vector<glm::vec3> vertexInfoCache2;
+    glm::vec3 coordToId;
+    glm::vec3 minPoint;
+
+    std::shared_ptr<ICG> icg = nullptr;
+
+    void initCaches(BoundingBox box, uint32_t maxDepth)
+    {
+        vertexInfoCache.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE,
+                               std::make_pair(glm::uvec3((1 << maxDepth) + 1), 0));
+        vertexInfoCache2.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE);
+        coordToId = glm::vec3(static_cast<float>((1 << maxDepth)) / box.getSize());
+        minPoint = box.min;
+    }
+    
+    template<int N>
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
+                                      const std::array<glm::vec3, N>& pointsRelPos,
+                                      const uint32_t pointToInterpolateMask,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
+                                      const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        std::array<float, N> minDistanceToPoint;
+        minDistanceToPoint.fill(INFINITY); // It will locally used to store the minimum distance to vertex
+
+        if(icg == nullptr)
+        {
+            icg = std::make_shared<ICG>(mesh);
+        }
+
+        std::array<glm::vec3, N> inPoints;
+        for(uint32_t i=0; i < N; i++)
+        {
+            inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+            const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
+
+            const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                     ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                     (pointId.x & CACHE_AXIS_MASK);
+
+            if(vertexInfoCache[cacheId].first == pointId)
+            {
+                outPointsInfo[i] = vertexInfoCache[cacheId].second;
+            }
+            else
+            {
+                outPointsInfo[i] = icg->getNearestTriangle(inPoints[i]);
+
+                vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
+                vertexInfoCache2[cacheId] = inPoints[i];
+            }
+        }
+
+        for(uint32_t i=0; i < N; i++)
+        {
+            if(pointToInterpolateMask & (1 << (N-i-1)))
+            {
+                InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
+            }
+            else
+            {
+                InterpolationMethod::calculatePointValues(inPoints[i], outPointsInfo[i], mesh, trianglesData, outPointsValues[i]);
+            }
+        }
+    }
+
+    inline void filterTriangles(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                const std::vector<uint32_t>& inTriangles, std::vector<uint32_t>& outTriangles,
+                                const std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 8>& verticesValues,
+                                const std::array<VertexInfo, 8>& verticesInfo,
+                                const Mesh& mesh, const std::vector<TriangleUtils::TriangleData>& trianglesData)
+    {
+        outTriangles.clear();
+    }
+
+    void printStatistics() 
+    {
+        SPDLOG_INFO("Mean triangles evaulated per query {}", static_cast<float>(icg->getNumEvaluatedTriangles()) / static_cast<float>(icg->getNumQueries()));
+        SPDLOG_INFO("Num queries made {}", icg->getNumQueries());
     }
 };
 
