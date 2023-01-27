@@ -8,16 +8,34 @@ namespace TriangleUtils
         const std::vector<uint32_t> indices = mesh.getIndices();
 
         std::vector<TriangleData> triangles(indices.size()/3);
+        std::vector<uint32_t> degeneratedTriangles;
 
         // Cache structures
         std::map<std::pair<uint32_t, uint32_t>, uint32_t> edgesNormal;
         std::vector<glm::vec3> verticesNormal(vertices.size(), glm::vec3(0.0f));
 
         // Init triangles
+        uint32_t numAreaZeroTriangles = 0;
 		for (int i = 0, tIndex = 0; i < indices.size(); i += 3, tIndex++)
 		{
+            // Mark area zero triangles
+            const double zeroAngleThreshold = 5e-5;
+            double triangleArea = 0.5f * glm::length(glm::cross(static_cast<glm::dvec3>(vertices[indices[i + 1]] - vertices[indices[i]]), static_cast<glm::dvec3>(vertices[indices[i + 2]] - vertices[indices[i]])));
+            for(int k=0; k < 3; k++)
+            {
+                const uint32_t v1 = indices[i + k];
+                const uint32_t v2 = indices[i + ((k+1) % 3)];
+            }
+            isAngleZeroTriangle[tIndex] = area < zeroAngleThreshold;
+            if(area < zeroAngleThreshold) numAreaZeroTriangles++;
+
 			triangles[tIndex] = TriangleUtils::TriangleData(vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]]);
 		}
+
+        if(numAreaZeroTriangles > 0)
+        {
+            SPDLOG_INFO("The mesh has {} zero angle triangles", numAreaZeroTriangles);
+        }
 
         for(int i = 0, tIndex = 0; i < indices.size(); i += 3, tIndex++)
         {
@@ -32,14 +50,22 @@ namespace TriangleUtils
                 if(!ret.second)
                 {
 					const uint32_t t2Index = ret.first->second / 3;
-                    glm::vec3 edgeNormal = triangles[tIndex].getTriangleNormal() + triangles[t2Index].getTriangleNormal();
+
+                    const bool t1IsAreaZero = isAngleZeroTriangle[tIndex] && !isAngleZeroTriangle[t2Index];
+                    const bool t2IsAreaZero = isAngleZeroTriangle[t2Index] && !isAngleZeroTriangle[tIndex];
+                    glm::vec3 edgeNormal = ((!t1IsAreaZero) ? triangles[tIndex].getTriangleNormal() : glm::vec3(0.0f)) + 
+                                           ((!t2IsAreaZero) ? triangles[t2Index].getTriangleNormal() : glm::vec3(0.0f));
+
                     triangles[tIndex].edgesNormal[k] = triangles[tIndex].transform * edgeNormal;
                     triangles[t2Index].edgesNormal[ret.first->second % 3] = triangles[t2Index].transform * edgeNormal;
                     edgesNormal.erase(ret.first);
                 }
 
-                const float angle = glm::acos(glm::clamp(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])), -1.0f, 1.0f));
-                verticesNormal[v1] += angle * triangles[tIndex].getTriangleNormal();
+                if(!isAngleZeroTriangle[tIndex])
+                {
+                    const float angle = glm::acos(glm::clamp(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])), -1.0f, 1.0f));
+                    verticesNormal[v1] += angle * triangles[tIndex].getTriangleNormal();
+                }
             }
         }
 
