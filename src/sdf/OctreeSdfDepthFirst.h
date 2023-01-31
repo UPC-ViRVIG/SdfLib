@@ -336,6 +336,38 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                     outputOctree[childIndex + i].value = interpolationCoeff[i];
                 }
 
+                if( glm::abs(interpolationCoeff[0]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[1]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[2]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[3]) < 0.0001f &&
+
+                    glm::abs(interpolationCoeff[4]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[5]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[6]) < 0.0001f &&
+                    glm::abs(interpolationCoeff[7]) < 0.0001f)
+                {
+                    bool isSame = true;
+                    uint32_t firstTriIndex = node.verticesInfo[0];
+                    for(uint32_t i=0; i < 8; i++)
+                    {
+                        if(node.verticesInfo[i] >= trianglesData.size())
+                        {
+                            std::cout << "index out of range" << std::endl;
+                        }
+
+                        isSame = isSame && firstTriIndex == node.verticesInfo[i];
+                    }
+
+                    // if(isSame)
+                    // {
+                    //     std::cout << "its the same" << std::endl;
+                    //     float a = TriangleUtils::getSqDistPointAndTriangle(node.center, trianglesData[node.verticesInfo[0]]);
+                    //     float b = TriangleUtils::getSignedDistPointAndTriangle(node.center, trianglesData[node.verticesInfo[0]]);
+
+                    //     std::cout << a << ", " << b << std::endl;
+                    // }
+                }
+
                 for(uint32_t i=0; i < 8; i++)
                 {
                     tContext.valueRange = glm::max(tContext.valueRange, glm::abs(node.verticesValues[i][0]));
@@ -362,6 +394,38 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
             {
                 outputOctree[childIndex + i].value = interpolationCoeff[i];
+            }
+
+            if( glm::abs(interpolationCoeff[0]) < 0.000001f &&
+                glm::abs(interpolationCoeff[1]) < 0.000001f &&
+                glm::abs(interpolationCoeff[2]) < 0.000001f &&
+                glm::abs(interpolationCoeff[3]) < 0.000001f &&
+
+                glm::abs(interpolationCoeff[4]) < 0.000001f &&
+                glm::abs(interpolationCoeff[5]) < 0.000001f &&
+                glm::abs(interpolationCoeff[6]) < 0.000001f &&
+                glm::abs(interpolationCoeff[7]) < 0.000001f)
+            {
+                bool isSame = true;
+                uint32_t firstTriIndex = node.verticesInfo[0];
+                for(uint32_t i=0; i < 8; i++)
+                {
+                    if(node.verticesInfo[i] >= trianglesData.size())
+                    {
+                        std::cout << "index out of range" << std::endl;
+                    }
+
+                    isSame = isSame && firstTriIndex == node.verticesInfo[i];
+                }
+
+                // if(isSame)
+                // {
+                //     std::cout << "its the same" << std::endl;
+                //     float a = TriangleUtils::getSqDistPointAndTriangle(node.center, trianglesData[node.verticesInfo[0]]);
+                //     float b = TriangleUtils::getSignedDistPointAndTriangle(node.center, trianglesData[node.verticesInfo[0]]);
+
+                //     std::cout << a << ", " << b << std::endl;
+                // }
             }
 
             for(uint32_t i=0; i < 8; i++)
