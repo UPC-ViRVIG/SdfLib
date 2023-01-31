@@ -45,12 +45,12 @@ int main(int argc, char** argv)
     }
 
     std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/armadillo.ply";
-    std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdf.bin";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/BooleanOps.ply";
+    std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdfOctreeBooleanOps.bin";
 
     Mesh mesh(modelPath);
     BoundingBox box = mesh.getBoundingBox();
-    if(normalizeBBArg) {
+    if(true || normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
