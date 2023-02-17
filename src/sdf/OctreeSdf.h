@@ -125,8 +125,6 @@ public:
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
-
-        std::cout << "value range: " << mValueRange;
     } 
 
 

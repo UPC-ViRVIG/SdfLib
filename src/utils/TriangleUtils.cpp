@@ -123,7 +123,7 @@ namespace TriangleUtils
 
             auto e2it = edgesNormal.find(std::make_pair(glm::min(v2, v3), glm::max(v2, v3)));
             auto e3it = edgesNormal.find(std::make_pair(glm::min(v3, v1), glm::max(v3, v1)));
-            auto longestEdgeIt = (glm::length(v3-v2) > glm::length(v1-v3)) ? e2it : e3it;
+            auto longestEdgeIt = (glm::length(vertices[v3]- vertices[v2]) > glm::length(vertices[v1]- vertices[v3])) ? e2it : e3it;
             if(longestEdgeIt != edgesNormal.end())
             {
                 const uint32_t t2Index = longestEdgeIt->second / 3;

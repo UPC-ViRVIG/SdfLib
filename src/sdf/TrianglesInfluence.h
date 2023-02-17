@@ -716,7 +716,6 @@ struct PerNodeRegionTrianglesInfluence
             }
             else
             {
-                bool enteredInside = false;
                 for(const uint32_t& t : triangles)
                 {
                     if(glm::dot(trianglesData[t].getTriangleNormal(), trianglesData[t].getTriangleNormal()) < 1e-3f) continue;
@@ -724,15 +723,9 @@ struct PerNodeRegionTrianglesInfluence
 
                     if(dist < minDistanceToPoint[i])
                     {
-                        enteredInside = true;
                         outPointsInfo[i] = t;
                         minDistanceToPoint[i] = dist;
                     }
-                }
-
-                if(!enteredInside)
-                {
-                    std::cout << "no selected triangles!!" << std::endl;
                 }
 
                 vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);

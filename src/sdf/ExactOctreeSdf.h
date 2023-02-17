@@ -109,16 +109,16 @@ public:
 
         mTrianglesCache[0].resize(mMaxTrianglesEncodedInLeafs);
         mTrianglesCache[1].resize(mMaxTrianglesEncodedInLeafs);
-
-        std::cout << "Octree Data: " << mOctreeData.size() * sizeof(OctreeNode) << std::endl;
-        std::cout << "Triangle Sets: " << mTrianglesSets.size() * sizeof(uint32_t) << std::endl;
-        std::cout << "Triangle Masks: " << mTrianglesMasks.size() << std::endl;
-        std::cout << "Triangle Data: " << mTrianglesData.size() * sizeof(TriangleUtils::TriangleData) << std::endl;
+        
+        SPDLOG_INFO("Octree Data: {}", mOctreeData.size() * sizeof(OctreeNode));
+        SPDLOG_INFO("Triangle Sets: {}", mTrianglesSets.size() * sizeof(uint32_t));
+        SPDLOG_INFO("Triangle Masks: {}", mTrianglesMasks.size());
+        SPDLOG_INFO("Triangle Data: {}", mTrianglesData.size() * sizeof(TriangleUtils::TriangleData));
 
         float total = mOctreeData.size() * sizeof(OctreeNode) + mTrianglesSets.size() * sizeof(uint32_t) + mTrianglesMasks.size() + mTrianglesData.size() * sizeof(TriangleUtils::TriangleData);
-        std::cout << "Total in MB: " << (total/1048576.0f) << std::endl;
+        SPDLOG_INFO("Total: {}MB", total/1048576.0f);
         total = mOctreeData.size() * sizeof(OctreeNode) + mTrianglesSets.size() * sizeof(uint32_t) + mTrianglesMasks.size();
-        std::cout << "Octree MB: " << (total/1048576.0f) << std::endl;
+        SPDLOG_INFO("Octree: {}MB", total/1048576.0f);
     } 
 
 private:
