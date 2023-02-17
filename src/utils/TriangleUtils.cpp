@@ -41,7 +41,7 @@ namespace TriangleUtils
             const double maxTriangleHeighValue = glm::tan(glm::radians(30.0));
             double triangleDegerancyValue = 2.0f * triangleArea * maxTriangleHeighValue / (maxTriangleBase * maxTriangleBase);
 
-            if(triangleArea < zeroAngleThreshold && triangleDegerancyValue < degeneratedTriangleValue)
+            if(false && triangleArea < zeroAngleThreshold && triangleDegerancyValue < degeneratedTriangleValue)
             {
                 degeneratedTriangles.push_back(std::make_pair(tIndex, degeneratedVertex));
                 isTriangleDegenerated[tIndex] = true;
