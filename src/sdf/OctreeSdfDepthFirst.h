@@ -447,14 +447,13 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         }
 
         // Merge all the subtrees
+        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
         for(uint32_t i=0; i < subOctrees.size(); i++)
         {
             OctreeDataWithPadding& octreeDataPad = subOctrees[i];
 
-            
             const uint32_t startIndex = mOctreeData.size();
-            // Set the correct start index at te grid
-            if(!mOctreeData[i].isLeaf()) mOctreeData[i].setValues(false, startIndex);
+            
 
             // Add start index to the subtree
             for(OctreeNode& node : octreeDataPad.octreeData)
@@ -462,8 +461,11 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 if(!node.isLeaf()) node.setValues(false, node.getChildrenIndex() + startIndex);
             }
 
+            // Move the fist node to the correct start grid position
+            mOctreeData[i] = octreeDataPad.octreeData[0];
+
             // Copy to final array
-            mOctreeData.insert(mOctreeData.end(), octreeDataPad.octreeData.begin(), octreeDataPad.octreeData.end());
+            mOctreeData.insert(mOctreeData.end(), octreeDataPad.octreeData.begin()+1, octreeDataPad.octreeData.end());
         }
 
         mValueRange = 0.0f;
