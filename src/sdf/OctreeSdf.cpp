@@ -35,8 +35,9 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
-            initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
-            //initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+            // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+            initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+            //initOctree<FCPWQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
             initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);

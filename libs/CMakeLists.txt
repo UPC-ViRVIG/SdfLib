@@ -152,3 +152,30 @@ if(NOT cereal_lib_POPULATED)
 	set(SKIP_PERFORMANCE_COMPARISON ON)
 	add_subdirectory(${cereal_lib_SOURCE_DIR} ${cereal_lib_BINARY_DIR})
 endif()
+
+# Enoki
+FetchContent_Declare(enoki_lib
+	GIT_REPOSITORY https://github.com/mitsuba-renderer/enoki.git
+	GIT_TAG 2a18afa
+)
+FetchContent_GetProperties(enoki_lib)
+if(NOT enoki_lib_POPULATED)
+	FetchContent_Populate(enoki_lib)
+	add_library(enoki INTERFACE)
+	add_subdirectory(${enoki_lib_SOURCE_DIR} ${enoki_lib_BINARY_DIR})
+	target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
+endif()
+
+
+# FCPW
+FetchContent_Declare(fcpw_lib
+	GIT_REPOSITORY https://github.com/rohan-sawhney/fcpw.git
+	GIT_TAG dd65ec2
+)
+
+FetchContent_GetProperties(fcpw_lib)
+if(NOT fcpw_lib_POPULATED)
+	FetchContent_Populate(fcpw_lib)
+	add_subdirectory(${fcpw_lib_SOURCE_DIR} ${fcpw_lib_BINARY_DIR})
+	target_include_directories(fcpw INTERFACE ${fcpw_lib_SOURCE_DIR})
+endif()
