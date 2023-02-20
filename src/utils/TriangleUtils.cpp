@@ -16,12 +16,11 @@ namespace TriangleUtils
         std::vector<glm::vec3> verticesNormal(vertices.size(), glm::vec3(0.0f));
 
         // Init triangles
-        uint32_t numDegeneratedTriangles = 0;
 		for (int i = 0, tIndex = 0; i < indices.size(); i += 3, tIndex++)
 		{
             // Mark area zero triangles
-            const double zeroAngleThreshold = 1e-5;
-            const double degeneratedTriangleValue = 0.02;
+            const double zeroAngleThreshold = 1e-6;
+            const double degeneratedTriangleValue = 0.006;
             double triangleArea = 0.5f * glm::length(glm::cross(static_cast<glm::dvec3>(vertices[indices[i + 1]] - vertices[indices[i]]), static_cast<glm::dvec3>(vertices[indices[i + 2]] - vertices[indices[i]])));
             double maxTriangleBase = 0.0f;
             uint32_t degeneratedVertex = 0;
@@ -45,28 +44,18 @@ namespace TriangleUtils
             {
                 degeneratedTriangles.push_back(std::make_pair(tIndex, degeneratedVertex));
                 isTriangleDegenerated[tIndex] = true;
-                numDegeneratedTriangles++;
                 triangles[tIndex] = TriangleUtils::TriangleData(vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]]);
-                triangles[tIndex].transform[0][2] = 0.0f;
-                triangles[tIndex].transform[1][2] = 0.0f;
-                triangles[tIndex].transform[2][2] = 0.0f;
+                triangles[tIndex].transform[0][2] = 0.0f; triangles[tIndex].transform[1][2] = 0.0f; triangles[tIndex].transform[2][2] = 0.0f;
             }
             else
             {
                 triangles[tIndex] = TriangleUtils::TriangleData(vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]]);
             }
-
-            if(glm::isnan(triangles[tIndex].getTriangleNormal().x) ||
-               glm::isnan(triangles[tIndex].getTriangleNormal().y) ||
-               glm::isnan(triangles[tIndex].getTriangleNormal().z))
-            {
-                std::cout << "is nan11" << std::endl;
-            }
 		}
 
-        if(numDegeneratedTriangles > 0)
+        if(degeneratedTriangles.size() > 0)
         {
-            SPDLOG_INFO("The mesh has {} degenerated triangles", numDegeneratedTriangles);
+            SPDLOG_INFO("The mesh has {} degenerated triangles", degeneratedTriangles.size());
         }
 
         for(int i = 0, tIndex = 0; i < indices.size(); i += 3, tIndex++)
@@ -96,80 +85,119 @@ namespace TriangleUtils
             }
         }
 
-        // Interpret degenerated triangles as edges
-        std::vector<glm::vec3> degeneratedTrianglesNormal(degeneratedTriangles.size());
-        for(std::pair<uint32_t, uint32_t> degTri : degeneratedTriangles)
+        uint32_t iter = 0;
+        std::map<std::pair<uint32_t, uint32_t>, glm::vec3> validDegeneratedEdgeNormals;
+        while(degeneratedTriangles.size() > 0 && iter++ <= 10)
         {
-            const uint32_t tIndex = degTri.first;
-
-            const uint32_t v1 = indices[3 * tIndex + degTri.second];
-            const uint32_t v2 = indices[3 * tIndex + ((degTri.second + 1) % 3)];
-            const uint32_t v3 = indices[3 * tIndex + ((degTri.second + 2) % 3)];
-            
-            glm::vec3 edgeNormal(0.0f);
-            std::array<uint32_t, 3> adjEdgeFaceIndices;
-            adjEdgeFaceIndices.fill(std::numeric_limits<uint32_t>::max());
-
-            bool validNeighbours = true;
-            auto e1it = edgesNormal.find(std::make_pair(glm::min(v1, v2), glm::max(v1, v2)));
-            if(e1it != edgesNormal.end())
+            std::vector<std::pair<uint32_t, uint32_t>> newDegeneratedTriangles(0);
+            std::map<std::pair<uint32_t, uint32_t>, glm::vec3> newValidDegeneratedEdgeNormals;
+            for(std::pair<uint32_t, uint32_t> degTri : degeneratedTriangles)
             {
-                const uint32_t t2Index = e1it->second / 3;
-                validNeighbours = validNeighbours && !isTriangleDegenerated[t2Index];
-                edgeNormal += triangles[t2Index].getTriangleNormal();
-                adjEdgeFaceIndices[0] = e1it->second;
-            }
-            else validNeighbours = false;
+                const uint32_t tIndex = degTri.first;
 
-            auto e2it = edgesNormal.find(std::make_pair(glm::min(v2, v3), glm::max(v2, v3)));
-            auto e3it = edgesNormal.find(std::make_pair(glm::min(v3, v1), glm::max(v3, v1)));
-            auto longestEdgeIt = (glm::length(v3-v2) > glm::length(v1-v3)) ? e2it : e3it;
-            if(longestEdgeIt != edgesNormal.end())
-            {
-                const uint32_t t2Index = longestEdgeIt->second / 3;
-                validNeighbours = validNeighbours && !isTriangleDegenerated[t2Index];
-                edgeNormal += triangles[t2Index].getTriangleNormal();
-            }
-            else validNeighbours = false;
-
-            if(validNeighbours)
-            {
-                edgesNormal.erase(e1it);
-                if(e2it != edgesNormal.end())
-                {
-                    adjEdgeFaceIndices[1] = e2it->second;
-                    edgesNormal.erase(e2it);
-                } 
-                    
-                if(e3it != edgesNormal.end())
-                {
-                    adjEdgeFaceIndices[2] = e3it->second;
-                    edgesNormal.erase(e3it);
-                }
-
-                for(uint32_t k=0; k < 3; k++)
-                {
-                    const uint32_t idx = adjEdgeFaceIndices[k];
-                    const uint32_t t2Index = idx/3;
-                    if(t2Index >= triangles.size()) continue;
-                    if(!isTriangleDegenerated[t2Index])
-                        triangles[t2Index].edgesNormal[idx % 3] = triangles[t2Index].transform * edgeNormal;
-                }
-
-                for(uint32_t k=0; k < 3; k++)
+                // Array for storing edge info (edge length, edge vertices indices)
+                std::array<std::pair<float, std::pair<uint32_t, uint32_t>>, 3> triVertices; 
+                for(int k=0; k < 3; k++)
                 {
                     const uint32_t v1 = indices[3 * tIndex + k];
                     const uint32_t v2 = indices[3 * tIndex + ((k+1) % 3)];
-                    const uint32_t v3 = indices[3 * tIndex + ((k+2) % 3)];
 
-                    const float angle = glm::acos(glm::clamp(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])), -1.0f, 1.0f));
-                    verticesNormal[v1] += angle * edgeNormal;
+                    float triangleBase = glm::length(vertices[v2] - vertices[v1]);
+                    triVertices[k] = std::make_pair(triangleBase, std::make_pair(v1, v2));
+                }
+
+                std::sort(triVertices.begin(), triVertices.end(), std::greater<std::pair<float, std::pair<uint32_t, uint32_t>>>());
+
+                // Iterate the two larger edges
+                glm::vec3 edgeNormal(0.0f);
+                bool validNeighbours = true;
+                bool someValidNeighbour = false;
+                std::array<uint32_t, 3> adjEdgeFaceIndices;
+                adjEdgeFaceIndices.fill(std::numeric_limits<uint32_t>::max());
+                std::array<std::map<std::pair<uint32_t, uint32_t>, uint32_t>::iterator, 3> adjEdgeFaceIterators;
+                for(int k=0; k < 3; k++)
+                {
+                    uint32_t idx = 0;
+                    bool foundEdge = false;
+                    const uint32_t v1 = triVertices[k].second.first;
+                    const uint32_t v2 = triVertices[k].second.second;
+                    auto tIt = edgesNormal.find(std::make_pair(glm::min(v1, v2), glm::max(v1, v2)));
+                    foundEdge = tIt != edgesNormal.end();
+                    if(foundEdge) 
+                    {
+                        idx = tIt->second;
+                        adjEdgeFaceIndices[k] = idx;
+                        adjEdgeFaceIterators[k] = tIt;
+                        if(k < 2) edgeNormal += triangles[idx/3].getTriangleNormal();
+                    }
+                    else if(k < 2)
+                    {
+                        auto tdIt = validDegeneratedEdgeNormals.find(triVertices[k].second);
+                        foundEdge = tdIt != validDegeneratedEdgeNormals.end();
+                        if(foundEdge) edgeNormal += tdIt->second;
+                    }
+
+                    if(k < 2)
+                    {
+                        validNeighbours = validNeighbours && foundEdge;
+                        someValidNeighbour = someValidNeighbour || foundEdge;
+                    }
+                }
+
+                edgeNormal = glm::normalize(edgeNormal);
+
+                if(glm::isnan(edgeNormal.x) || glm::isnan(edgeNormal.y) || glm::isnan(edgeNormal.z))
+                {
+                    edgeNormal = glm::vec3(0.0f);
+                }
+
+                if(validNeighbours || iter >= 10)
+                {
+                    for(uint32_t k=0; k < 3; k++)
+                    {                        
+                        const uint32_t v1 = indices[3 * tIndex + k];
+                        const uint32_t v2 = indices[3 * tIndex + ((k+1) % 3)];
+                        const uint32_t v3 = indices[3 * tIndex + ((k+2) % 3)];
+
+                        // Set degenerated triangle normal
+                        newValidDegeneratedEdgeNormals.insert(std::make_pair(std::make_pair(v2, v1), edgeNormal));
+
+                        // Assign vertex normal
+                        const float angle = glm::acos(glm::clamp(glm::dot(glm::normalize(vertices[v2] - vertices[v1]), glm::normalize(vertices[v3] - vertices[v1])), -1.0f, 1.0f));
+                        verticesNormal[v1] += angle * edgeNormal;
+
+
+                        // Assign edge normal
+                        const uint32_t idx = adjEdgeFaceIndices[k];
+                        const uint32_t t2Index = idx/3;
+                        if(t2Index >= triangles.size()) continue;
+                        triangles[t2Index].edgesNormal[idx % 3] = triangles[t2Index].transform * edgeNormal;
+                        edgesNormal.erase(adjEdgeFaceIterators[k]);
+                    }
+                }
+                else
+                {
+                    if(someValidNeighbour)
+                    {
+                        for(int k=0; k < 3; k++)
+                        {
+                            const uint32_t v1 = indices[3 * tIndex + k];
+                            const uint32_t v2 = indices[3 * tIndex + ((k+1) % 3)];
+
+                            newValidDegeneratedEdgeNormals.insert(std::make_pair(std::make_pair(v2, v1), edgeNormal));
+                        }
+                    }
+                    newDegeneratedTriangles.push_back(degTri);
                 }
             }
-            else
-            {
-                
-            }
+
+            degeneratedTriangles = std::move(newDegeneratedTriangles);
+            validDegeneratedEdgeNormals = std::move(newValidDegeneratedEdgeNormals);
+        }
+
+        if(degeneratedTriangles.size() > 0)
+        {
+            SPDLOG_INFO("{} degenerated triangles have been merges", degeneratedTriangles.size());
         }
 
         if(edgesNormal.size() > 0)

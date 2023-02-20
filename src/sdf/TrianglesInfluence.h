@@ -723,23 +723,15 @@ struct PerNodeRegionTrianglesInfluence
             }
             else
             {
-                bool enteredInside = false;
                 for(const uint32_t& t : triangles)
                 {
-                    if(glm::dot(trianglesData[t].getTriangleNormal(), trianglesData[t].getTriangleNormal()) < 1e-3f) continue;
                     const float dist = TriangleUtils::getSqDistPointAndTriangle(inPoints[i], trianglesData[t]);
 
                     if(dist < minDistanceToPoint[i])
                     {
-                        enteredInside = true;
                         outPointsInfo[i] = t;
                         minDistanceToPoint[i] = dist;
                     }
-                }
-
-                if(!enteredInside)
-                {
-                    std::cout << "no selected triangles!!" << std::endl;
                 }
 
                 vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
@@ -908,8 +900,7 @@ public:
     inline uint32_t getNearestTriangle(glm::vec3 samplePoint)
     {
         tmd::Result result = mesh_distance.signed_distance({ samplePoint.x, samplePoint.y, samplePoint.z });
-        //numEvaluatedTriangles += static_cast<uint32_t>(result.numEvalTriangles);
-        numEvaluatedTriangles = 0;
+        numEvaluatedTriangles += static_cast<uint32_t>(result.numEvalTriangles);
         numQueries++;
         return static_cast<uint32_t>(result.triangle_id);
     }

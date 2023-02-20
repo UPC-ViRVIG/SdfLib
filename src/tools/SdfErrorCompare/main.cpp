@@ -122,9 +122,9 @@ private:
 //     std::cout << value << std::endl;
 // }
 
-//#define TEST_ICG
-//#define TEST_CGAL
-#define TEST_OCTREE_SDF
+#define TEST_ICG
+#define TEST_CGAL
+//#define TEST_OCTREE_SDF
 #define TEST_EXACT_OCTREE_SDF
 #define TEST_OPENVDB
 
@@ -187,7 +187,7 @@ int main(int argc, char** argv)
 
 #ifdef TEST_OPENVDB
     openvdb::initialize();
-    const uint32_t gridSize = 256;
+    const uint32_t gridSize = 64;
     const float voxelSize = box.getSize().x / gridSize;
     invModelDiagonal = 1.0f / voxelSize;
     float exteriorNarrowBand = gridSize;
@@ -296,6 +296,7 @@ int main(int argc, char** argv)
     }
     float exactSdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
 	SPDLOG_INFO("Exact Sdf us per query: {}", exactSdfTimePerSample, timer.getElapsedSeconds());
+    SPDLOG_INFO("Exact Sdf: {}s", timer.getElapsedSeconds());
 #endif
 
 #ifdef TEST_ICG
@@ -307,6 +308,7 @@ int main(int argc, char** argv)
     }
     float exact1SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
 	SPDLOG_INFO("ICG us per query: {}", exact1SdfTimePerSample, timer.getElapsedSeconds());
+    SPDLOG_INFO("ICG: {}s", timer.getElapsedSeconds());
 #endif
 
 #ifdef TEST_CGAL
@@ -318,6 +320,7 @@ int main(int argc, char** argv)
     }
     float exact2SdfTimePerSample = (timer.getElapsedSeconds() * 1.0e6f) / static_cast<float>(numSamples);
 	SPDLOG_INFO("CGal us per query: {}", exact2SdfTimePerSample, timer.getElapsedSeconds());
+    SPDLOG_INFO("CGal: {}s", timer.getElapsedSeconds());
 #endif
 
 #ifdef TEST_OPENVDB

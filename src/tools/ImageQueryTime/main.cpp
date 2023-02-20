@@ -128,7 +128,7 @@ int main(int argc, char** argv)
     BoundingBox box = exactSdf->getSampleArea();
 
     openvdb::initialize();
-    const uint32_t gridSize = 256;
+    const uint32_t gridSize = 64;
     const float voxelSize = box.getSize().x / gridSize;
     float invModelDiagonal = 1.0f / voxelSize;
     float exteriorNarrowBand = gridSize;
@@ -172,70 +172,71 @@ int main(int argc, char** argv)
     std::memcpy(meshTraingleIndices.data(), mesh.getIndices().data(), mesh.getIndices().size() * sizeof(uint32_t));
 
     timer.start();    
-    /*openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
+    openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
             *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices()),
             meshTraingleIndices,
             emptyMeshQuadIndices,
             exteriorNarrowBand,
-            interiorNarrowBand);*/
+            interiorNarrowBand);
 
 
-    std::vector<openvdb::Vec3s>& mPointsIn = *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices());
+    // std::vector<openvdb::Vec3s>& mPointsIn = *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices());
 
-    const size_t numPoints = mPointsIn.size();
-    std::unique_ptr<openvdb::Vec3s[]> indexSpacePoints{ new openvdb::Vec3s[numPoints] };
+    // const size_t numPoints = mPointsIn.size();
+    // std::unique_ptr<openvdb::Vec3s[]> indexSpacePoints{ new openvdb::Vec3s[numPoints] };
 
-    openvdb::Vec3d pos;
+    // openvdb::Vec3d pos;
 
-    for (size_t n = 0; n < numPoints; ++n) 
-    {
-        const openvdb::Vec3s& wsP = mPointsIn[n];
-        pos[0] = double(wsP[0]);
-        pos[1] = double(wsP[1]);
-        pos[2] = double(wsP[2]);
+    // for (size_t n = 0; n < numPoints; ++n) 
+    // {
+    //     const openvdb::Vec3s& wsP = mPointsIn[n];
+    //     pos[0] = double(wsP[0]);
+    //     pos[1] = double(wsP[1]);
+    //     pos[2] = double(wsP[2]);
 
-        pos = linearTransform->worldToIndex(pos);
+    //     pos = linearTransform->worldToIndex(pos);
 
-        openvdb::Vec3s& isP = indexSpacePoints[n];
-        isP[0] = typename openvdb::Vec3s::value_type(pos[0]);
-        isP[1] = typename openvdb::Vec3s::value_type(pos[1]);
-        isP[2] = typename openvdb::Vec3s::value_type(pos[2]);
-    }
+    //     openvdb::Vec3s& isP = indexSpacePoints[n];
+    //     isP[0] = typename openvdb::Vec3s::value_type(pos[0]);
+    //     isP[1] = typename openvdb::Vec3s::value_type(pos[1]);
+    //     isP[2] = typename openvdb::Vec3s::value_type(pos[2]);
+    // }
 
-    const size_t numPrimitives = meshTraingleIndices.size();
-    std::unique_ptr<openvdb::Vec4I[]> prims{ new openvdb::Vec4I[numPrimitives] };
+    // const size_t numPrimitives = meshTraingleIndices.size();
+    // std::unique_ptr<openvdb::Vec4I[]> prims{ new openvdb::Vec4I[numPrimitives] };
 
-    for (size_t n = 0, N = meshTraingleIndices.size(); n < N; ++n) {
-        const openvdb::Vec3I& triangle = meshTraingleIndices[n];
-        openvdb::Vec4I& prim = prims[n];
-        prim[0] = triangle[0];
-        prim[1] = triangle[1];
-        prim[2] = triangle[2];
-        prim[3] = openvdb::util::INVALID_IDX;
-    }
+    // for (size_t n = 0, N = meshTraingleIndices.size(); n < N; ++n) {
+    //     const openvdb::Vec3I& triangle = meshTraingleIndices[n];
+    //     openvdb::Vec4I& prim = prims[n];
+    //     prim[0] = triangle[0];
+    //     prim[1] = triangle[1];
+    //     prim[2] = triangle[2];
+    //     prim[3] = openvdb::util::INVALID_IDX;
+    // }
 
-    openvdb::tools::QuadAndTriangleDataAdapter<openvdb::Vec3s, openvdb::Vec4I>
-        meshvdb(indexSpacePoints.get(), numPoints, prims.get(), numPrimitives);
+    // openvdb::tools::QuadAndTriangleDataAdapter<openvdb::Vec3s, openvdb::Vec4I>
+    //     meshvdb(indexSpacePoints.get(), numPoints, prims.get(), numPrimitives);
 
-    openvdb::util::NullInterrupter nullInterrupter;
-    using Int32GridType = typename openvdb::FloatGrid::template ValueConverter<openvdb::Int32>::Type;
-    typename Int32GridType::Ptr vdbIndexGrid;
-    vdbIndexGrid.reset(new Int32GridType(openvdb::Int32(openvdb::util::INVALID_IDX)));
+    // openvdb::util::NullInterrupter nullInterrupter;
+    // using Int32GridType = typename openvdb::FloatGrid::template ValueConverter<openvdb::Int32>::Type;
+    // typename Int32GridType::Ptr vdbIndexGrid;
+    // vdbIndexGrid.reset(new Int32GridType(openvdb::Int32(openvdb::util::INVALID_IDX)));
 
-    openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(nullInterrupter, meshvdb, *linearTransform,
-                                        exteriorNarrowBand, interiorNarrowBand, 0, vdbIndexGrid.get());
+    // openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(nullInterrupter, meshvdb, *linearTransform,
+    //                                     exteriorNarrowBand, interiorNarrowBand, 0, vdbIndexGrid.get());
     
     SPDLOG_INFO("OpenVDB init time: {}", timer.getElapsedSeconds());
     vdbGrid->print();
 
-    openvdb::tools::GridSampler<Int32GridType, openvdb::tools::BoxSampler> vdbIndexSampler(*vdbIndexGrid);
+    // openvdb::tools::GridSampler<Int32GridType, openvdb::tools::BoxSampler> vdbIndexSampler(*vdbIndexGrid);
     openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
 
     ICG icg(mesh);
 
     CGALtree cgalTree(mesh);
 
-    const float z = 0.163f;
+    // const float z = 0.163f;
+    const float z = 0.056f;
     std::array<glm::vec3, 4> samplesQuad = {
         glm::vec3(box.min.x, box.max.y, z),
         glm::vec3(box.max.x, box.max.y, z),
@@ -288,22 +289,10 @@ int main(int argc, char** argv)
             const glm::vec3 pos = interpolate(interpolate(samplesQuad[0], samplesQuad[1], tx), 
                                               interpolate(samplesQuad[2], samplesQuad[3], tx), ty);
 
-            if(exactSdf->getDistance(pos) > 0.0f)
-            {
-                int vdbIndex = vdbIndexSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)));
-                glm::vec3 gradient;
-                outImage1[j * imageWidth + i] = glm::abs(exactSdf->getDistance(pos, gradient) - 
-                                                vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)))) * invModelDiagonal;
-                glm::vec3 vdbGradient;
-                TriangleUtils::getSignedDistPointAndTriangle(pos, reinterpret_cast<ExactOctreeSdf*>(exactSdf.get())->getTrianglesData()[vdbIndex], vdbGradient);
-                outImage1[j * imageWidth + i] = glm::acos(glm::dot(vdbGradient, gradient));
-                minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
-                maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
-            }
-            else
-            {
-                outImage1[j * imageWidth + i] = 0.0f;
-            }
+            outImage1[j * imageWidth + i] = glm::abs(exactSdf->getDistance(pos) - 
+                                            vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)))) * invModelDiagonal;
+            minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
+            maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
             // const uint32_t samples = 1000;
             // const uint32_t samples = 1;
             // float dist1 = 0.0f;
@@ -399,7 +388,7 @@ int main(int argc, char** argv)
         // stbi_write_png((name + "2.png").c_str(), imageWidth, imageWidth, 4, static_cast<void*>(finalImage2.data()), 4 * imageWidth);
     };
 
-    printImage("image", minImage1, 0.1f);
+    printImage("image", minImage1, 0.8f);
 
     // printImage("quarter", 0.0f, 0.25f * glm::max(maxImage1, maxImage2));
 
