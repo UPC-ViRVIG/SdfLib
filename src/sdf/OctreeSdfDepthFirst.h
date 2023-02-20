@@ -98,7 +98,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         glm::vec3(-1.0f, 1.0f, 1.0f),
         glm::vec3(1.0f, 1.0f, 1.0f)
     };
-        
+    
     {
         std::stack<NodeInfo>& nodes = mainThread.nodesStack;
         float newSize = 0.5f * mBox.getSize().x * glm::pow(0.5f, startOctreeDepth);
@@ -455,22 +455,34 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
         for(uint32_t i=0; i < subOctrees.size(); i++)
         {
-            OctreeDataWithPadding& octreeDataPad = subOctrees[i];
+            std::vector<OctreeNode>& octreeData = subOctrees[i].octreeData;
 
             const uint32_t startIndex = mOctreeData.size();
             
-
             // Add start index to the subtree
-            for(OctreeNode& node : octreeDataPad.octreeData)
+            std::function<void(OctreeNode&)> vistNode;
+            vistNode = [&](OctreeNode& node)
             {
-                if(!node.isLeaf()) node.setValues(false, node.getChildrenIndex() + startIndex);
-            }
+                // Iterate children
+                if(!node.isLeaf())
+                {
+                    for(uint32_t i = 0; i < 8; i++)
+                    {
+                        vistNode(octreeData[node.getChildrenIndex() + i]);
+                    }
+                }
+
+                // Update node index
+                node.setValues(node.isLeaf(), node.getChildrenIndex() + startIndex - 1);
+            };
+
+            vistNode(octreeData[0]);
 
             // Move the fist node to the correct start grid position
-            mOctreeData[i] = octreeDataPad.octreeData[0];
+            mOctreeData[i] = octreeData[0];
 
             // Copy to final array
-            mOctreeData.insert(mOctreeData.end(), octreeDataPad.octreeData.begin()+1, octreeDataPad.octreeData.end());
+            mOctreeData.insert(mOctreeData.end(), octreeData.begin()+1, octreeData.end());
         }
 
         mValueRange = 0.0f;
