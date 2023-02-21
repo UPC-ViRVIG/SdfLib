@@ -119,7 +119,7 @@ public:
         SPDLOG_INFO("Total: {}MB", total/1048576.0f);
         total = mOctreeData.size() * sizeof(OctreeNode) + mTrianglesSets.size() * sizeof(uint32_t) + mTrianglesMasks.size();
         SPDLOG_INFO("Octree: {}MB", total/1048576.0f);
-    } 
+    }
 
 private:
 

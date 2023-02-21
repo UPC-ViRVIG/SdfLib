@@ -1,6 +1,7 @@
 #ifndef TRIANGLES_INFLUENCE_H
 #define TRIANGLES_INFLUENCE_H
 
+#include <fcpw/fcpw.h>
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
@@ -8,7 +9,6 @@
 #include "utils/Timer.h"
 #include "utils/GJK.h"
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>
-#include <fcpw/fcpw.h>
 
 #include <vector>
 #include <array>
@@ -892,7 +892,8 @@ public:
     inline uint32_t getNearestTriangle(glm::vec3 samplePoint)
     {
         tmd::Result result = mesh_distance.signed_distance({ samplePoint.x, samplePoint.y, samplePoint.z });
-        numEvaluatedTriangles += static_cast<uint32_t>(result.numEvalTriangles);
+        //numEvaluatedTriangles += static_cast<uint32_t>(result.numEvalTriangles);
+        numEvaluatedTriangles = 0;
         numQueries++;
         return static_cast<uint32_t>(result.triangle_id);
     }

@@ -145,8 +145,9 @@ target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})
 # set(Boost_INCLUDE_DIR C:/Users/eduard/Documents/boost_1_76_0)
 # find_package(OpenVDB REQUIRED)
 
-# add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
-# target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
+add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
+#target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
 
 # add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
 # target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)

@@ -14,18 +14,28 @@
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
 
-#define TEST_METHODS 
-#ifdef TEST_METHODS
+#define TEST_ICG
+//#define TEST_CGAL
+//#define TEST_OCTREE_SDF
+#define TEST_EXACT_OCTREE_SDF
+//#define TEST_OPENVDB
+
+#ifdef TEST_ICG
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>
+#endif
+#ifdef TEST_CGAL
 #include <CGAL/Simple_cartesian.h>
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_triangle_primitive.h>
+#endif
+#ifdef TEST_OPENVDB
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/MeshToVolume.h>
 #include <openvdb/tools/Interpolation.h>
 #endif
 
+#ifdef TEST_ICG
 class ICG
 {
 public:
@@ -53,7 +63,9 @@ private:
         return res;
     }
 };
+#endif
 
+#ifdef TEST_CGAL
 class CGALtree
 {
 public:
@@ -92,6 +104,7 @@ private:
     Tree tree;
 	std::vector<Triangle> triangles;
 };
+#endif
 
 
 // int main(int argc, char** argv)
@@ -121,12 +134,6 @@ private:
 //     float value = sampler.wsSample(openvdb::Vec3R(0.25, 1.4, -1.1));
 //     std::cout << value << std::endl;
 // }
-
-#define TEST_ICG
-#define TEST_CGAL
-//#define TEST_OCTREE_SDF
-#define TEST_EXACT_OCTREE_SDF
-#define TEST_OPENVDB
 
 //#define MAKE_HISTOGRAM
 
@@ -189,7 +196,6 @@ int main(int argc, char** argv)
     openvdb::initialize();
     const uint32_t gridSize = 64;
     const float voxelSize = box.getSize().x / gridSize;
-    invModelDiagonal = 1.0f / voxelSize;
     float exteriorNarrowBand = gridSize;
     float interiorNarrowBand = gridSize;
 #ifdef TEST_EXACT_OCTREE_SDF

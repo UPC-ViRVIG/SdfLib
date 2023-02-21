@@ -572,11 +572,54 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         }
 
         // Merge all the subtrees
-        for(OctreeDataWithPadding& octreeDataPad : subOctrees)
+        mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
+        std::cout << mTrianglesSets.size() << std::endl;
+        std::cout << mTrianglesMasks.size() << std::endl;
+        for(uint32_t i=0; i < subOctrees.size(); i++)
         {
-            mOctreeData.insert(mOctreeData.end(), octreeDataPad.octreeData.begin(), octreeDataPad.octreeData.end());
-            mTrianglesSets.insert(mTrianglesSets.end(), octreeDataPad.trianglesSets.begin(), octreeDataPad.trianglesSets.end());
-            mTrianglesMasks.insert(mTrianglesMasks.end(), octreeDataPad.trianglesMasks.begin(), octreeDataPad.trianglesMasks.end());
+            std::vector<OctreeNode>& octreeData = subOctrees[i].octreeData;
+
+            const uint32_t startIndex = mOctreeData.size();
+            const uint32_t startTrianglesSetsIndex = mTrianglesSets.size();
+            const uint32_t startTrianglesMasksIndex = mTrianglesMasks.size();
+            
+            // Add start index to the subtree
+            std::function<void(OctreeNode&, uint32_t)> vistNode;
+            vistNode = [&](OctreeNode& node, uint32_t depth)
+            {
+                // Iterate children
+                if(!node.isLeaf())
+                {
+                    for(uint32_t i = 0; i < 8; i++)
+                    {
+                        vistNode(octreeData[node.getChildrenIndex() + i], depth + 1);
+                    }
+
+                    // Update node index
+                    node.setValues(false, node.getChildrenIndex() + startIndex - 1);
+                }
+
+                if(depth > mainThread.bitEncodingStartDepth)
+                {
+                    node.trianglesArrayIndex += startTrianglesMasksIndex;
+                }
+                else if(node.isLeaf() || 
+                        depth == mainThread.bitEncodingStartDepth)
+                {
+                    node.trianglesArrayIndex += startTrianglesSetsIndex;
+                }                
+            };
+
+            vistNode(octreeData[0], mainThread.startOctreeDepth);
+
+            // Move the fist node to the correct start grid position
+            
+            mOctreeData[i] = octreeData[0];
+
+            // Copy to final array
+            mOctreeData.insert(mOctreeData.end(), octreeData.begin() + 1, octreeData.end());
+            mTrianglesSets.insert(mTrianglesSets.end(), subOctrees[i].trianglesSets.begin(), subOctrees[i].trianglesSets.end());
+            mTrianglesMasks.insert(mTrianglesMasks.end(), subOctrees[i].trianglesMasks.begin(), subOctrees[i].trianglesMasks.end());
         }
 
         mMaxTrianglesEncodedInLeafs = 0.0f;

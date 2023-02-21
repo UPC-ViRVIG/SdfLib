@@ -2,6 +2,14 @@
 #include <random>
 #include <algorithm>
 #include <optional>
+#include "utils/Mesh.h"
+#include "utils/TriangleUtils.h"
+#include "utils/PrimitivesFactory.h"
+#include "utils/Timer.h"
+#include "utils/GJK.h"
+#include "InfluenceRegionCreator.h"
+#include "sdf/TrianglesInfluence.h"
+#include "sdf/InterpolationMethods.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
@@ -12,14 +20,6 @@
 #include "render_engine/shaders/NormalsSplitPlaneShader.h"
 #include "render_engine/shaders/ColorsShader.h"
 #include "render_engine/Window.h"
-#include "utils/Mesh.h"
-#include "utils/TriangleUtils.h"
-#include "utils/PrimitivesFactory.h"
-#include "utils/Timer.h"
-#include "utils/GJK.h"
-#include "InfluenceRegionCreator.h"
-#include "sdf/TrianglesInfluence.h"
-#include "sdf/InterpolationMethods.h"
 
 #include <spdlog/spdlog.h>
 #include <args.hxx>
