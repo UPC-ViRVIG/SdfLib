@@ -16,9 +16,9 @@ uniform float octreeValueRange = 1.0;
 uniform vec3 startGridSize;
 
 // uniform float surfaceThickness = 2.0;
-uniform float surfaceThickness = 2.8;
+uniform float surfaceThickness = 3.0;
 // uniform float gridThickness = 0.1;
-uniform float gridThickness = 0.008;
+uniform float gridThickness = 0.003;
 // uniform float linesThickness = 1.2;
 uniform float linesThickness = 2.0;
 

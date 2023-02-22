@@ -314,22 +314,61 @@ namespace TriangleUtils
             auto newEnd = std::unique(nonManifoldVertices.begin(), nonManifoldVertices.end());
             nonManifoldVertices.erase(newEnd, nonManifoldVertices.end());
 
-            // Generate a possible vertex mapping
+            const glm::vec3 bbSize = mesh.getBoundingBox().getSize();
+            const glm::vec3 gridStartPos = mesh.getBoundingBox().min;
+            const uint32_t axisRes = 2048; 
+            const float gridScale = static_cast<float>(axisRes) / glm::max(bbSize.x, glm::max(bbSize.y, bbSize.z));
+            const float threshold = 1e-5 / glm::max(bbSize.x, glm::max(bbSize.y, bbSize.z));
+            const float sqThreshold = threshold * threshold;
+            std::map<uint64_t, std::vector<uint32_t>> pointSet1;
+            std::map<uint64_t, std::vector<uint32_t>> pointSet2;
+
+            auto getId = [axisRes](glm::ivec3 id)
+            {
+                return id.x + id.y * axisRes + id.z * axisRes * axisRes;
+            };
+
             for(uint32_t i=0; i < nonManifoldVertices.size(); i++)
             {
                 const glm::vec3& v1 = vertices[nonManifoldVertices[i]];
-                for(uint32_t ii=i+1; ii < nonManifoldVertices.size(); ii++)
-                {
-                    const glm::vec3& diff = v1 - vertices[nonManifoldVertices[ii]];
-                    if(glm::dot(diff, diff) < 0.00001f)
-                    {
-                        uint32_t p1 = findVertexParent(nonManifoldVertices[i]);
-                        uint32_t p2 = findVertexParent(nonManifoldVertices[ii]);
+                const glm::ivec3 id1 = glm::ivec3((v1-gridStartPos) * gridScale);
+                auto it1 = pointSet1.insert(std::make_pair(getId(id1), std::vector<uint32_t>())).first;
+                it1->second.push_back(nonManifoldVertices[i]);
 
-                        if(nonManifoldVertices[i] == p1) verticesMap[p1] = p1;
-                        verticesMap[p2] = p1;
-                        break;
+                const glm::ivec3 id2 = glm::ivec3((v1-gridStartPos) * gridScale + 0.5f);
+                auto it2 = pointSet2.insert(std::make_pair(getId(id2), std::vector<uint32_t>())).first;
+                it2->second.push_back(nonManifoldVertices[i]);
+            }
+
+            std::array<std::map<uint64_t, std::vector<uint32_t>>*, 2> pointSets = {&pointSet1, &pointSet2};
+
+            // Generate a possible vertex mapping
+            for(uint32_t i=0; i < nonManifoldVertices.size(); i++)
+            {
+                float offset = 0.0f;
+                for(std::map<uint64_t, std::vector<uint32_t>>* pointSet : pointSets)
+                {
+                    const glm::vec3& v1 = vertices[nonManifoldVertices[i]];
+                    const glm::ivec3 id = glm::ivec3((v1-gridStartPos) * gridScale + offset);
+                    auto it = pointSet->find(getId(id));
+                    if(it != pointSet->end())
+                    {
+                        const std::vector<uint32_t>& indices = it->second;
+                        for(uint32_t idx : indices)
+                        {
+                            const glm::vec3& diff = v1 - vertices[idx];
+                            if(glm::dot(diff, diff) < sqThreshold)
+                            {
+                                uint32_t p1 = findVertexParent(nonManifoldVertices[i]);
+                                uint32_t p2 = findVertexParent(idx);
+
+                                if(nonManifoldVertices[i] == p1) verticesMap[p1] = p1;
+                                verticesMap[p2] = p1;
+                                break;
+                            }
+                        }   
                     }
+                    offset += 0.5f;
                 }
             }
 

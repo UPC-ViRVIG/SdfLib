@@ -75,7 +75,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef BreadthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    const float sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     

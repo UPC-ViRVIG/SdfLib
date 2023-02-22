@@ -40,12 +40,13 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             //initOctree<FCPWQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
         case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
-            initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+            initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             break;
         case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
             Timer time;
             time.start();
-            initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 1);
+            //initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 1);
             SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
             time.start();
             initOctreeInGPU(mesh, startDepth, depth, terminationThreshold, terminationRule);

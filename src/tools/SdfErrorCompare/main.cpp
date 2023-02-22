@@ -14,9 +14,9 @@
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
 
-#define TEST_ICG
+//#define TEST_ICG
 //#define TEST_CGAL
-//#define TEST_OCTREE_SDF
+#define TEST_OCTREE_SDF
 #define TEST_EXACT_OCTREE_SDF
 //#define TEST_OPENVDB
 
