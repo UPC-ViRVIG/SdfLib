@@ -7,6 +7,7 @@
 #include "OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#include <omp.h>
 
 template<typename VertexInfo, int VALUES_PER_VERTEX, int NUM_COEFFICIENTS>
 struct BreadthFirstNoDelayNodeInfo
@@ -75,7 +76,8 @@ struct BreadthFirstNoDelayNodeInfo
 
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
+                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
+                              uint32_t numThreads)
 {
     typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef BreadthFirstNoDelayNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
@@ -221,14 +223,26 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
     Timer timer;
+    float iter1TotalTime = 0.0f;
+    float iter2TotalTime = 0.0f;
+
+    omp_set_dynamic(0);
+    omp_set_num_threads(numThreads);
 
     for(uint32_t currentDepth=startOctreeDepth; currentDepth <= maxDepth; currentDepth++)
     {
         // Iter 1
+        timer.start();
         if(currentDepth < maxDepth)
         {
-            for(NodeInfo& node : nodesBuffer[currentBuffer])
+            //for(NodeInfo& node : nodesBuffer[currentBuffer])
+            const auto nodesBufferSize = nodesBuffer[currentBuffer].size();
+            #pragma omp parallel for default(shared) schedule(dynamic, 16)
+            for(uint32_t nId=0; nId < nodesBufferSize; nId++)
             {
+                // std::cout << "enter" << std::endl;
+                NodeInfo& node = nodesBuffer[currentBuffer][nId];
+
                 OctreeNode* octreeNode = (currentDepth > startDepth) 
                                         ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
                                         : nullptr;
@@ -310,8 +324,10 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 if(octreeNode != nullptr) octreeNode->setValues(generateTerminalNodes, std::numeric_limits<uint32_t>::max());
             }
         }
+        iter1TotalTime += timer.getElapsedSeconds();
 
         // Iter 2
+        timer.start();
         for(NodeInfo& node : nodesBuffer[currentBuffer])
         {
             OctreeNode* octreeNode = (currentDepth > startDepth) 
@@ -600,12 +616,15 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
 				}
             }
         }
+        iter2TotalTime += timer.getElapsedSeconds();
 
         // Swap buffers
         currentBuffer = (currentBuffer + 1) % 3;
         nextBuffer = (nextBuffer + 1) % 3;
         nodesBuffer[nextBuffer].clear();
     }
+
+    SPDLOG_INFO("Iter 1 {}s // Iter 2 {}s // {}", iter1TotalTime, iter2TotalTime, iter1TotalTime/iter2TotalTime);
 }
 
 #endif

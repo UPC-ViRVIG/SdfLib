@@ -158,7 +158,8 @@ private:
 
     template<typename TrianglesInfluenceStrategy>
     void initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                                                    float terminationThreshold, OctreeSdf::TerminationRule terminationRule);
+                                         float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
+                                         uint32_t numThreads = 1);
     
     void initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth); // For testing propouses
 
