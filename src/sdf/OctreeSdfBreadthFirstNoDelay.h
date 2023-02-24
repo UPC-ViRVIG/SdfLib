@@ -233,6 +233,16 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                         ? &mOctreeData[node.parentChildrenIndex + node.childIndex]
                                         : nullptr;
 
+                if(currentDepth == startDepth)
+                {
+                    glm::ivec3 nodeStartGridPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+                    const uint32_t nodeStartIndex = 
+                                        nodeStartGridPos.z * mStartGridSize * mStartGridSize + 
+                                        nodeStartGridPos.y * mStartGridSize + 
+                                        nodeStartGridPos.x;
+                    octreeNode = &mOctreeData[nodeStartIndex];
+                }
+
                 trianglesInfluence.filterTriangles(node.center, node.size, *node.parentTriangles, 
                                                    node.triangles, node.verticesValues, node.verticesInfo,
                                                    mesh, trianglesData);
@@ -255,13 +265,13 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             }
                         }
                         
-                        const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
-											  ((((neighbour & node.childIndex) >> 1) & 0b0001) << (neighbour & 0b0001)) +
-											  (neighbour & node.childIndex & 0b0001);
-                        assert(sign >= 0 && sign < 4);
-                        samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
-                                        ? neigbourMasks[4 * (neighbour - 1) + sign]
-                                        : 0;
+                        // const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
+						// 					  ((((neighbour & node.childIndex) >> 1) & 0b0001) << (neighbour & 0b0001)) +
+						// 					  (neighbour & node.childIndex & 0b0001);
+                        // assert(sign >= 0 && sign < 4);
+                        // samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
+                        //                 ? neigbourMasks[4 * (neighbour - 1) + sign]
+                        //                 : 0;
                         
                     }
                 }
@@ -272,7 +282,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 }
                 
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         samplesMask, node.interpolationCoeff,
+                                                         0u, node.interpolationCoeff,
                                                          node.midPointsValues, node.midPointsInfo,
                                                          mesh, trianglesData);
 
@@ -321,20 +331,19 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 octreeNode = &mOctreeData[nodeStartIndex];
             }
 
-            auto getNeighbourMask = [&](uint32_t nodeId, uint8_t dir, uint8_t sign) -> uint32_t
-            {
-                return ((nodeId >> 31) || (!(nodeId >> 30) && octreeData[nodeId + (dir ^ node.childIndex)].isLeaf()))
-                        ? neigbourMasks[4 * (dir - 1) + sign]
-                        : 0;
-            };
-
             if(!node.isTerminalNode && currentDepth < maxDepth)
             {
-
                 // Get current neighbours
                 uint32_t samplesMask = 0; // Calculate which sample points must be interpolated
                 if(currentDepth > startDepth)
                 {
+                    auto getNeighbourMask = [&](uint32_t nodeId, uint8_t dir, uint8_t sign) -> uint32_t
+                    {
+                        return ((nodeId >> 31) || (!(nodeId >> 30) && octreeData[nodeId + (dir ^ node.childIndex)].isLeaf()))
+                                ? neigbourMasks[4 * (dir - 1) + sign]
+                                : 0;
+                    };
+
                     samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0001, node.childIndex & 0b001);
                     samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0011, 0b010 ^ (node.childIndex & 0b011));
                     samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0101, (((~node.childIndex) >> 1) & 0b010) + (node.childIndex & 0b001));
@@ -354,7 +363,47 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
 
                     samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0011, (~node.childIndex) & 0b011);
                     samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0101, (((~node.childIndex) >> 1) & 0b010) + ((~node.childIndex) & 0b001));
-                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0110, ((~node.childIndex) >> 1) & 0b011);                    
+                    samplesMask |= getNeighbourMask(node.parentChildrenIndex, 0b0110, ((~node.childIndex) >> 1) & 0b011);
+                }
+                else if(currentDepth == startDepth)
+                {
+                    const int gridSize = mStartGridSize;
+                    auto getNeighbourMask = [&](glm::ivec3 nPos, uint8_t dir, uint8_t sign) -> uint32_t
+                    {
+                        if (nPos.x >= 0 && nPos.x < gridSize &&
+                            nPos.y >= 0 && nPos.y < gridSize &&
+                            nPos.z >= 0 && nPos.z < gridSize)
+                        {
+                            return (octreeData[nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x].isLeaf())
+                                ? neigbourMasks[4 * (dir - 1) + sign]
+                                : 0;
+                        }
+                        return 0;
+                    };
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, 0), 0b0001, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, 0), 0b0001, 0b001);
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, 0), 0b0010, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, 0), 0b0010, 0b001);
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(-1, -1, 0), 0b0011, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(1, -1, 0), 0b0011, 0b001);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 1, 0), 0b0011, 0b010);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(1, 1, 0), 0b0011, 0b011);
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 0, -1), 0b0100, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 0, 1), 0b0100, 0b001);
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, -1), 0b0101, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, -1), 0b0101, 0b001);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, 1), 0b0101, 0b010);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, 1), 0b0101, 0b011);
+
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, -1), 0b0110, 0b000);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, -1), 0b0110, 0b001);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, 1), 0b0110, 0b010);
+                    samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, 1), 0b0110, 0b011);
                 }
 
                 // Change distance if requires
