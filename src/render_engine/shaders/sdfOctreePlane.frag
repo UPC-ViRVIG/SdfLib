@@ -16,13 +16,13 @@ uniform float octreeValueRange = 1.0;
 uniform vec3 startGridSize;
 
 // uniform float surfaceThickness = 2.0;
-uniform float surfaceThickness = 3.0;
+uniform float surfaceThickness = 4.0;
 // uniform float gridThickness = 0.1;
-uniform float gridThickness = 0.003;
+uniform float gridThickness = 0.004;
 // uniform float linesThickness = 1.2;
-uniform float linesThickness = 2.0;
+uniform float linesThickness = 3.0;
 
-uniform float linesSpace = 0.1f;
+uniform float linesSpace = 0.05;
 
 uniform bool printGrid = true;
 uniform bool printIsolines = true;
@@ -37,6 +37,12 @@ const vec3 palette[7] = vec3[7](
 	vec3(1.0f, 0.5f, 0.0f), 
 	vec3(1.0f, 0.0f, 0.0f)
 );
+
+// const int paletteNumColors = 2;
+// const vec3 palette[2] = vec3[2](
+// 	vec3(0.0f, 0.0f, 0.0f), 
+// 	vec3(1.0f, 1.0f, 1.0f)
+// );
 
 const uint isLeafMask = 1 << 31;
 const uint childrenIndexMask = ~(1 << 31);
@@ -145,6 +151,7 @@ void main()
 
     // Isosurface line
     float surfaceColorWeight = clamp(1.0 - pow(abs(dist) / (dDist * surfaceThickness), 8), 0.0, 1.0);
+    // float surfaceColorWeight = 0.0;
     
     // Grid lines
     float gridColorWeight = float(printGrid) * clamp(1.0 - pow(distToGrid * nodeRelativeLength / gridThickness, 8), 0.0, 1.0);
@@ -156,6 +163,7 @@ void main()
     float linesColorWeight = float(printIsolines) * 0.5 * clamp(1.0 - pow(abs(distToLevel) / (dDistToLevel * linesThickness), 8), 0.0, 1.0);
 
     // Heat map color
+    // dist = 0.5 * sin(10.0 * 6.28318530718 * gridPosition.x) + 0.5; 
     dist = 0.5 + 0.5 * dist / octreeValueRange;
     float index = clamp(dist * (paletteNumColors-1), 0.0, float(paletteNumColors-1) - 0.01);
     vec3 finalColor = mix(palette[int(index)], palette[int(index)+1], fract(index));

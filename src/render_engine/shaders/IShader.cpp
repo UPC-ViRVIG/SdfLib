@@ -86,7 +86,6 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 		std::cout << infoLog << std::endl;
 	}
 
-
 	//get standard attributes
 	projectionViewModelMatrixLocation = glGetUniformLocation(programId, "projectionViewModelMatrix");
 	projectionMatrixLocation = glGetUniformLocation(programId, "projectionMatrix");

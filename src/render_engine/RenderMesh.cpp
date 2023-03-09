@@ -36,7 +36,7 @@ void RenderMesh::draw(Camera* camera)
 
 		//draw
 		if (mDrawMode != GL_FILL) glPolygonMode(GL_FRONT_AND_BACK, mDrawMode);
-
+		
 		if(mHasElementBuffer)
 		{
 			glDrawElements(mFormat, mIndexArraySize, GL_UNSIGNED_INT, 0);

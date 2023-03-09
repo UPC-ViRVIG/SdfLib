@@ -30,7 +30,6 @@ public:
         printIsolinesLocation = glGetUniformLocation(getProgramId(), "printIsolines");
         printIsolines = true;
 
-
         // Set octree data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);

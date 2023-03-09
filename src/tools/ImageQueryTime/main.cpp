@@ -18,13 +18,13 @@
 #define TEST_METHODS 
 #ifdef TEST_METHODS
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>
-#include <CGAL/Simple_cartesian.h>
-#include <CGAL/AABB_tree.h>
-#include <CGAL/AABB_traits.h>
-#include <CGAL/AABB_triangle_primitive.h>
-#include <openvdb/openvdb.h>
-#include <openvdb/tools/MeshToVolume.h>
-#include <openvdb/tools/Interpolation.h>
+// #include <CGAL/Simple_cartesian.h>
+// #include <CGAL/AABB_tree.h>
+// #include <CGAL/AABB_traits.h>
+// #include <CGAL/AABB_triangle_primitive.h>
+// #include <openvdb/openvdb.h>
+// #include <openvdb/tools/MeshToVolume.h>
+// #include <openvdb/tools/Interpolation.h>
 #endif
 
 class ICG
@@ -55,44 +55,44 @@ private:
     }
 };
 
-class CGALtree
-{
-public:
-    typedef CGAL::Simple_cartesian<float> K;
-    typedef K::FT FT;
-    typedef K::Ray_3 Ray;
-    typedef K::Line_3 Line;
-    typedef K::Point_3 Point;
-    typedef K::Triangle_3 Triangle;
-    typedef std::vector<Triangle>::iterator Iterator;
-    typedef CGAL::AABB_triangle_primitive<K, Iterator> Primitive;
-    typedef CGAL::AABB_traits<K, Primitive> AABB_triangle_traits;
-    typedef CGAL::AABB_tree<AABB_triangle_traits> Tree;
+// class CGALtree
+// {
+// public:
+//     typedef CGAL::Simple_cartesian<float> K;
+//     typedef K::FT FT;
+//     typedef K::Ray_3 Ray;
+//     typedef K::Line_3 Line;
+//     typedef K::Point_3 Point;
+//     typedef K::Triangle_3 Triangle;
+//     typedef std::vector<Triangle>::iterator Iterator;
+//     typedef CGAL::AABB_triangle_primitive<K, Iterator> Primitive;
+//     typedef CGAL::AABB_traits<K, Primitive> AABB_triangle_traits;
+//     typedef CGAL::AABB_tree<AABB_triangle_traits> Tree;
 
-    CGALtree(Mesh& mesh)
-    {
-        const std::vector<uint32_t>& indices = mesh.getIndices();
-        const std::vector<glm::vec3>& vertices = mesh.getVertices();
-        triangles.resize(indices.size()/3);
-        for(uint32_t i=0; i < indices.size(); i += 3)
-        {
-            const uint32_t tIndex = i/3;
-            triangles[tIndex] = Triangle(Point(vertices[indices[i]].x, vertices[indices[i]].y, vertices[indices[i]].z),
-                                         Point(vertices[indices[i+1]].x, vertices[indices[i+1]].y, vertices[indices[i+1]].z),
-                                         Point(vertices[indices[i+2]].x, vertices[indices[i+2]].y, vertices[indices[i+2]].z));
-        }
+//     CGALtree(Mesh& mesh)
+//     {
+//         const std::vector<uint32_t>& indices = mesh.getIndices();
+//         const std::vector<glm::vec3>& vertices = mesh.getVertices();
+//         triangles.resize(indices.size()/3);
+//         for(uint32_t i=0; i < indices.size(); i += 3)
+//         {
+//             const uint32_t tIndex = i/3;
+//             triangles[tIndex] = Triangle(Point(vertices[indices[i]].x, vertices[indices[i]].y, vertices[indices[i]].z),
+//                                          Point(vertices[indices[i+1]].x, vertices[indices[i+1]].y, vertices[indices[i+1]].z),
+//                                          Point(vertices[indices[i+2]].x, vertices[indices[i+2]].y, vertices[indices[i+2]].z));
+//         }
 
-        tree = Tree(triangles.begin(), triangles.end());
-    }
+//         tree = Tree(triangles.begin(), triangles.end());
+//     }
 
-    inline float getDistance(glm::vec3 samplePoint)
-    {
-        return glm::sqrt(tree.squared_distance(Point(samplePoint.x, samplePoint.y, samplePoint.z)));
-    }
-private:
-    Tree tree;
-	std::vector<Triangle> triangles;
-};
+//     inline float getDistance(glm::vec3 samplePoint)
+//     {
+//         return glm::sqrt(tree.squared_distance(Point(samplePoint.x, samplePoint.y, samplePoint.z)));
+//     }
+// private:
+//     Tree tree;
+// 	std::vector<Triangle> triangles;
+// };
 
 int main(int argc, char** argv)
 {
@@ -127,57 +127,57 @@ int main(int argc, char** argv)
     std::unique_ptr<SdfFunction> exactSdf = SdfFunction::loadFromFile(args::get(exactSdfPathArg));
     BoundingBox box = exactSdf->getSampleArea();
 
-    openvdb::initialize();
-    const uint32_t gridSize = 64;
-    const float voxelSize = box.getSize().x / gridSize;
-    float invModelDiagonal = 1.0f / voxelSize;
-    float exteriorNarrowBand = gridSize;
-    float interiorNarrowBand = gridSize;
+    // openvdb::initialize();
+    // const uint32_t gridSize = 64;
+    // const float voxelSize = box.getSize().x / gridSize;
+    // float invModelDiagonal = 1.0f / voxelSize;
+    // float exteriorNarrowBand = gridSize;
+    // float interiorNarrowBand = gridSize;
 
-    // Compute the smallest narrow bands possible
-    exteriorNarrowBand = 0.0f;
-    interiorNarrowBand = 0.0f;
-    for(uint32_t k=0; k < 32; k++)
-    {
-        for(uint32_t j=0; j < 32; j++)
-        {
-            for(uint32_t i=0; i < 32; i++)
-            {
-                const glm::vec3 texCoords((static_cast<float>(i) + 0.5f) / 32.0f,
-                                    (static_cast<float>(j) + 0.5f) / 32.0f,
-                                    (static_cast<float>(k) + 0.5f) / 32.0f);
-                const glm::vec3 point = box.min + texCoords * box.getSize();
-                const float dist = exactSdf->getDistance(point);
-                if(dist >= 0.0f)
-                {
-                    exteriorNarrowBand = glm::max(exteriorNarrowBand, dist);
-                }
-                else
-                {
-                    interiorNarrowBand = glm::max(interiorNarrowBand, -dist);
-                }
-            }
-        }
-    }
-    // Add error margin and transform to voxel space
-    exteriorNarrowBand = (exteriorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
-    interiorNarrowBand = (interiorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+    // // Compute the smallest narrow bands possible
+    // exteriorNarrowBand = 0.0f;
+    // interiorNarrowBand = 0.0f;
+    // for(uint32_t k=0; k < 32; k++)
+    // {
+    //     for(uint32_t j=0; j < 32; j++)
+    //     {
+    //         for(uint32_t i=0; i < 32; i++)
+    //         {
+    //             const glm::vec3 texCoords((static_cast<float>(i) + 0.5f) / 32.0f,
+    //                                 (static_cast<float>(j) + 0.5f) / 32.0f,
+    //                                 (static_cast<float>(k) + 0.5f) / 32.0f);
+    //             const glm::vec3 point = box.min + texCoords * box.getSize();
+    //             const float dist = exactSdf->getDistance(point);
+    //             if(dist >= 0.0f)
+    //             {
+    //                 exteriorNarrowBand = glm::max(exteriorNarrowBand, dist);
+    //             }
+    //             else
+    //             {
+    //                 interiorNarrowBand = glm::max(interiorNarrowBand, -dist);
+    //             }
+    //         }
+    //     }
+    // }
+    // // Add error margin and transform to voxel space
+    // exteriorNarrowBand = (exteriorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
+    // interiorNarrowBand = (interiorNarrowBand + box.getSize().x / 32.0f) / voxelSize;
 
-    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(voxelSize);
-    glm::vec3 gridCenter = box.getCenter() + 0.5f * voxelSize;
-    linearTransform->postTranslate(openvdb::Vec3R(static_cast<double>(gridCenter.x), static_cast<double>(gridCenter.y), static_cast<double>(gridCenter.z)));
+    // openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(voxelSize);
+    // glm::vec3 gridCenter = box.getCenter() + 0.5f * voxelSize;
+    // linearTransform->postTranslate(openvdb::Vec3R(static_cast<double>(gridCenter.x), static_cast<double>(gridCenter.y), static_cast<double>(gridCenter.z)));
 
-    std::vector<openvdb::Vec4I> emptyMeshQuadIndices;
-    std::vector<openvdb::Vec3I> meshTraingleIndices(mesh.getIndices().size()/3);
-    std::memcpy(meshTraingleIndices.data(), mesh.getIndices().data(), mesh.getIndices().size() * sizeof(uint32_t));
+    // std::vector<openvdb::Vec4I> emptyMeshQuadIndices;
+    // std::vector<openvdb::Vec3I> meshTraingleIndices(mesh.getIndices().size()/3);
+    // std::memcpy(meshTraingleIndices.data(), mesh.getIndices().data(), mesh.getIndices().size() * sizeof(uint32_t));
 
-    timer.start();    
-    openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
-            *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices()),
-            meshTraingleIndices,
-            emptyMeshQuadIndices,
-            exteriorNarrowBand,
-            interiorNarrowBand);
+    // timer.start();    
+    // openvdb::FloatGrid::Ptr vdbGrid = openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(*linearTransform,
+    //         *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices()),
+    //         meshTraingleIndices,
+    //         emptyMeshQuadIndices,
+    //         exteriorNarrowBand,
+    //         interiorNarrowBand);
 
 
     // std::vector<openvdb::Vec3s>& mPointsIn = *reinterpret_cast<std::vector<openvdb::Vec3s>*>(&mesh.getVertices());
@@ -226,14 +226,14 @@ int main(int argc, char** argv)
     //                                     exteriorNarrowBand, interiorNarrowBand, 0, vdbIndexGrid.get());
     
     SPDLOG_INFO("OpenVDB init time: {}", timer.getElapsedSeconds());
-    vdbGrid->print();
+    // vdbGrid->print();
 
     // openvdb::tools::GridSampler<Int32GridType, openvdb::tools::BoxSampler> vdbIndexSampler(*vdbIndexGrid);
-    openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
+    // openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
 
     ICG icg(mesh);
 
-    CGALtree cgalTree(mesh);
+    // CGALtree cgalTree(mesh);
 
     // const float z = 0.163f;
     const float z = 0.056f;
@@ -289,8 +289,9 @@ int main(int argc, char** argv)
             const glm::vec3 pos = interpolate(interpolate(samplesQuad[0], samplesQuad[1], tx), 
                                               interpolate(samplesQuad[2], samplesQuad[3], tx), ty);
 
-            outImage1[j * imageWidth + i] = glm::abs(exactSdf->getDistance(pos) - 
-                                            vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)))) * invModelDiagonal;
+            // outImage1[j * imageWidth + i] = glm::abs(exactSdf->getDistance(pos) - 
+            //                                 vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z)))) * invModelDiagonal;
+            outImage1[j * imageWidth + i] = exactSdf->getDistance(pos);
             minImage1 = glm::min(minImage1, outImage1[j * imageWidth + i]);
             maxImage1 = glm::max(maxImage1, outImage1[j * imageWidth + i]);
             // const uint32_t samples = 1000;
@@ -344,13 +345,18 @@ int main(int argc, char** argv)
     std::vector<uint32_t> finalImage1(length);
     std::vector<uint32_t> finalImage2(length);
 
-    std::array<glm::vec3, 5> colorsPalette = 
+    // std::array<glm::vec3, 5> colorsPalette = 
+    // {
+    //     glm::vec3(1.0f, 0.0f, 1.0f), 
+    //     glm::vec3(0.0f, 0.0f, 1.0f), 
+    //     glm::vec3(0.0f, 1.0f, 0.0f), 
+    //     glm::vec3(1.0f, 1.0f, 0.0f), 
+    //     glm::vec3(1.0f, 0.0f, 0.0f),
+    // };  
+    std::array<glm::vec3, 2> colorsPalette = 
     {
-        glm::vec3(1.0f, 0.0f, 1.0f), 
-        glm::vec3(0.0f, 0.0f, 1.0f), 
-        glm::vec3(0.0f, 1.0f, 0.0f), 
-        glm::vec3(1.0f, 1.0f, 0.0f), 
-        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 0.0f), 
+        glm::vec3(1.0f, 1.0f, 1.0f)
     };  
 
     auto printImage = [&](std::string name, float minColorInterval, float maxColorInterval)
@@ -388,7 +394,7 @@ int main(int argc, char** argv)
         // stbi_write_png((name + "2.png").c_str(), imageWidth, imageWidth, 4, static_cast<void*>(finalImage2.data()), 4 * imageWidth);
     };
 
-    printImage("image", minImage1, 0.8f);
+    printImage("image", minImage1, maxImage1);
 
     // printImage("quarter", 0.0f, 0.25f * glm::max(maxImage1, maxImage2));
 

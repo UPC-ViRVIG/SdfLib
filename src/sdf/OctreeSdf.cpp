@@ -67,6 +67,13 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
     glm::ivec3 startArrayPos = glm::floor(fracPart);
     fracPart = glm::fract(fracPart);
 
+    if(startArrayPos.x < 0 || startArrayPos.x >= mStartGridSize ||
+       startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
+       startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
+    {
+        return mBox.getDistance(sample) + glm::sqrt(3.0f) * mBox.getSize().x;
+    }
+
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
 
     while(!currentNode->isLeaf())

@@ -63,7 +63,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     mainThread.startOctreeDepth = startOctreeDepth;
     mainThread.maxDepth = maxDepth;
     mainThread.terminationRule = terminationRule;
-    mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
+    mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold;
     mainThread.valueRange = 0.0f;
 
     #ifdef PRINT_STATISTICS

@@ -176,7 +176,8 @@ int main(int argc, char** argv)
                                     glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
     
     BoundingBox box = mesh.getBoundingBox();
-    float invModelDiagonal = 1.0f / glm::length(box.getSize());
+    //float invModelDiagonal = 1.0f / glm::length(box.getSize());
+    float invModelDiagonal = 1.0f;
 #ifdef TEST_OCTREE_SDF
     std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile(args::get(sdfPathArg));
     box = sdf->getSampleArea();

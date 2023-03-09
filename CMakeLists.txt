@@ -43,7 +43,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC src/)
 # Add shaders
 file(GLOB SHADER_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/src/render_engine/shaders 
                        src/render_engine/shaders/*.frag 
-                       src/render_engine/shaders/*.vert)
+                       src/render_engine/shaders/*.vert
+                       src/render_engine/shaders/*.comp)
 
 foreach(SHADER IN LISTS SHADER_FILES)
     add_custom_command(OUTPUT ${SHADER}
@@ -115,6 +116,9 @@ target_link_libraries(CalculateInterpolationParameters PUBLIC ${PROJECT_NAME})
 add_executable(SdfViewer src/tools/SdfViewer/main.cpp src/tools/SdfViewer/InfluenceRegionCreator.h)
 target_link_libraries(SdfViewer PUBLIC ${PROJECT_NAME})
 
+add_executable(SdfRender src/tools/SdfRender/main.cpp)
+target_link_libraries(SdfRender PUBLIC ${PROJECT_NAME})
+
 add_executable(SdfExporter src/tools/SdfExporter/main.cpp)
 target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
 
@@ -149,5 +153,6 @@ add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
 #target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
 target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
 
-# add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
+add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
 # target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
+target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME})
