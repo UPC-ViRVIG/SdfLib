@@ -58,7 +58,7 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
 
 inline uint32_t roundFloat(float a)
 {
-    return (a > 0.5f) ? 1 : 0;
+    return (a >= 0.5f) ? 1 : 0;
 }
 
 float OctreeSdf::getDistance(glm::vec3 sample) const

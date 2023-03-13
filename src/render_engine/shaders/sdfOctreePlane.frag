@@ -49,7 +49,7 @@ const uint childrenIndexMask = ~(1 << 31);
 
 uint roundFloat(float a)
 {
-    return (a > 0.5) ? 1 : 0;
+    return (a >= 0.5) ? 1 : 0;
 }
 
 // float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength)

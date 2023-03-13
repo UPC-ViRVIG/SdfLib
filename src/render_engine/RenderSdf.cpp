@@ -105,12 +105,6 @@ void RenderSdf::start()
 
         mRenderTextureSize = Window::getCurrentWindow().getWindowSize();
         std::vector<uint32_t> colorImage(mRenderTextureSize.x * mRenderTextureSize.y);
-        for(uint32_t& idx : colorImage)
-        {
-            // idx = 0xFFFFFFFF;
-            idx = 0x00000000;
-            // idx = 0xFF000000;
-        }
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, mRenderTextureSize.x, mRenderTextureSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
 
         glBindImageTexture(0, mRenderTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
@@ -154,6 +148,7 @@ void RenderSdf::draw(Camera* camera)
     if( currentScreenSize.x != mRenderTextureSize.x ||
         currentScreenSize.y != mRenderTextureSize.y)
     {
+        mRenderTextureSize = Window::getCurrentWindow().getWindowSize();
         glBindTexture(GL_TEXTURE_2D, mRenderTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, mRenderTextureSize.x, mRenderTextureSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
         glBindImageTexture(0, mRenderTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
