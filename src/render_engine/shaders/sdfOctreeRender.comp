@@ -213,7 +213,7 @@ void main()
         const float gridThickness = 0.0008;
         float gridColorWeight = 0.0 * clamp(1.0 - pow(distToGrid * nodeRelativeLength / gridThickness, 8), 0.0, 1.0);
 
-        // finalColor = vec3(1.0, 0.0, 0.0);
+        finalColor = vec3(1.0, 0.0, 0.0);
         outColor = mix(finalColor * (0.2 + 0.8 * dotNV), vec3(0.0), gridColorWeight);
         // outColor = mix(finalColor * nodeRelativeLength, vec3(0.0), gridColorWeight);
     }

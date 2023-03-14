@@ -56,6 +56,7 @@ public:
 		mNormalizeModel(normalizeModel) {}
 
 	glm::mat4 invTransform;
+	OctreeSdf octreeSdf;
 	void start() override
 	{
 		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
@@ -71,7 +72,6 @@ public:
 
 		// Create unifrom grid
 		UniformGridSdf sdfGrid;
-		OctreeSdf octreeSdf;
 
 		BoundingBox sdfBB;
 		BoundingBox viewBB;
@@ -604,8 +604,48 @@ public:
 
 				float maxMinDist = 0.0f;
 
-				// Serach triangles influencing the zone
 				{
+					auto getRandomSample = [&] () -> glm::vec3
+					{
+						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+											static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+											static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+						return centerPoint + (p - 0.5f) * size;
+					};
+
+					auto getDistance = [&](glm::vec3 point)
+					{
+						uint32_t tIndex;
+						float minIndexDist = INFINITY;
+						for(uint32_t t=0; t < trianglesInfo.size(); t++)
+						{
+							float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
+							if(dist < minIndexDist)
+							{
+								tIndex = t;
+								minIndexDist = dist;
+							}
+						}
+
+						return TriangleUtils::getSignedDistPointAndTriangle(point, trianglesInfo[tIndex]);
+					};
+
+					double sdfRMSE = 0.0f;
+					double sdfMAE = 0.0f;
+					for(uint32_t s=0; s < 64; s++)
+					{
+						glm::vec3 point = getRandomSample();
+						float exactDist = getDistance(point);
+						sdfRMSE += static_cast<double>(pow2((octreeSdf.getDistance(point) - exactDist)));
+        				sdfMAE += static_cast<double>(glm::abs(octreeSdf.getDistance(point) - exactDist));
+					}
+
+					SPDLOG_INFO("ICG RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
+    				SPDLOG_INFO("ICG MAE: {}", sdfMAE / static_cast<double>(64));
+				}
+
+				// Serach triangles influencing the zone
+				if(false) {
 					typedef TriLinearInterpolation Inter;
 
 					std::vector<uint32_t> inTriangles(indices.size()/3);

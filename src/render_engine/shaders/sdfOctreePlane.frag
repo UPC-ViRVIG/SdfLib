@@ -17,12 +17,13 @@ uniform vec3 startGridSize;
 
 // uniform float surfaceThickness = 2.0;
 uniform float surfaceThickness = 4.0;
-// uniform float gridThickness = 0.1;
-uniform float gridThickness = 0.004;
-// uniform float linesThickness = 1.2;
-uniform float linesThickness = 3.0;
+// uniform float gridThickness = 0.01;
+uniform float gridThickness = 0.0005;
+uniform float linesThickness = 0.6;
+// uniform float linesThickness = 3.0;
 
-uniform float linesSpace = 0.05;
+// uniform float linesSpace = 0.05;
+uniform float linesSpace = 0.006;
 
 uniform bool printGrid = true;
 uniform bool printIsolines = true;

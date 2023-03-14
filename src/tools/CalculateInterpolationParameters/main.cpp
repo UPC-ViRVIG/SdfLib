@@ -138,9 +138,9 @@ int main()
             {
                 const uint32_t vIndex = col / equations.size();
                 const uint32_t eqIndex = col % equations.size();
-                if(eqIndex >= 4) continue; // Only for specific porpuses
+                // if(eqIndex >= 4) continue; // Only for specific porpuses
                 std::cout << invA(row, col) << " * inValues[" << vIndex << "][" << eqIndex << "]";
-                if(eqIndex > 0) std::cout << " * nodeSize";
+                // if(eqIndex > 0) std::cout << " * nodeSize";
                 std::cout << " + ";
             }
         }

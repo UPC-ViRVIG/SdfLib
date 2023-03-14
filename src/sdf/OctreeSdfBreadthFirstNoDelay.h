@@ -281,13 +281,13 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             }
                         }
                         
-                        // const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
-						// 					  ((((neighbour & node.childIndex) >> 1) & 0b0001) << (neighbour & 0b0001)) +
-						// 					  (neighbour & node.childIndex & 0b0001);
-                        // assert(sign >= 0 && sign < 4);
-                        // samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
-                        //                 ? neigbourMasks[4 * (neighbour - 1) + sign]
-                        //                 : 0;
+                        const uint32_t sign = ((((neighbour & node.childIndex) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
+											  ((((neighbour & node.childIndex) >> 1) & 0b0001) << (neighbour & 0b0001)) +
+											  (neighbour & node.childIndex & 0b0001);
+                        assert(sign >= 0 && sign < 4);
+                        samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
+                                        ? neigbourMasks[4 * (neighbour - 1) + sign]
+                                        : 0;
                         
                     }
                 }
@@ -298,7 +298,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 }
                 
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         0u, node.interpolationCoeff,
+                                                         samplesMask, node.interpolationCoeff,
                                                          node.midPointsValues, node.midPointsInfo,
                                                          mesh, trianglesData);
 
