@@ -309,7 +309,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     switch(terminationRule)
                     {
                         case TerminationRule::TRAPEZOIDAL_RULE:
-                            value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            value = estimateMaxError<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
