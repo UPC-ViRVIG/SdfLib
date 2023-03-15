@@ -613,6 +613,23 @@ public:
 						return centerPoint + (p - 0.5f) * size;
 					};
 
+					auto getNearestTriangle = [&](glm::vec3 point)
+					{
+						uint32_t tIndex;
+						float minIndexDist = INFINITY;
+						for(uint32_t t=0; t < trianglesInfo.size(); t++)
+						{
+							float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
+							if(dist < minIndexDist)
+							{
+								tIndex = t;
+								minIndexDist = dist;
+							}
+						}
+
+						return tIndex;
+					};
+
 					auto getDistance = [&](glm::vec3 point)
 					{
 						uint32_t tIndex;
@@ -640,8 +657,27 @@ public:
         				sdfMAE += static_cast<double>(glm::abs(octreeSdf.getDistance(point) - exactDist));
 					}
 
-					SPDLOG_INFO("ICG RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
-    				SPDLOG_INFO("ICG MAE: {}", sdfMAE / static_cast<double>(64));
+					SPDLOG_INFO("MC RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
+    				SPDLOG_INFO("MC MAE: {}", sdfMAE / static_cast<double>(64));
+
+					std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 8> vertexValues; 
+					for(uint32_t s=0; s < 8; s++)
+					{
+						const glm::vec3 p = centerPoint + childrens[s] * 0.5f * size;
+						TriCubicInterpolation::calculatePointValues(p, getNearestTriangle(p), mMesh.value(), trianglesInfo, vertexValues[s]);
+					}
+
+					const std::vector<uint32_t> emptyArray;
+					std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS> coefficients;
+					TriCubicInterpolation::calculateCoefficients(vertexValues, size, emptyArray, mMesh.value(), trianglesInfo, coefficients);
+
+					std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 19> middlePoints;
+					for(uint32_t s=0; s < 19; s++)
+					{
+						middlePoints[s][0] = getDistance(centerPoint + nodeSamplePoints[s] * 0.5f * size);
+					}
+
+					SPDLOG_INFO("Trapezoid RMSE: {}", glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
 				}
 
 				// Serach triangles influencing the zone
