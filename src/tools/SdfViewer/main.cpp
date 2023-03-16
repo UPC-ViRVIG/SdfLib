@@ -605,6 +605,8 @@ public:
 				float maxMinDist = 0.0f;
 
 				{
+					SPDLOG_INFO("Center point: {}, {}, {}", centerPoint.x, centerPoint.y, centerPoint.z);
+
 					auto getRandomSample = [&] () -> glm::vec3
 					{
 						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
@@ -678,6 +680,8 @@ public:
 					}
 
 					SPDLOG_INFO("Trapezoid RMSE: {}", glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
+					SPDLOG_INFO("Max Face Trapezoid RMSE: {}", glm::sqrt(estimateFaceErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
+					SPDLOG_INFO("Max RMSE: {}", glm::sqrt(estimateMaxError<TriCubicInterpolation>(coefficients, middlePoints)));
 				}
 
 				// Serach triangles influencing the zone
