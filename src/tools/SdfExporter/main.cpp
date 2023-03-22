@@ -45,12 +45,12 @@ int main(int argc, char** argv)
     }
 
     std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";
-    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/BooleanOps.ply";
-    std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdfOctreeBooleanOps.bin";
+    std::string modelPath = (modelPathArg) ? args::get(modelPathArg) : "../models/bunny.ply";
+    std::string outputPath = (outputPathArg) ? args::get(outputPathArg) : "../output/sdfOctreeBunny.bin";
 
     Mesh mesh(modelPath);
     BoundingBox box = mesh.getBoundingBox();
-    if(normalizeBBArg) {
+    if(true || normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
@@ -61,8 +61,8 @@ int main(int argc, char** argv)
 
     const glm::vec3 modelBBSize = box.getSize();
     // box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    // box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    box.addMargin(0.8f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    // box.addMargin(0.8f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;
     std::unique_ptr<SdfFunction> sdfFunc;
@@ -87,7 +87,7 @@ int main(int argc, char** argv)
             return 0;
         }
 
-        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "gpu";
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "bf";
         OctreeSdf::InitAlgorithm initAlgorithm;
         if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
         else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
@@ -104,7 +104,7 @@ int main(int argc, char** argv)
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-4f,
+            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-2f,
             terminationRule.value(),
             initAlgorithm,
             (numThreadsArg) ? args::get(numThreadsArg) : 1

@@ -413,8 +413,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         omp_set_dynamic(0);
         omp_set_num_threads(numThreads);
 
-        #pragma omp parallel default(shared)
-        #pragma omp single
+        // #pragma omp parallel default(shared)
+        // #pragma omp single
         while(!mainThread.nodesStack.empty())
         {
             NodeInfo node = mainThread.nodesStack.top();
@@ -428,7 +428,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 subOctreePtr->resize(1);
                 const uint32_t rDepth = startDepth - mainThread.startOctreeDepth;
                 std::vector<uint32_t> startTriangles = mainThread.triangles[rDepth];
-                #pragma omp task shared(threadsContext) firstprivate(node, subOctreePtr, rDepth, startTriangles)
+                // #pragma omp task shared(threadsContext) firstprivate(node, subOctreePtr, rDepth, startTriangles)
                 {
                     std::vector<OctreeNode>& subOctree = *subOctreePtr;
                     const uint32_t tId = omp_get_thread_num();
