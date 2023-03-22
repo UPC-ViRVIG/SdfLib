@@ -89,6 +89,7 @@ void RenderSdf::start()
         mInvViewModelMatrixLocation = glGetUniformLocation(mRenderProgramId, "invViewModelMatrix");
         mStartGridSizeLocation = glGetUniformLocation(mRenderProgramId, "startGridSize");
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
+        mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
 
         checkForOpenGLErrors();
     }
@@ -121,6 +122,7 @@ void RenderSdf::start()
 
         mOctreeMatrix = glm::scale(glm::mat4(1.0f), 1.0f / mInputOctree->getGridBoundingBox().getSize()) * glm::translate(glm::mat4(1.0f), -mInputOctree->getGridBoundingBox().min);
         mOctreeDistanceScale = 1.0f / mInputOctree->getGridBoundingBox().getSize().x;
+        mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
     }
 
     // Set plane render
@@ -175,6 +177,7 @@ void RenderSdf::draw(Camera* camera)
     glUniformMatrix4fv(mInvViewModelMatrixLocation, 1, GL_FALSE, glm::value_ptr(invViewMat));
     glUniform3f(mStartGridSizeLocation, mOctreeStartGridSize.x, mOctreeStartGridSize.y, mOctreeStartGridSize.z);
     glUniform1f(mDistanceScaleLocation, mOctreeDistanceScale);
+    glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
 
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 

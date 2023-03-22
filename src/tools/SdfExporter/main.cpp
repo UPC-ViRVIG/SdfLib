@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 
     Mesh mesh(modelPath);
     BoundingBox box = mesh.getBoundingBox();
-    if(true || normalizeBBArg) {
+    if(normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
@@ -61,8 +61,8 @@ int main(int argc, char** argv)
 
     const glm::vec3 modelBBSize = box.getSize();
     // box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    std::cout << "added margin: " << 0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z) << std::endl;
+    // box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    box.addMargin(0.8f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;
     std::unique_ptr<SdfFunction> sdfFunc;

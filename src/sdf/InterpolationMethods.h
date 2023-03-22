@@ -30,6 +30,11 @@ struct NoneInterpolation
         return 0.0f;
     }
 
+    inline static glm::vec3 interpolateGradient(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart) 
+    {
+        return glm::vec3(0.0f);
+    }
+
     inline static void interpolateVertexValues(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart, float nodeSize, std::array<float, VALUES_PER_VERTEX>& outValues)
     {}
 };
@@ -74,6 +79,55 @@ struct TriLinearInterpolation
         float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
 
         return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
+    }
+
+    inline static glm::vec3 interpolateGradient(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart) 
+    {
+        float gx;
+        {
+            float d00 = values[0] * (1.0f - fracPart.y) +
+                values[2] * fracPart.y;
+            float d01 = values[1] * (1.0f - fracPart.y) +
+                        values[3] * fracPart.y;
+            float d10 = values[4] * (1.0f - fracPart.y) +
+                        values[6] * fracPart.y;
+            float d11 = values[5] * (1.0f - fracPart.y) +
+                        values[7] * fracPart.y;
+
+            float d0 = d00 * (1.0f - fracPart.z) + d10 * fracPart.z;
+            float d1 = d01 * (1.0f - fracPart.z) + d11 * fracPart.z;
+
+            gx = d1 - d0;
+        }
+
+        float gy;
+        float gz;
+        {
+            float d00 = values[0] * (1.0f - fracPart.x) +
+                values[1] * fracPart.x;
+            float d01 = values[2] * (1.0f - fracPart.x) +
+                        values[3] * fracPart.x;
+            float d10 = values[4] * (1.0f - fracPart.x) +
+                        values[5] * fracPart.x;
+            float d11 = values[6] * (1.0f - fracPart.x) +
+                        values[7] * fracPart.x;
+
+            {
+                float d0 = d00 * (1.0f - fracPart.z) + d10 * fracPart.z;
+                float d1 = d01 * (1.0f - fracPart.z) + d11 * fracPart.z;
+
+                gy = d1 - d0;
+            }
+
+            {
+                float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+                float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+
+                gz = d1 - d0;
+            }
+        }
+
+        return glm::vec3(gx, gy, gz);
     }
 
     inline static void interpolateVertexValues(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart, float nodeSize, std::array<float, VALUES_PER_VERTEX>& outValues)
@@ -333,6 +387,21 @@ struct TriCubicInterpolation
          + values[16] * fracPart[2] + values[17] * fracPart[0] * fracPart[2] + values[18] * fracPart[0] * fracPart[0] * fracPart[2] + values[19] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + values[20] * fracPart[1] * fracPart[2] + values[21] * fracPart[0] * fracPart[1] * fracPart[2] + values[22] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + values[23] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + values[24] * fracPart[1] * fracPart[1] * fracPart[2] + values[25] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + values[26] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + values[27] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + values[28] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + values[29] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + values[30] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + values[31] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
          + values[32] * fracPart[2] * fracPart[2] + values[33] * fracPart[0] * fracPart[2] * fracPart[2] + values[34] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + values[35] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + values[36] * fracPart[1] * fracPart[2] * fracPart[2] + values[37] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + values[38] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + values[39] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + values[40] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[41] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[42] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[43] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[44] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[45] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[46] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + values[47] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
          + values[48] * fracPart[2] * fracPart[2] * fracPart[2] + values[49] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + values[50] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + values[51] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + values[52] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[53] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[54] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[55] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[56] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[57] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[58] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[59] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[60] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[61] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[62] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + values[63] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
+    }
+
+    inline static glm::vec3 interpolateGradient(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart) 
+    {
+        return glm::vec3(1 * values[1] + 2 * values[2] * fracPart[0] + 3 * values[3] * fracPart[0] * fracPart[0] + 1 * values[5] * fracPart[1] + 2 * values[6] * fracPart[0] * fracPart[1] + 3 * values[7] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * values[9] * fracPart[1] * fracPart[1] + 2 * values[10] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * values[11] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * values[13] * fracPart[1] * fracPart[1] * fracPart[1] + 2 * values[14] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 3 * values[15] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+                        + 1 * values[17] * fracPart[2] + 2 * values[18] * fracPart[0] * fracPart[2] + 3 * values[19] * fracPart[0] * fracPart[0] * fracPart[2] + 1 * values[21] * fracPart[1] * fracPart[2] + 2 * values[22] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * values[23] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 1 * values[25] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[26] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * values[27] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 1 * values[29] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[30] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * values[31] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+                        + 1 * values[33] * fracPart[2] * fracPart[2] + 2 * values[34] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * values[35] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * values[37] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[38] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[39] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * values[41] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[42] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[43] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * values[45] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[46] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[47] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+                        + 1 * values[49] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[50] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[51] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[53] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[54] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[55] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[57] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[58] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[59] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[61] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[62] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[63] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2],
+                        1 * values[4] + 1 * values[5] * fracPart[0] + 1 * values[6] * fracPart[0] * fracPart[0] + 1 * values[7] * fracPart[0] * fracPart[0] * fracPart[0] + 2 * values[8] * fracPart[1] + 2 * values[9] * fracPart[0] * fracPart[1] + 2 * values[10] * fracPart[0] * fracPart[0] * fracPart[1] + 2 * values[11] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * values[12] * fracPart[1] * fracPart[1] + 3 * values[13] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * values[14] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * values[15] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
+                        + 1 * values[20] * fracPart[2] + 1 * values[21] * fracPart[0] * fracPart[2] + 1 * values[22] * fracPart[0] * fracPart[0] * fracPart[2] + 1 * values[23] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * values[24] * fracPart[1] * fracPart[2] + 2 * values[25] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * values[26] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * values[27] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * values[28] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * values[29] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * values[30] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * values[31] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
+                        + 1 * values[36] * fracPart[2] * fracPart[2] + 1 * values[37] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * values[38] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * values[39] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 2 * values[40] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[41] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[42] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * values[43] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[44] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[45] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[46] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[47] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+                        + 1 * values[52] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[53] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[54] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * values[55] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[56] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[57] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[58] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * values[59] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[60] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[61] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[62] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * values[63] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2],
+                        1 * values[16] + 1 * values[17] * fracPart[0] + 1 * values[18] * fracPart[0] * fracPart[0] + 1 * values[19] * fracPart[0] * fracPart[0] * fracPart[0] + 1 * values[20] * fracPart[1] + 1 * values[21] * fracPart[0] * fracPart[1] + 1 * values[22] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * values[23] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * values[24] * fracPart[1] * fracPart[1] + 1 * values[25] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * values[26] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * values[27] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * values[28] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * values[29] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * values[30] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * values[31] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+                        + 2 * values[32] * fracPart[2] + 2 * values[33] * fracPart[0] * fracPart[2] + 2 * values[34] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * values[35] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * values[36] * fracPart[1] * fracPart[2] + 2 * values[37] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * values[38] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * values[39] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * values[40] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[41] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[42] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[43] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[44] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[45] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[46] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * values[47] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+                        + 3 * values[48] * fracPart[2] * fracPart[2] + 3 * values[49] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * values[50] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * values[51] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * values[52] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[53] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[54] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[55] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[56] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[57] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[58] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[59] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[60] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[61] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[62] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * values[63] * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]);
     }
 
     inline static void interpolateVertexValues(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart, float nodeSize, std::array<float, VALUES_PER_VERTEX>& outValues)

@@ -101,12 +101,14 @@ public:
 
     // Returns the maximum distance in absulute value contained by the octree
     float getOctreeValueRange() const { return mValueRange; }
+    float getOctreeMinBorderValue() const { return mMinBorderValue; }
 
     glm::ivec3 getStartGridSize() const { return glm::ivec3(mStartGridSize); }
     const BoundingBox& getGridBoundingBox() const { return mBox; }
     BoundingBox getSampleArea() const override { return mBox; }
     uint32_t getOctreeMaxDepth() const { return mMaxDepth; }
     const std::vector<OctreeNode>& getOctreeData() const { return mOctreeData; }
+    std::vector<OctreeNode>& getOctreeData() { return mOctreeData; }
 
     float getDistance(glm::vec3 sample) const override;
     float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
@@ -115,13 +117,13 @@ public:
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mOctreeData);
+        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mMinBorderValue, mOctreeData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mOctreeData);
+        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mMinBorderValue, mOctreeData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
@@ -139,6 +141,7 @@ private:
 
     // Stores the maximum distance in absulute value contained by the octree
     float mValueRange;
+    float mMinBorderValue;
     
     int mStartGridSize = 0;
     int mStartGridXY = 0;
@@ -165,6 +168,8 @@ private:
 
     void initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                          float terminationThreshold, TerminationRule terminationRule);
+
+    void computeMinBorderValue();
 };
 
 #include "OctreeSdfDepthFirst.h"

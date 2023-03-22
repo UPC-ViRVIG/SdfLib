@@ -37,10 +37,12 @@ private:
     unsigned int mInvViewModelMatrixLocation;
     unsigned int mStartGridSizeLocation;
     unsigned int mDistanceScaleLocation;
+    unsigned int mOctreeMinBorderValueLocation;
 
     glm::ivec3 mOctreeStartGridSize;
     glm::mat4x4 mOctreeMatrix;
     float mOctreeDistanceScale;
+    float mOctreeMinBorderValue;
     std::shared_ptr<OctreeSdf> mInputOctree;
 
 };

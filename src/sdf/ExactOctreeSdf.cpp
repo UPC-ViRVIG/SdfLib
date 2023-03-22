@@ -93,8 +93,8 @@ float ExactOctreeSdf::getDistance(glm::vec3 sample) const
     // Pass to next child
     {
     const uint32_t childIdx = (roundFloat(fracPart.z) << 2) + 
-                                  (roundFloat(fracPart.y) << 1) + 
-                                   roundFloat(fracPart.x);
+                              (roundFloat(fracPart.y) << 1) + 
+                               roundFloat(fracPart.x);
 
     currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
     fracPart = glm::fract(2.0f * fracPart);

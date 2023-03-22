@@ -38,13 +38,13 @@ private:
     }
 };
 
-EXPORT void saveExactOctreeSdf(SdfFunction* sdfPointer, char* path)
+EXPORT void saveSdf(SdfFunction* sdfPointer, char* path)
 {
     std::string p(path);
     sdfPointer->saveToFile(p);
 }
 
-EXPORT SdfFunction* loadExactOctreeSdf(char* path)
+EXPORT SdfFunction* loadSdf(char* path)
 {
     std::string p(path);
     std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile(p);
@@ -57,11 +57,9 @@ EXPORT SdfFunction* createExactOctreeSdf(glm::vec3* vertices, uint32_t numVertic
                                          float bbMaxX, float bbMaxY, float bbMaxZ,
                                          uint32_t startOctreeDepth,
                                          uint32_t maxOctreeDepth,
-                                         uint32_t minTrianglesPerNode)
+                                         uint32_t minTrianglesPerNode,
+                                         uint32_t numThreads)
 {
-    auto file_logger = spdlog::rotating_logger_mt("file_logger", "logs/mylogfile", 1048576 * 5, 3);
-    spdlog::set_default_logger(file_logger);
-    
     BoundingBox octreeBox(
         glm::vec3(bbMinX, bbMinY, bbMinZ),
         glm::vec3(bbMaxX, bbMaxY, bbMaxZ)
@@ -70,7 +68,38 @@ EXPORT SdfFunction* createExactOctreeSdf(glm::vec3* vertices, uint32_t numVertic
     Mesh mesh(vertices, numVertices,
               indices, numIndices);
 
-    ExactOctreeSdf* sdf = new ExactOctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, minTrianglesPerNode);
+    ExactOctreeSdf* sdf = new ExactOctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, minTrianglesPerNode, numThreads);
+
+    return sdf;
+
+    // Mesh mesh(vertices, numVertices,
+    //           indices, numIndices);
+
+    // ICG* icg = new ICG(mesh);
+    // return reinterpret_cast<SdfFunction*>(icg);
+}
+
+EXPORT SdfFunction* createOctreeSdf(glm::vec3* vertices, uint32_t numVertices,
+                                    uint32_t* indices, uint32_t numIndices,
+                                    float bbMinX, float bbMinY, float bbMinZ,
+                                    float bbMaxX, float bbMaxY, float bbMaxZ,
+                                    uint32_t startOctreeDepth,
+                                    uint32_t maxOctreeDepth,
+                                    float maxError,
+                                    uint32_t numThreads)
+{
+    BoundingBox octreeBox(
+        glm::vec3(bbMinX, bbMinY, bbMinZ),
+        glm::vec3(bbMaxX, bbMaxY, bbMaxZ)
+    );
+
+    Mesh mesh(vertices, numVertices,
+        indices, numIndices);
+       
+    OctreeSdf* sdf = new OctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, maxError, 
+                        OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE, OctreeSdf::InitAlgorithm::BF_ADAPTATIVE, 
+                        numThreads);
+    //ExactOctreeSdf* sdf = new ExactOctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, minTrianglesPerNode);
 
     return sdf;
 
@@ -95,6 +124,45 @@ EXPORT float getDistanceAndGradient(SdfFunction* sdfPointer, float pointX, float
 	return res;
 
     // return reinterpret_cast<ICG*>(sdfPointer)->getDistance(glm::vec3(pointX, pointY, pointZ), outGradient);
+}
+
+EXPORT glm::vec3 getBBMinPoint(SdfFunction* sdfPointer)
+{
+    return sdfPointer->getSampleArea().min;
+}
+
+EXPORT glm::vec3 getBBSize(SdfFunction* sdfPointer)
+{
+    return sdfPointer->getSampleArea().getSize();
+}
+
+EXPORT uint32_t getStartGridSize(SdfFunction* sdfPointer)
+{
+    OctreeSdf* octreeSdf = dynamic_cast<OctreeSdf*>(sdfPointer);
+    if(octreeSdf != nullptr) return octreeSdf->getStartGridSize().x;
+    else return 0;
+}
+
+EXPORT uint32_t getOctreeDataSize(SdfFunction* sdfPointer)
+{
+    if(OctreeSdf* octreeSdf = dynamic_cast<OctreeSdf*>(sdfPointer))
+    {
+        return octreeSdf->getOctreeData().size();
+    }
+    
+    return 0;
+}
+
+EXPORT void getOctreeData(SdfFunction* sdfPointer, uint32_t* data)
+{
+    if(OctreeSdf* octreeSdf = dynamic_cast<OctreeSdf*>(sdfPointer))
+    {
+        std::memcpy(data, octreeSdf->getOctreeData().data(), octreeSdf->getOctreeData().size() * sizeof(uint32_t));
+    }
+    else if(ExactOctreeSdf* exactSdf = dynamic_cast<ExactOctreeSdf*>(sdfPointer))
+    {
+        // TODO: We need to return more things
+    }
 }
 
 EXPORT void deleteSdf(SdfFunction* sdfPointer)
