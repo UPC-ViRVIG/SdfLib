@@ -273,7 +273,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                                    mesh, trianglesData);
 
                 // Get current neighbours
-                uint32_t samplesMask = 0; // Calculate which sample points must be interpolated
                 if(currentDepth > startDepth)
                 {
                     for(uint8_t neighbour = 1; neighbour <= 6; neighbour++)
@@ -308,39 +307,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                 }
                             }
                         }
-
-                        // if((((node.neighbourIndices[neighbour - 1]) >> 30) & 0b01) == 0) // Calculate next neigbour
-                        // {                            
-                        //     if (mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
-                        //     {
-                        //         node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
-                        //     }
-                        //     else
-                        //     {
-                        //         node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1]].getChildrenIndex();
-                        //     }
-                        // }
-
-                        // if(((node.neighbourIndices[neighbour - 1]) >> 30) == 0) // Calculate next neigbour
-                        // {                            
-                        //     if (mOctreeData[node.neighbourIndices[neighbour - 1]].isLeaf())
-                        //     {
-                        //         node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];;
-                        //     }
-                        //     else
-                        //     {
-                        //         node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1]].getChildrenIndex();
-                        //     }
-                        // }
-                        
-                        // const uint32_t sign = ((((neighbour & (node.childIndices & 0b0111)) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
-						// 					  ((((neighbour & (node.childIndices & 0b0111)) >> 1) & 0b0001) << (neighbour & 0b0001)) +
-						// 					  (neighbour & (node.childIndices & 0b0111) & 0b0001);
-                        // assert(sign >= 0 && sign < 4);
-                        // samplesMask |= (node.neighbourIndices[neighbour - 1] >> 31)
-                        //                 ? neigbourMasks[4 * (neighbour - 1) + sign]
-                        //                 : 0;
-                        
                     }
                 }
 
@@ -350,7 +316,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 }
                 
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         samplesMask, node.interpolationCoeff,
+                                                         0u, node.interpolationCoeff,
                                                          node.midPointsValues, node.midPointsInfo,
                                                          mesh, trianglesData);
 
@@ -430,9 +396,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             return neigbourMasks[4 * (dir - 1) + sign];
                         }
                         return 0;
-                        // return ((nodeId >> 31) || (!(nodeId >> 30) && octreeData[nodeId + (dir ^ (node.childIndices & 0b0111))].isLeaf()))
-                        //         ? neigbourMasks[4 * (dir - 1) + sign]
-                        //         : 0;
                     };
 
                     samplesMask |= getNeighbourMask(node.neighbourIndices[0], 0b0001, (node.childIndices & 0b0111) & 0b001);
@@ -471,9 +434,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                 return neigbourMasks[4 * (dir - 1) + sign];
                             }
                             return 0;
-                            // return (octreeData[nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x].isLeaf())
-                            //     ? neigbourMasks[4 * (dir - 1) + sign]
-                            //     : 0;
                         }
                         return 0;
                     };
@@ -503,15 +463,16 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     samplesMask |= getNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, 1), 0b0110, 0b011);
                 }
 
-                // Change distance if requires
+                // Change distance if required
                 {
-                    uint32_t subdivisionMask = 0; // Calculate which sample points must be interpolated
+                    uint32_t subdivisionMask = 0; // Calculate which sample points cannot be interpolated
                     for(uint32_t i=0; i < 19; i++)
                     {
                         if(samplesMask & (1 << (18-i)))
                         {
                             // InterpolationMethod::interpolateVertexValues(node.interpolationCoeff, 0.5f * nodeSamplePoints[i] + 0.5f, 2.0f * node.size, node.midPointsValues[i]);
                             const float interValue = InterpolationMethod::interpolateValue(node.interpolationCoeff, 0.5f * nodeSamplePoints[i] + 0.5f);
+                            // Test if the node can be interpolated regarding the error
                             if(pow2(node.midPointsValues[i][0] - interValue) > sqTerminationThreshold)
                             {
                                 subdivisionMask |= (samplesMask & (1 << (18-i)));
@@ -523,6 +484,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                         }
                     }
 
+                    // Set the leaves that must be further subdivided
                     for(uint32_t i=0; i < 24; i++)
                     {
                         if((subdivisionMask & neigbourMasks[i]) && !(neighbourIds[i] >> 30))
@@ -533,7 +495,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 }
 
 
-                // Generate new childrens
+                // Generate new children
 				const float newSize = 0.5f * node.size;
 
                 uint32_t childIndex = std::numeric_limits<uint32_t>::max();
@@ -768,7 +730,18 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             std::vector<uint32_t> depthCache;
             depthCache.push_back(it->second.first);
 
-            OctreeNode* parentOctreeNode = &mOctreeData[nodesCache.back().parentChildrenIndex + (nodesCache.back().childIndices & 0b0111)];
+            const NodeInfo& parentNode = nodesCache.back();
+            OctreeNode* parentOctreeNode;
+            if(it->second.first > startDepth) parentOctreeNode = &mOctreeData[parentNode.parentChildrenIndex + (parentNode.childIndices & 0b0111)];
+            else
+            {
+                glm::ivec3 nodeStartGridPos = glm::floor((parentNode.center - mBox.min) / mStartGridCellSize);
+                const uint32_t nodeStartIndex = 
+                                    nodeStartGridPos.z * mStartGridSize * mStartGridSize + 
+                                    nodeStartGridPos.y * mStartGridSize + 
+                                    nodeStartGridPos.x;
+                parentOctreeNode = &mOctreeData[nodeStartIndex];
+            }
             if(!parentOctreeNode->isLeaf()) continue;
 
             bool firstIteration = true;
@@ -779,120 +752,134 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 const uint32_t depth = depthCache[nodesCacheIndex];
                 nodesCacheIndex++;
 
-                OctreeNode* octreeNode = &mOctreeData[node.parentChildrenIndex + (node.childIndices & 0b0111)];
+                OctreeNode* octreeNode = (depth > startDepth) ? &mOctreeData[node.parentChildrenIndex + (node.childIndices & 0b0111)] : nullptr;
 
-                // if(glm::length(node.center - glm::vec3(-0.9625001, 0.96249974, 0.0875)) < 1e-4)
-                // {
-                //     std::cout << "stop" << std::endl;
-                // }
+                glm::ivec3 nodeStartGridPos;
+                if(depth == startDepth)
+                {
+                    nodeStartGridPos = glm::floor((node.center - mBox.min) / mStartGridCellSize);
+                    const uint32_t nodeStartIndex = 
+                                        nodeStartGridPos.z * mStartGridSize * mStartGridSize + 
+                                        nodeStartGridPos.y * mStartGridSize + 
+                                        nodeStartGridPos.x;
+                    octreeNode = &mOctreeData[nodeStartIndex];
+                }
 
                 uint32_t samplesMask = 0;
                 uint32_t subdividedMask = 0;
-                for(uint8_t neighbour = 1; neighbour <= 6; neighbour++)
+                if(depth > startDepth)
                 {
-                    const uint32_t sign = ((((neighbour & (node.childIndices & 0b0111)) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
-                                        ((((neighbour & (node.childIndices & 0b0111)) >> 1) & 0b0001) << (neighbour & 0b0001)) +
-                                        (neighbour & (node.childIndices & 0b0111) & 0b0001);
-
-                    if((((node.neighbourIndices[neighbour - 1]) >> 30) & 0b01) == 0) // Calculate next neigbour
+                    for(uint8_t neighbour = 1; neighbour <= 6; neighbour++)
                     {
-                        if ((!firstIteration || (node.neighbourIndices[neighbour - 1] >> 31)) &&
-                            mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
+                        const uint32_t sign = ((((neighbour & (node.childIndices & 0b0111)) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
+                                            ((((neighbour & (node.childIndices & 0b0111)) >> 1) & 0b0001) << (neighbour & 0b0001)) +
+                                            (neighbour & (node.childIndices & 0b0111) & 0b0001);
+
+                        if((((node.neighbourIndices[neighbour - 1]) >> 30) & 0b01) == 0) // Calculate next neigbour
                         {
-                            node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
-                            samplesMask |= neigbourMasks[4 * (neighbour - 1) + sign];
-                        }
-                        else
-                        {
-                            if (!firstIteration || (node.neighbourIndices[neighbour - 1] >> 31))
+                            if ((!firstIteration || (node.neighbourIndices[neighbour - 1] >> 31)) &&
+                                mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
                             {
-                                node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].getChildrenIndex();
-                                node.neighbourDepth[neighbour - 1]++;
+                                node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
+                                samplesMask |= neigbourMasks[4 * (neighbour - 1) + sign];
                             }
-
-                            // while (!(mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].childrenIndex & (1u << 30)))
-                            uint32_t previous1 = 0;
-                            uint32_t previous = 0;
-                            while (node.neighbourDepth[neighbour - 1] < depth &&
-                                   node.neighbourDepth[neighbour - 1] < currentDepth)
+                            else
                             {
-                                previous1 = node.neighbourIndices[neighbour - 1];
-                                const uint32_t depthDiff = depth - node.neighbourDepth[neighbour - 1];
-                                const uint32_t childId = (node.childIndices >> (3 * depthDiff)) & 0b0111;
-                                node.neighbourIndices[neighbour - 1] += (neighbour ^ childId);
-
-                                if (mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
+                                if (!firstIteration || (node.neighbourIndices[neighbour - 1] >> 31))
                                 {
-                                    node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
-                                    samplesMask |= neigbourMasks[4 * (neighbour - 1) + sign];
-                                    break;
-                                }
-                                else
-                                {
-                                    previous = node.neighbourIndices[neighbour - 1];
                                     node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].getChildrenIndex();
                                     node.neighbourDepth[neighbour - 1]++;
                                 }
-                            }
+
+                                while (node.neighbourDepth[neighbour - 1] < depth &&
+                                    node.neighbourDepth[neighbour - 1] < currentDepth)
+                                {
+                                    const uint32_t depthDiff = depth - node.neighbourDepth[neighbour - 1];
+                                    const uint32_t childId = (node.childIndices >> (3 * depthDiff)) & 0b0111;
+                                    node.neighbourIndices[neighbour - 1] += (neighbour ^ childId);
+
+                                    if (mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
+                                    {
+                                        node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
+                                        samplesMask |= neigbourMasks[4 * (neighbour - 1) + sign];
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].getChildrenIndex();
+                                        node.neighbourDepth[neighbour - 1]++;
+                                    }
+                                }
 
 
-                            if((currentDepth >= depth) && !(node.neighbourIndices[neighbour - 1] >> 31))
-                            {
-                                const uint32_t nextIndex = (node.neighbourIndices[neighbour - 1] & (~(1 << 31))) + (neighbour ^ (node.childIndices & 0b0111));
-                                subdividedMask |= (mOctreeData[nextIndex].isLeaf() || mOctreeData[nextIndex].isMarked()) ? 0 : neigbourMasks[4 * (neighbour - 1) + sign];
+                                if((currentDepth >= depth) && !(node.neighbourIndices[neighbour - 1] >> 31))
+                                {
+                                    const uint32_t nextIndex = (node.neighbourIndices[neighbour - 1] & (~(1 << 31))) + (neighbour ^ (node.childIndices & 0b0111));
+                                    subdividedMask |= (mOctreeData[nextIndex].isLeaf() || mOctreeData[nextIndex].isMarked()) ? 0 : neigbourMasks[4 * (neighbour - 1) + sign];
+                                }
                             }
                         }
-
-                        // if((((node.neighbourIndices[neighbour - 1]) >> 30) & 0b01) == 0) // Calculate next neigbour
-                        // {
-
-                        //     const uint32_t sign = ((((neighbour & (node.childIndices & 0b0111)) >> 2) & 0b0001) << ((neighbour & 0b0001) | ((neighbour & 0b0010) >> 1))) +
-                        //                     ((((neighbour & (node.childIndices & 0b0111)) >> 1) & 0b0001) << (neighbour & 0b0001)) +
-                        //                     (neighbour & (node.childIndices & 0b0111) & 0b0001);
-
-                        //     uint32_t previousNeighbour = node.neighbourIndices[neighbour - 1];
-
-                        //     while(!(mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].childrenIndex & (1u << 30)))
-                        //     {
-                        //         if (mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].isLeaf())
-                        //         {
-                        //             node.neighbourIndices[neighbour - 1] = (1 << 31) | node.neighbourIndices[neighbour - 1];
-                        //             samplesMask |= neigbourMasks[4 * (neighbour - 1) + sign];
-                        //             break;
-                        //         }
-                        //         else
-                        //         {   
-                        //             previousNeighbour = node.neighbourIndices[neighbour - 1];
-                        //             node.neighbourIndices[neighbour - 1] = mOctreeData[node.neighbourIndices[neighbour - 1] & (~(1 << 31))].getChildrenIndex();
-                        //         }
-                        //     }
-                        // }
                     }
                 }
 
                 if(currentDepth >= depth)
                 {
-                    auto updateNeighbourMask = [&](uint32_t nodeId, uint8_t dir, uint8_t sign)
+                    if(depth > startDepth)
                     {
-                        const bool isLeaf = ((nodeId >> 31) || (nodeId >> 30) || mOctreeData[nodeId + (dir ^ (node.childIndices & 0b0111))].isLeaf() ||
-                                             mOctreeData[nodeId + (dir ^ (node.childIndices & 0b0111))].isMarked());
-                        subdividedMask |= isLeaf ? 0 : neigbourMasks[4 * (dir - 1) + sign];
-                    };
+                        auto updateNeighbourMask = [&](uint32_t nodeId, uint8_t dir, uint8_t sign)
+                        {
+                            const bool isLeaf = ((nodeId >> 31) || (nodeId >> 30) || mOctreeData[nodeId + (dir ^ (node.childIndices & 0b0111))].isLeaf() ||
+                                                mOctreeData[nodeId + (dir ^ (node.childIndices & 0b0111))].isMarked());
+                            subdividedMask |= isLeaf ? 0 : neigbourMasks[4 * (dir - 1) + sign];
+                        };
 
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0001, (~(node.childIndices & 0b0111)) & 0b001);
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0010, ((~(node.childIndices & 0b0111)) >> 1) & 0b001);
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0100, ((~(node.childIndices & 0b0111)) >> 2) & 0b001);
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0001, (~(node.childIndices & 0b0111)) & 0b001);
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0010, ((~(node.childIndices & 0b0111)) >> 1) & 0b001);
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0100, ((~(node.childIndices & 0b0111)) >> 2) & 0b001);
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0011, (~(node.childIndices & 0b0111)) & 0b011);
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0101, (((~(node.childIndices & 0b0111)) >> 1) & 0b010) + ((~(node.childIndices & 0b0111)) & 0b001));
+                        updateNeighbourMask(node.parentChildrenIndex, 0b0110, ((~(node.childIndices & 0b0111)) >> 1) & 0b011);
+                        updateNeighbourMask(node.neighbourIndices[0], 0b0011, 0b010 ^ ((node.childIndices & 0b0111) & 0b011));
+                        updateNeighbourMask(node.neighbourIndices[0], 0b0101, (((~(node.childIndices & 0b0111)) >> 1) & 0b010) + ((node.childIndices & 0b0111) & 0b001));
+                        updateNeighbourMask(node.neighbourIndices[1], 0b0011, 0b001 ^ ((node.childIndices & 0b0111) & 0b011));
+                        updateNeighbourMask(node.neighbourIndices[1], 0b0110, 0b010 ^ (((node.childIndices & 0b0111) >> 1) & 0b011));
+                        updateNeighbourMask(node.neighbourIndices[3], 0b0101, (((node.childIndices & 0b0111) >> 1) & 0b010) + ((~(node.childIndices & 0b0111)) & 0b001));
+                        updateNeighbourMask(node.neighbourIndices[3], 0b0110, 0b001 ^ (((node.childIndices & 0b0111) >> 1) & 0b011));
+                    }
+                    else if(depth == startDepth)
+                    {
+                        const int gridSize = mStartGridSize;
+                        auto updateNeighbourMask = [&](glm::ivec3 nPos, uint8_t dir, uint8_t sign)
+                        {
+                            if (nPos.x >= 0 && nPos.x < gridSize &&
+                                nPos.y >= 0 && nPos.y < gridSize &&
+                                nPos.z >= 0 && nPos.z < gridSize)
+                            {
+                                subdividedMask |= (mOctreeData[nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x].isLeaf() ||
+                                                   mOctreeData[nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x].isMarked())
+                                                    ? 0 : neigbourMasks[4 * (dir - 1) + sign];
+                            }
+                        };
 
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0011, (~(node.childIndices & 0b0111)) & 0b011);
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0101, (((~(node.childIndices & 0b0111)) >> 1) & 0b010) + ((~(node.childIndices & 0b0111)) & 0b001));
-                    updateNeighbourMask(node.parentChildrenIndex, 0b0110, ((~(node.childIndices & 0b0111)) >> 1) & 0b011);
-
-                    updateNeighbourMask(node.neighbourIndices[0], 0b0011, 0b010 ^ ((node.childIndices & 0b0111) & 0b011));
-                    updateNeighbourMask(node.neighbourIndices[0], 0b0101, (((~(node.childIndices & 0b0111)) >> 1) & 0b010) + ((node.childIndices & 0b0111) & 0b001));
-                    updateNeighbourMask(node.neighbourIndices[1], 0b0011, 0b001 ^ ((node.childIndices & 0b0111) & 0b011));
-                    updateNeighbourMask(node.neighbourIndices[1], 0b0110, 0b010 ^ (((node.childIndices & 0b0111) >> 1) & 0b011));
-                    updateNeighbourMask(node.neighbourIndices[3], 0b0101, (((node.childIndices & 0b0111) >> 1) & 0b010) + ((~(node.childIndices & 0b0111)) & 0b001));
-                    updateNeighbourMask(node.neighbourIndices[3], 0b0110, 0b001 ^ (((node.childIndices & 0b0111) >> 1) & 0b011));
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, 0), 0b0001, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, 0), 0b0001, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, 0), 0b0010, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, 0), 0b0010, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(-1, -1, 0), 0b0011, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(1, -1, 0), 0b0011, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 1, 0), 0b0011, 0b010);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(1, 1, 0), 0b0011, 0b011);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, 0, -1), 0b0100, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, 0, 1), 0b0100, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, -1), 0b0101, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, -1), 0b0101, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(-1, 0, 1), 0b0101, 0b010);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(1, 0, 1), 0b0101, 0b011);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, -1), 0b0110, 0b000);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, -1), 0b0110, 0b001);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, -1, 1), 0b0110, 0b010);
+                        updateNeighbourMask(nodeStartGridPos + glm::ivec3(0, 1, 1), 0b0110, 0b011);    
+                    }
 
                     samplesMask = ~subdividedMask;
 
@@ -916,7 +903,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                         }
                     }
 
-                    // Generate new childrens
+                    // Generate new children
                     const float newSize = 0.5f * node.size;
 
                     uint32_t childIndex = std::numeric_limits<uint32_t>::max();
@@ -932,8 +919,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
 
                     std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19>& midPointsValues = node.midPointsValues;
                     std::array<TrianglesInfluenceStrategy::VertexInfo, 19>& midPointsInfo = node.midPointsInfo;
-
-                    glm::vec3 nodeStartGridPos(0.0);
 
                     // Low Z children
                     depthCache.push_back(depth+1);
