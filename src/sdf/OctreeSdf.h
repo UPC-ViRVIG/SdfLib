@@ -37,7 +37,8 @@ public:
         }
 
         static constexpr uint32_t IS_LEAF_MASK = 1 << 31;
-        static constexpr uint32_t CHILDREN_INDEX_MASK = ~IS_LEAF_MASK;
+        static constexpr uint32_t MARK_MASK = 1 << 30;
+        static constexpr uint32_t CHILDREN_INDEX_MASK = ~(IS_LEAF_MASK | MARK_MASK);
         union
         {
             uint32_t childrenIndex;
@@ -47,6 +48,21 @@ public:
         inline bool isLeaf() const
         {
             return childrenIndex & IS_LEAF_MASK;
+        }
+
+        inline void removeMark()
+        {
+            childrenIndex = childrenIndex & (~MARK_MASK);
+        }
+
+        inline void markNode()
+        {
+            childrenIndex |= MARK_MASK;
+        }
+
+        inline bool isMarked()
+        {
+            return childrenIndex & MARK_MASK;
         }
 
         inline uint32_t getChildrenIndex() const
