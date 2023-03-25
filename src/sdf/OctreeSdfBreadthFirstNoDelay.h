@@ -234,6 +234,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     Timer timer;
     float iter1TotalTime = 0.0f;
     float iter2TotalTime = 0.0f;
+    float afterSubdivisionTime = 0.0f;
+    uint32_t numNodesSubdividedAfterDecision = 0;
 
     omp_set_dynamic(0);
     omp_set_num_threads(numThreads);
@@ -328,11 +330,11 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     {
                         case TerminationRule::TRAPEZOIDAL_RULE:
                             {
-                            float value1 = estimateFaceErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
-                            // value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            // generateTerminalNodes = value < sqTerminationThreshold;
+                            // float value1 = estimateFaceErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            // float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            // generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
+                            value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            generateTerminalNodes = value < sqTerminationThreshold;
                             }
                             break;
                         case TerminationRule::SIMPSONS_RULE:
@@ -493,7 +495,6 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                         }
                     }
                 }
-
 
                 // Generate new children
 				const float newSize = 0.5f * node.size;
@@ -716,6 +717,11 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             }
         }
 
+        iter2TotalTime += timer.getElapsedSeconds();
+        timer.start();
+
+        numNodesSubdividedAfterDecision += nodesToSubdivide.size();
+
         for(uint32_t i=0; i < nodesToSubdivide.size(); i++)
         {
             const uint32_t nodeId = nodesToSubdivide[i];
@@ -743,6 +749,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 parentOctreeNode = &mOctreeData[nodeStartIndex];
             }
             if(!parentOctreeNode->isLeaf()) continue;
+            bool recycledOldCoefficients = false;
+            uint32_t oldCoefficientsIndex = parentOctreeNode->getChildrenIndex();
 
             bool firstIteration = true;
             uint32_t nodesCacheIndex = 0;
@@ -882,12 +890,19 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     }
 
                     samplesMask = ~subdividedMask;
-
-                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
-                    trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                             samplesMask, node.interpolationCoeff,
-                                                             node.midPointsValues, node.midPointsInfo,
-                                                             mesh, trianglesData);
+                }
+                
+                if(currentDepth >= depth && samplesMask != (~0))
+                {
+                    const bool recycleMidPointsValues = firstIteration && !node.ignoreNode;
+                    if(!recycleMidPointsValues)
+                    {
+                        InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
+                        trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
+                                                                samplesMask, node.interpolationCoeff,
+                                                                node.midPointsValues, node.midPointsInfo,
+                                                                mesh, trianglesData);
+                    }
 
                     for(uint32_t i=0; i < 19; i++)
                     {
@@ -900,6 +915,10 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             {
                                 InterpolationMethod::interpolateVertexValues(node.interpolationCoeff, 0.5f * nodeSamplePoints[i] + 0.5f, 2.0f * node.size, node.midPointsValues[i]);
                             }
+                        }
+                        else if(recycleMidPointsValues)
+                        {
+                            InterpolationMethod::interpolateVertexValues(node.interpolationCoeff, 0.5f * nodeSamplePoints[i] + 0.5f, 2.0f * node.size, node.midPointsValues[i]);
                         }
                     }
 
@@ -1109,9 +1128,17 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 else
                 {
                     uint32_t childIndex = mOctreeData.size();
-                    octreeNode->setValues(true, childIndex);
-
-                    mOctreeData.resize(mOctreeData.size() + InterpolationMethod::NUM_COEFFICIENTS);
+                    if(recycledOldCoefficients)
+                    {
+                        octreeNode->setValues(true, childIndex);
+                        mOctreeData.resize(mOctreeData.size() + InterpolationMethod::NUM_COEFFICIENTS);
+                    }
+                    else
+                    {
+                        childIndex = oldCoefficientsIndex;
+                        octreeNode->setValues(true, childIndex);
+                        recycledOldCoefficients = true;
+                    }
 
                     InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
 
@@ -1136,7 +1163,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             }
         }
 
-        iter2TotalTime += timer.getElapsedSeconds();
+        afterSubdivisionTime += timer.getElapsedSeconds();
 
         // Swap buffers
         // currentBuffer = (currentBuffer + 1) % 3;
@@ -1172,7 +1199,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         }
     }
 
-    SPDLOG_INFO("Iter 1 {}s // Iter 2 {}s // {}", iter1TotalTime, iter2TotalTime, iter1TotalTime/iter2TotalTime);
+    SPDLOG_INFO("Iter 1 {}s // Iter 2 {}s // After {}s // {}", iter1TotalTime, iter2TotalTime, afterSubdivisionTime, iter1TotalTime/(iter2TotalTime + afterSubdivisionTime));
+    SPDLOG_INFO("Num nodes subdivided after desicion: {}", numNodesSubdividedAfterDecision);
 }
 
 #endif

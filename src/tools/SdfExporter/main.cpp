@@ -104,7 +104,7 @@ int main(int argc, char** argv)
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-2f,
+            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             terminationRule.value(),
             initAlgorithm,
             (numThreadsArg) ? args::get(numThreadsArg) : 1

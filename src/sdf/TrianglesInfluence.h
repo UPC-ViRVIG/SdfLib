@@ -960,33 +960,30 @@ struct VHQueries
         std::array<glm::vec3, N> inPoints;
         for(uint32_t i=0; i < N; i++)
         {
-            inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
-            const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
-
-            const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
-                                     ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
-                                     (pointId.x & CACHE_AXIS_MASK);
-
-            if(vertexInfoCache[cacheId].first == pointId)
-            {
-                outPointsInfo[i] = vertexInfoCache[cacheId].second;
-            }
-            else
-            {
-                outPointsInfo[i] = icg->getNearestTriangle(inPoints[i]);
-
-                vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
-            }
-        }
-
-        for(uint32_t i=0; i < N; i++)
-        {
             if(pointToInterpolateMask & (1 << (N-i-1)))
             {
                 InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
             }
             else
             {
+                inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+                const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
+
+                const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                        ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                        (pointId.x & CACHE_AXIS_MASK);
+
+                if(vertexInfoCache[cacheId].first == pointId)
+                {
+                    outPointsInfo[i] = vertexInfoCache[cacheId].second;
+                }
+                else
+                {
+                    outPointsInfo[i] = icg->getNearestTriangle(inPoints[i]);
+
+                    vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsInfo[i]);
+                }
+                
                 InterpolationMethod::calculatePointValues(inPoints[i], outPointsInfo[i], mesh, trianglesData, outPointsValues[i]);
             }
         }
