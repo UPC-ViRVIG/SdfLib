@@ -249,7 +249,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             //for(NodeInfo& node : nodesBuffer[currentBuffer])
             // const auto nodesBufferSize = nodesBuffer[currentBuffer].size();
             const auto nodesBufferSize = nodesBuffer[currentDepth].size();
-            // #pragma omp parallel for default(shared) schedule(dynamic, 16)
+            #pragma omp parallel for default(shared) schedule(dynamic, 16)
             for(uint32_t nId=0; nId < nodesBufferSize; nId++)
             {
                 // std::cout << "enter" << std::endl;
