@@ -31,6 +31,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
+    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
+
     struct ThreadContext
     {
         std::vector<std::vector<uint32_t>> triangles;

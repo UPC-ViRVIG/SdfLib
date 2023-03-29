@@ -86,6 +86,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
 
     // terminationThreshold = terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
     // const float sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
+    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
     const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
