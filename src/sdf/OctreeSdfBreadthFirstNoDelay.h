@@ -240,6 +240,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     omp_set_dynamic(0);
     omp_set_num_threads(numThreads);
 
+    std::vector<TrianglesInfluenceStrategy> threadTrianglesInfluence(numThreads, trianglesInfluence);
+
     for(uint32_t currentDepth=startOctreeDepth; currentDepth <= maxDepth; currentDepth++)
     {
         // Iter 1
@@ -252,6 +254,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             #pragma omp parallel for default(shared) schedule(dynamic, 16)
             for(uint32_t nId=0; nId < nodesBufferSize; nId++)
             {
+                const uint32_t tId = omp_get_thread_num();
                 // std::cout << "enter" << std::endl;
                 NodeInfo& node = nodesBuffer[currentDepth][nId];
                 if(node.ignoreNode) continue;
@@ -270,7 +273,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     octreeNode = &mOctreeData[nodeStartIndex];
                 }
 
-                trianglesInfluence.filterTriangles(node.center, node.size, *node.parentTriangles, 
+                threadTrianglesInfluence[tId].filterTriangles(node.center, node.size, *node.parentTriangles, 
                                                    node.triangles, node.verticesValues, node.verticesInfo,
                                                    mesh, trianglesData);
 
@@ -317,10 +320,10 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
                 }
                 
-                trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
-                                                         0u, node.interpolationCoeff,
-                                                         node.midPointsValues, node.midPointsInfo,
-                                                         mesh, trianglesData);
+                threadTrianglesInfluence[tId].calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
+                                                                    0u, node.interpolationCoeff,
+                                                                    node.midPointsValues, node.midPointsInfo,
+                                                                    mesh, trianglesData);
 
                 bool generateTerminalNodes = false;
                 if(currentDepth >= startDepth)
