@@ -2,10 +2,6 @@
 
 #define MAX_ITERATIONS 1024
 
-layout (local_size_x = 16, local_size_y = 16) in;
-
-layout(rgba32f, binding = 0) uniform image2D outputTexture;
-
 uniform vec3 startGridSize;
 layout(std430, binding = 3) buffer octree
 {
@@ -20,12 +16,14 @@ uint roundFloat(float a)
     return (a >= 0.5) ? 1 : 0;
 }
 
-uniform vec2 pixelToView;
-uniform vec2 nearPlaneHalfSize;
-uniform vec2 nearAndFarPlane;
-uniform mat4 invViewModelMatrix;
-uniform float distanceScale;
 uniform float minBorderValue;
+uniform float distanceScale;
+
+in vec3 gridPosition;
+in vec3 gridNormal;
+in vec3 cameraPos;
+
+out vec4 fragColor;
 
 // Light functions
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
@@ -191,8 +189,9 @@ vec3 getGradient(vec3 point)
 
 float map(vec3 pos)
 {
-    vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
-    return min(distanceScale * getDistance(pos), max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07));
+    // vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
+    // return min(distanceScale * getDistance(pos), max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07));
+    return distanceScale * getDistance(pos);
 }
 
 float getAO(vec3 pos, vec3 n)
@@ -231,11 +230,7 @@ float softshadow(vec3 ro, vec3 rd)
 
 vec3 mapGradient(vec3 pos)
 {
-    vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
-    float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
-    return (fd < 1e-4) 
-            ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
-            : getGradient(pos);
+    return getGradient(pos);
 }
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
@@ -243,7 +238,8 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     float metallic = 0.3;
     float roughness = 0.5;
 
-    vec3 N = mapGradient(pos);
+    //vec3 N = mapGradient(pos);
+    vec3 N = normalize(gridNormal);
     vec3 V = normalize(cameraPos - pos);
 
     vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
@@ -262,8 +258,8 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         vec3 L = normalize(vec3(2.469, 3.5, 3.98));
         vec3 H = normalize(V + L);
         vec3 sunColor = 100.0 * vec3(1.0, 0.8, 0.6);
-        float intensity = min(softshadow(pos + 0.005 * N, L)/0.363, 1.0);
-        //float intensity = 1.0;
+        float intensity = min(softshadow(pos + 0.008 * N, L)/0.363, 1.0);
+        // float intensity = 1.0;
         vec3 radiance = sunColor * intensity;
         
         // cook-torrance brdf
@@ -289,30 +285,30 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     // vec3 color = ambient;
 
     color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));  
+    color = pow(color, vec3(1.0/2.2));
    
     return color;
 }
 
 // bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos, out float distToGrid, out float nodeRelativeLength, out float depth)
-bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
-{
-    float accDistance = 0.0;
-    vec3 pos = startPos;
-    float lastDistance = 1e8;
-    uint it = 0;
-    while (lastDistance > 1e-5 && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
-    {
-        resultPos = pos;
-        // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
-        lastDistance = map(pos);
-        float dist = max(lastDistance, 0.0);
-        accDistance += dist;
-        pos += dir * dist;
-        it += 1;
-    }
-    return lastDistance < 1e-5;
-}
+// bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
+// {
+//     float accDistance = 0.0;
+//     vec3 pos = startPos;
+//     float lastDistance = 1e8;
+//     uint it = 0;
+//     while (lastDistance > 1e-5 && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
+//     {
+//         resultPos = pos;
+//         // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
+//         lastDistance = map(pos);
+//         float dist = max(lastDistance, 0.0);
+//         accDistance += dist;
+//         pos += dir * dist;
+//         it += 1;
+//     }
+//     return lastDistance < 1e-5;
+// }
 
 // std::array<glm::vec3, 5> colorsPalette = 
 // {
@@ -334,46 +330,10 @@ const vec3 palette[5] = vec3[5](
 
 void main()
 {
-    uvec2 pCoord = gl_GlobalInvocationID.xy;
-    vec3 pixelPos = vec3((vec2(pCoord) + vec2(0.5)) * pixelToView - nearPlaneHalfSize, -nearAndFarPlane.x);
-
-    vec3 worldPos = vec3(invViewModelMatrix * vec4(vec3(0.0), 1.0));
-    vec3 worldDir = normalize(vec3(invViewModelMatrix * vec4(pixelPos, 1.0)) - worldPos);
-
     vec3 outColor = vec3(0.9);
     
-    vec3 hitPoint;
-    // float distToGrid; 
-    // float nodeRelativeLength;
-    // float depth;
-    // if(raycast(worldPos, worldDir, hitPoint, distToGrid, nodeRelativeLength, depth))
-    if(raycast(worldPos, worldDir, hitPoint))
-    {
-        // vec3 n = normalize(-hitPoint + worldPos);
-        // outColor = abs(n) * dotNV;
-        
-        // depth = depth / 8.0;
-        // float index = clamp(depth * (paletteNumColors-1), 0.0, float(paletteNumColors-1) - 0.01);
-        // vec3 finalColor = mix(palette[int(index)], palette[int(index)+1], fract(index));
-        //vec3 finalColor = vec3(1.0, 0.0, 0.0);
-        outColor = mapColor(hitPoint, worldPos);
+    vec3 hitPoint = gridPosition;
+    outColor = mapColor(hitPoint, cameraPos);
 
-        // vec3 aPos = hitPoint + vec3(-0.5, -0.1, -0.5);
-        // float fd = max(length(aPos.xz) - 0.5, abs(aPos.y) - 0.07);
-
-        // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(1.0, 0.0, 0.0);
-        // vec3 n = mapGradient(hitPoint);
-        // float dotNV = dot(n, -worldDir);
-        // outColor = albedo;
-        // outColor = outColor * getAO(hitPoint, n);
-
-        // const float gridThickness = 0.0008;
-        // float gridColorWeight = 0.0 * clamp(1.0 - pow(distToGrid * nodeRelativeLength / gridThickness, 8), 0.0, 1.0);
-
-        //outColor = (0.2 + 0.8 * dotNV) * outColor;
-        //outColor = mix(finalColor * (0.2 + 0.8 * dotNV), vec3(0.0), gridColorWeight);
-        // outColor = mix(finalColor * nodeRelativeLength, vec3(0.0), gridColorWeight);
-    }
-
-    imageStore(outputTexture, ivec2(pCoord), vec4(outColor, 1.0));
+    fragColor = vec4(outColor, 1.0);
 }

@@ -90,6 +90,7 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 	projectionViewModelMatrixLocation = glGetUniformLocation(programId, "projectionViewModelMatrix");
 	projectionMatrixLocation = glGetUniformLocation(programId, "projectionMatrix");
 	viewModelMatrixLocation = glGetUniformLocation(programId, "viewModelMatrix");
+	invViewModelMatrixLocation = glGetUniformLocation(programId, "invViewModelMatrix");
 	modelMatrixLocation = glGetUniformLocation(programId, "modelMatrix");
 	normalViewModelMatrixLocation = glGetUniformLocation(programId, "normalViewModelMatrix");
 	normalModelMatrixLocation = glGetUniformLocation(programId, "normalModelMatrix");
@@ -116,6 +117,11 @@ void IShader::setMatrices(const glm::mat4x4& projection, const glm::mat4x4& view
 	res = view * res;
 	if (viewModelMatrixLocation != -1) {
 		glUniformMatrix4fv(viewModelMatrixLocation, 1, GL_FALSE, glm::value_ptr(res));
+	}
+
+	if (invViewModelMatrixLocation != -1) {
+		glm::mat4x4 invRes = glm::inverse(res);
+		glUniformMatrix4fv(invViewModelMatrixLocation, 1, GL_FALSE, glm::value_ptr(invRes));
 	}
 
 	if (normalViewModelMatrixLocation != -1) {

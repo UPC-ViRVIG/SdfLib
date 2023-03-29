@@ -16,6 +16,7 @@ private:
 	unsigned int projectionViewModelMatrixLocation;
 	unsigned int projectionMatrixLocation;
 	unsigned int viewModelMatrixLocation;
+	unsigned int invViewModelMatrixLocation;
 	unsigned int modelMatrixLocation;
 	unsigned int normalViewModelMatrixLocation;
 	unsigned int normalModelMatrixLocation;
