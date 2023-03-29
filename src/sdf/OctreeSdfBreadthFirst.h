@@ -33,13 +33,32 @@ struct BreadthFirstNodeInfo
 
 inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, const std::array<uint32_t, 6>& parentNeighbours, std::array<uint32_t, 6>& outNeighbours)
 {
+
     for(uint32_t n=1; n <= 6; n++)
     {
 		const uint32_t nIdx = (~(outChildId ^ childId)) & n;
-        outNeighbours[n - 1] = ((nIdx != 0) 
-                                    ? parentNeighbours[nIdx - 1] 
-                                    : parentChildrenIndex
-                               ) + (n ^ childId);
+        outNeighbours[n - 1] = (nIdx != 0) 
+                                    ? parentNeighbours[nIdx - 1] + (n ^ childId) * (1 - (parentNeighbours[nIdx - 1] >> 31))
+                                    : parentChildrenIndex + (n ^ childId);
+    }
+}
+
+inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, uint32_t currentDepth,
+                                const std::array<uint32_t, 6>& parentNeighbours,
+                                const std::array<uint8_t, 6>& parentNeighboursDepth,
+                                std::array<uint32_t, 6>& outNeighbours, std::array<uint8_t, 6>& outNeighboursDepth)
+{
+
+    for(uint32_t n=1; n <= 6; n++)
+    {
+		const uint32_t nIdx = (~(outChildId ^ childId)) & n;
+        outNeighbours[n - 1] = (nIdx != 0) 
+                                    ? parentNeighbours[nIdx - 1] + (n ^ childId) * (1 - (parentNeighbours[nIdx - 1] >> 31))
+                                    : parentChildrenIndex + (n ^ childId);
+
+        outNeighboursDepth[n - 1] = (nIdx != 0)
+                                        ? parentNeighboursDepth[nIdx - 1]
+                                        : currentDepth;
     }
 }
 
