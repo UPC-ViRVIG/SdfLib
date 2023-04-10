@@ -27,6 +27,55 @@ uniform mat4 invViewModelMatrix;
 uniform float distanceScale;
 uniform float minBorderValue;
 
+
+// static vec3 g[] = { 1,1,0, -1,1,0,  1,-1,0, -1,-1,0,   
+//                       1,0,1, -1,0,1,  1,0,-1, -1,0,-1, 
+//                       0,1,1,  0,-1,1, 0,1,-1,  0,-1,-1,
+//                       1,1,0,  0,-1,1, -1,1,0,  0,-1,-1 };
+
+// int randomValue(ivec3 pos, int seed)
+// {
+//     int h = seed + pos.x*374761393 + pos.y*668265263 + pos.z*568205581; //all constants are prime
+//     h = (h^(h >> 13))*1274126177;
+//     return h^(h >> 16);
+// }
+
+// int randomValue(int pos, int seed)
+// {
+//     int h = seed + pos*374761393; //all constants are prime
+//     h = (h^(h >> 13))*1274126177;
+//     return h^(h >> 16);
+// }
+
+// vec3 fade(vec3 t)
+// {
+//     return t * t * t * (t * (t * 6 - 15) + 10);
+// }
+
+// float gradperm(ivec3 P, vec3 p, int seed)
+// {
+//     return dot(g[randomValue(P, seed) & 0x0F], p);
+// }
+            
+// float inoise(vec3 p, int seed)
+// {
+//     ivec3 P = int3(floor(p));      		// FIND UNIT CUBE THAT CONT AINS POINT
+//     p -= floor(p);                      // FIND RELATIVE X,Y,Z OF POINT IN CUBE.
+//     vec3 f = fade(p);                 // COMPUTE FADE CURVES FOR EACH OF X,Y,Z.
+    
+//     // HASH COORDINATES OF THE 8 CUBE CORNERS                            
+//     return mix( mix( mix( gradperm(P, p, seed ),  
+//                              gradperm(P + ivec3(1, 0, 0), p + vec3(-1, 0, 0), seed ), f.x),
+//                        mix( gradperm(P + ivec3(0, 1, 0), p + vec3(0, -1, 0), seed ),
+//                              gradperm(P + ivec3(1, 1, 0), p + vec3(-1, -1, 0), seed ), f.x), f.y),
+                                
+//                  mix( mix( gradperm(P + ivec3(0, 0, 1), p + vec3(0, 0, -1), seed ),
+//                              gradperm(P + ivec3(1, 0, 1), p + vec3(-1, 0, -1), seed ), f.x),
+//                        mix( gradperm(P + ivec3(0, 1, 1), p + vec3(0, -1, -1), seed ),
+//                              gradperm(P + ivec3(1, 1, 1), p + vec3(-1, -1, -1), seed ), f.x), f.y), f.z);
+// }
+
+
 // Light functions
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
@@ -191,7 +240,7 @@ vec3 getGradient(vec3 point)
 
 float map(vec3 pos)
 {
-    vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
+    vec3 aPos = pos + vec3(-0.5, -0.297, -0.5);
     return min(distanceScale * getDistance(pos), max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07));
 }
 
@@ -201,13 +250,13 @@ float getAO(vec3 pos, vec3 n)
     float decay = 1.0;
     for(int i=0; i < 8; i++)
     {
-        float h = 0.01 + 0.1 * float(i)/8.0;
+        float h = 0.002 + 0.1 * float(i)/8.0;
         float d = map(pos + n * h);
         occ += max(h-d, 0.0);
-        decay *= 0.7;
+        decay *= 0.8;
     }
 
-    return min(1.0 - 1.1 * occ, 1.0);
+    return min(1.0 - 1.9 * occ, 1.0);
 }
 
 float softshadow(vec3 ro, vec3 rd)
@@ -231,7 +280,7 @@ float softshadow(vec3 ro, vec3 rd)
 
 vec3 mapGradient(vec3 pos)
 {
-    vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
+    vec3 aPos = pos + vec3(-0.5, -0.297, -0.5);
     float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
     return (fd < 1e-4) 
             ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
@@ -240,18 +289,18 @@ vec3 mapGradient(vec3 pos)
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
-    float metallic = 0.3;
-    float roughness = 0.5;
+    float metallic = 0.1;
+    float roughness = 0.7;
 
     vec3 N = mapGradient(pos);
     vec3 V = normalize(cameraPos - pos);
 
-    vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
+    vec3 aPos = pos + vec3(-0.5, -0.297, -0.5);
     float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
 
-    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.72, 0.45, 0.20);
+    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
 
-    vec3 F0 = vec3(0.95, 0.64, 0.54); 
+    vec3 F0 = vec3(0.07, 0.07, 0.07); 
     F0 = mix(F0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
@@ -259,10 +308,10 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     {
         //vec3 L = normalize(vec3(-0.5, 0.4, -0.6));
         //vec3 L = normalize(vec3(0.0, 0.4, 0.0));
-        vec3 L = normalize(vec3(2.469, 3.5, 3.98));
+        vec3 L = normalize(vec3(0.05, 3.5, 1.5));
         vec3 H = normalize(V + L);
-        vec3 sunColor = 100.0 * vec3(1.0, 0.8, 0.6);
-        float intensity = min(softshadow(pos + 0.005 * N, L)/0.363, 1.0);
+        vec3 sunColor = 10.0 * vec3(1.0, 0.8, 0.6);
+        float intensity = min(softshadow(pos + 0.001 * N, L)/0.363, 1.0);
         //float intensity = 1.0;
         vec3 radiance = sunColor * intensity;
         

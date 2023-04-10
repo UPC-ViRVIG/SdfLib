@@ -201,3 +201,49 @@ void OctreeSdf::computeMinBorderValue()
 
     mMinBorderValue = minValue;
 }
+
+void OctreeSdf::getDepthDensity(std::vector<float>& depthsDensity)
+{
+    std::vector<uint32_t> nodesPerDepth(depthsDensity.size(), 0);
+    uint32_t numLeaves = 0;
+    std::function<void(OctreeNode&, uint32_t)> vistNode;
+    vistNode = [&](OctreeNode& node, uint32_t depth)
+    {
+        node.removeMark();
+
+        // Iterate children
+        if(!node.isLeaf())
+        {
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                vistNode(mOctreeData[node.getChildrenIndex() + i], depth+1);
+            }
+        }
+        else
+        {
+            nodesPerDepth[depth]++;
+            numLeaves++;
+        }
+    };
+
+    const uint32_t startDepth = glm::round(glm::log2(static_cast<float>(mStartGridSize)));
+
+    for(uint32_t k=0; k < mStartGridSize; k++)
+    {
+        for(uint32_t j=0; j < mStartGridSize; j++)
+        {
+            for(uint32_t i=0; i < mStartGridSize; i++)
+            {
+                const uint32_t nodeStartIndex = k * mStartGridSize * mStartGridSize + j * mStartGridSize + i;
+                vistNode(mOctreeData[nodeStartIndex], startDepth);
+            }
+        }
+    }
+
+    float size = 1.0f;
+    for(uint32_t d=0; d < depthsDensity.size(); d++)
+    {
+        depthsDensity[d] = size * static_cast<float>(nodesPerDepth[d]);
+        size *= 0.125f;
+    }
+}
