@@ -152,9 +152,17 @@ target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})
 # set(Boost_INCLUDE_DIR C:/Users/eduard/Documents/boost_1_76_0)
 # find_package(OpenVDB REQUIRED)
 
+# list(APPEND CMAKE_MODULE_PATH "C:/Program Files/OpenVDB/lib/cmake/OpenVDB")
+# #set(Tbb_INCLUDE_DIR C:/dev/vcpkg/installed/x64-windows/include/tbb)
+# #set(Tbb_LIB_COMPONENTS C:/dev/vcpkg/installed/x64-windows/bin)
+# include(C:/Users/user/vcpkg/scripts/buildsystems/vcpkg.cmake)
+# find_package(TBB CONFIG REQUIRED)
+# find_package(OpenVDB REQUIRED)
+
 add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
 #target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
-target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} OpenVDB::openvdb)
+#target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
 
 add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
 # target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)

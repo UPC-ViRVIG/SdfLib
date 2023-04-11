@@ -21,6 +21,8 @@ void MainLoop::start(Scene& scene)
 
 	Window::setCurrentWindow(&window);
 
+	// window.disableVerticalSync();
+
 	scene.start();
 
 	while (!window.shouldClose()) {

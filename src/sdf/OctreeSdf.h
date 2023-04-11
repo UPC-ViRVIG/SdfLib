@@ -143,6 +143,9 @@ public:
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
+
+        float total = mOctreeData.size() * sizeof(OctreeNode);
+        SPDLOG_INFO("Octree Sdf Total: {}MB", total/1048576.0f);
     } 
 
 

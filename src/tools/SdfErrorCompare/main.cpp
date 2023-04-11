@@ -18,7 +18,7 @@
 //#define TEST_CGAL
 #define TEST_OCTREE_SDF
 #define TEST_EXACT_OCTREE_SDF
-//#define TEST_OPENVDB
+#define TEST_OPENVDB
 
 #ifdef TEST_ICG
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>
@@ -135,7 +135,7 @@ private:
 //     std::cout << value << std::endl;
 // }
 
-//#define MAKE_HISTOGRAM
+#define MAKE_HISTOGRAM
 
 int main(int argc, char** argv)
 {
@@ -167,6 +167,17 @@ int main(int argc, char** argv)
 
     std::array<float, 40> histMeanTimeCGAL;
 	histMeanTimeCGAL.fill(0.0f);
+
+    std::array<float, 40> histRSMEOctreeSdf;
+    histRSMEOctreeSdf.fill(0.0f);
+    std::array<uint32_t, 40> histNumSamplesOctreeSdf;
+    histNumSamplesOctreeSdf.fill(0);
+
+    std::array<float, 40> histRSMEOpenVdb;
+    histRSMEOpenVdb.fill(0.0f);
+    std::array<uint32_t, 40> histNumSamplesOpenVdb;
+    histNumSamplesOpenVdb.fill(0);
+	
 #endif
     Mesh mesh(args::get(modelPathArg));
 
@@ -176,8 +187,8 @@ int main(int argc, char** argv)
                                     glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
     
     BoundingBox box = mesh.getBoundingBox();
-    //float invModelDiagonal = 1.0f / glm::length(box.getSize());
-    float invModelDiagonal = 1.0f;
+    float invModelDiagonal = 1.0f / glm::length(box.getSize());
+    // float invModelDiagonal = 1.0f;
 #ifdef TEST_OCTREE_SDF
     std::unique_ptr<SdfFunction> sdf = SdfFunction::loadFromFile(args::get(sdfPathArg));
     box = sdf->getSampleArea();
@@ -248,6 +259,7 @@ int main(int argc, char** argv)
     
     SPDLOG_INFO("OpenVDB init time: {}", timer.getElapsedSeconds());
     vdbGrid->print();
+    SPDLOG_INFO("OpenVDB mem usage: {}", vdbGrid->memUsage());
 
     openvdb::tools::GridSampler<openvdb::FloatGrid, openvdb::tools::BoxSampler> vdbSampler(*vdbGrid);
 #endif
@@ -364,40 +376,47 @@ int main(int argc, char** argv)
     std::array<std::vector<glm::vec3>, 40> samplesPerDist;
     samplesPerDist.fill(std::vector<glm::vec3>());
 
+    std::array<std::vector<float>, 40> samplesExactDist;
+    samplesExactDist.fill(std::vector<float>());
+
     for(uint32_t s=0; s < numSamples; s++)
     {
 #ifdef TEST_OCTREE_SDF
-        sdfRMSE += static_cast<double>(pow2((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
-        sdfMAE += static_cast<double>(glm::abs((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
-        sdfMaxError = glm::max(sdfMaxError, glm::abs((sdfDist[s] - exactSdfDist[s]) * invModelDiagonal));
+        sdfRMSE += static_cast<double>(pow2((sdfDist[s] - exactSdfDist[s])));
+        sdfMAE += static_cast<double>(glm::abs((sdfDist[s] - exactSdfDist[s])));
+        sdfMaxError = glm::max(sdfMaxError, glm::abs((sdfDist[s] - exactSdfDist[s])));
+        // sdfRMSE += static_cast<double>(pow2((sdfDist[s] - exactSdfDist1[s])));
+        // sdfMAE += static_cast<double>(glm::abs((sdfDist[s] - exactSdfDist1[s])));
+        // sdfMaxError = glm::max(sdfMaxError, glm::abs((sdfDist[s] - exactSdfDist1[s])));
 #endif
 #ifdef TEST_ICG
-        icgRMSE += static_cast<double>(pow2((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
-        icgMAE += static_cast<double>(glm::abs((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
-        icgMaxError = glm::max(icgMaxError, glm::abs((exactSdfDist1[s] - exactSdfDist[s]) * invModelDiagonal));
+        // icgRMSE += static_cast<double>(pow2((exactSdfDist1[s] - exactSdfDist[s])));
+        // icgMAE += static_cast<double>(glm::abs((exactSdfDist1[s] - exactSdfDist[s])));
+        // icgMaxError = glm::max(icgMaxError, glm::abs((exactSdfDist1[s] - exactSdfDist[s])));
 #endif
 #ifdef TEST_CGAL
-        cgalRMSE += static_cast<double>(pow2((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
-        cgalMAE += static_cast<double>(glm::abs((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
-        cgalMaxError = glm::max(cgalMaxError, glm::abs((exactSdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        cgalRMSE += static_cast<double>(pow2((exactSdfDist2[s] - exactSdfDist[s])));
+        cgalMAE += static_cast<double>(glm::abs((exactSdfDist2[s] - exactSdfDist[s])));
+        cgalMaxError = glm::max(cgalMaxError, glm::abs((exactSdfDist2[s] - exactSdfDist[s])));
 #endif
 #ifdef TEST_OPENVDB
-        vdbRMSE += static_cast<double>(pow2((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
-        vdbMAE += static_cast<double>(glm::abs((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
-        vdbMaxError = glm::max(vdbMaxError, glm::abs((sdfDist2[s] - exactSdfDist[s]) * invModelDiagonal));
+        vdbRMSE += static_cast<double>(pow2((sdfDist2[s] - exactSdfDist[s])));
+        vdbMAE += static_cast<double>(glm::abs((sdfDist2[s] - exactSdfDist[s])));
+        vdbMaxError = glm::max(vdbMaxError, glm::abs((sdfDist2[s] - exactSdfDist[s])));
 #endif
 #ifdef TEST_ICG
 #ifdef TEST_CGAL
-        maxError = glm::max(maxError, glm::abs((exactSdfDist1[s]-exactSdfDist2[s]) * invModelDiagonal));
+        maxError = glm::max(maxError, glm::abs((exactSdfDist1[s]-exactSdfDist2[s])));
 #endif
 #endif
 #ifdef MAKE_HISTOGRAM
-        uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 20.0f)), 39u);
+        uint32_t idx = glm::min(static_cast<uint32_t>(glm::round((exactSdfDist[s] * invModelDiagonal + 1.0f) * 20.0f)), 39u);
         // uint32_t idx = static_cast<uint32_t>(glm::round((exactSdfDist[s] * invDiag + 1.0f) * 100.0f)) - 80;
         // samplesPerDist[idx].push_back(samples[s]);
         if(idx >= 0 && idx < 40)
         {
             samplesPerDist[idx].push_back(samples[s]);
+            samplesExactDist[idx].push_back(exactSdfDist[s]);
         }
 #endif
     }
@@ -434,6 +453,24 @@ int main(int argc, char** argv)
         }
         histMeanTimeCGAL[r] = timer.getElapsedSeconds() / static_cast<float>(len);
 #endif
+
+#ifdef TEST_OCTREE_SDF
+        for(uint32_t i=0; i < len; i++)
+        {
+            const float dist = sdf->getDistance(s[i]);
+            histRSMEOctreeSdf[r] += pow2(dist - samplesExactDist[r][i]);
+            histNumSamplesOctreeSdf[r]++;
+        }
+#endif
+
+#ifdef TEST_OPENVDB
+        for(uint32_t i=0; i < len; i++)
+        {
+            const float dist = vdbSampler.wsSample(openvdb::Vec3R(static_cast<double>(s[i].x), static_cast<double>(s[i].y), static_cast<double>(s[i].z)));
+            histRSMEOpenVdb[r] += pow2(dist - samplesExactDist[r][i]);
+            histNumSamplesOpenVdb[r]++;
+        }
+#endif
     }
 
 #ifdef TEST_EXACT_OCTREE_SDF
@@ -449,6 +486,21 @@ int main(int argc, char** argv)
         SPDLOG_INFO("{}%: {}", 5*(i-20), histMeanTimeICG[i] * 1e6);
     }
 #endif
+
+#ifdef TEST_OCTREE_SDF
+    for(int i=0; i < 40; i++)
+    {
+        SPDLOG_INFO("{}%: {}", 5*(i-20), glm::sqrt(histRSMEOctreeSdf[i] / static_cast<float>(histNumSamplesOctreeSdf[i])) * invModelDiagonal);
+    }
+#endif
+
+#ifdef TEST_OPENVDB
+    for(int i=0; i < 40; i++)
+    {
+        SPDLOG_INFO("{}%: {}", 5*(i-20), glm::sqrt(histRSMEOpenVdb[i] / static_cast<float>(histNumSamplesOpenVdb[i])) * invModelDiagonal);
+    }
+#endif
+
 
 #ifdef TEST_CGAL
     for(int i=0; i < 40; i++)
@@ -474,24 +526,24 @@ int main(int argc, char** argv)
 #endif
 
 #ifdef TEST_OCTREE_SDF
-    SPDLOG_INFO("Octree Sdf RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(numSamples)));
-    SPDLOG_INFO("Octree Sdf MAE: {}", sdfMAE / static_cast<double>(numSamples));
-    SPDLOG_INFO("Octree Sdf max error: {}", sdfMaxError);
+    SPDLOG_INFO("Octree Sdf RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("Octree Sdf MAE: {}", (sdfMAE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("Octree Sdf max error: {}", sdfMaxError * invModelDiagonal);
 #endif
 #ifdef TEST_ICG
-    SPDLOG_INFO("ICG RMSE: {}", glm::sqrt(icgRMSE / static_cast<double>(numSamples)));
-    SPDLOG_INFO("ICG MAE: {}", icgMAE / static_cast<double>(numSamples));
-    SPDLOG_INFO("ICG max error: {}", icgMaxError);
+    SPDLOG_INFO("ICG RMSE: {}", glm::sqrt(icgRMSE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("ICG MAE: {}", (icgMAE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("ICG max error: {}", icgMaxError * invModelDiagonal);
 #endif
 #ifdef TEST_CGAL
-    SPDLOG_INFO("CGAL RMSE: {}", glm::sqrt(cgalRMSE / static_cast<double>(numSamples)));
-    SPDLOG_INFO("CGAL MAE: {}", cgalMAE / static_cast<double>(numSamples));
-    SPDLOG_INFO("CGAL max error: {}", cgalMaxError);
+    SPDLOG_INFO("CGAL RMSE: {}", glm::sqrt(cgalRMSE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("CGAL MAE: {}", (cgalMAE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("CGAL max error: {}", cgalMaxError * invModelDiagonal);
 #endif
 #ifdef TEST_OPENVDB
-    SPDLOG_INFO("VDB RMSE: {}", glm::sqrt(vdbRMSE / static_cast<double>(numSamples)));
-    SPDLOG_INFO("VDB MAE: {}", vdbMAE / static_cast<double>(numSamples));
-    SPDLOG_INFO("VDB max error: {}", vdbMaxError);
+    SPDLOG_INFO("VDB RMSE: {}", glm::sqrt(vdbRMSE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("VDB MAE: {}", (vdbMAE / static_cast<double>(numSamples)) * invModelDiagonal);
+    SPDLOG_INFO("VDB max error: {}", vdbMaxError * invModelDiagonal);
 #endif
 
 #ifdef TEST_ICG

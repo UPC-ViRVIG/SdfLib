@@ -1,5 +1,6 @@
 #include "utils/Mesh.h"
 #include "utils/PrimitivesFactory.h"
+#include "utils/Timer.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
@@ -55,6 +56,7 @@ public:
             mModelRenderer = std::make_shared<RenderMesh>();
 			mModelRenderer->systemName = "Object Mesh";
 			mModelRenderer->start();
+            mesh.computeNormals();
 			mModelRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
 										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
 								}, mesh.getVertices().data(), mesh.getVertices().size());
@@ -88,7 +90,7 @@ public:
 			mPlaneRenderer->setIndexData(plane->getIndices());
 			mPlaneRenderer->setTransform(glm::translate(glm::mat4(1.0f), glm::vec3(mesh.getBoundingBox().getCenter().x, mesh.getBoundingBox().min.y, mesh.getBoundingBox().getCenter().z)) * 
                                          glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
-                                        glm::scale(glm::mat4(1.0f), glm::vec3(3.0f)));
+                                        glm::scale(glm::mat4(1.0f), glm::vec3(8.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
             addSystem(mPlaneRenderer);
         }

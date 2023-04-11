@@ -26,6 +26,7 @@ public:
 
     bool start();
 	bool shouldClose();
+	void disableVerticalSync();
 	void swapBuffers();
 	void update();
 	void setBackgroudColor(glm::vec4 color);

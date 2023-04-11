@@ -67,6 +67,11 @@ bool Window::shouldClose() {
 	return glfwWindowShouldClose(mGlfwWindow);
 }
 
+void Window::disableVerticalSync()
+{
+	glfwSwapInterval(0);
+}
+
 void Window::swapBuffers() {
 	glfwSwapBuffers(mGlfwWindow);
 }
