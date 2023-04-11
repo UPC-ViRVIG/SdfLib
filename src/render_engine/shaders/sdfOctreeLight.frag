@@ -200,13 +200,13 @@ float getAO(vec3 pos, vec3 n)
     float decay = 1.0;
     for(int i=0; i < 8; i++)
     {
-        float h = 0.01 + 0.1 * float(i)/8.0;
-        float d = map(pos + n * h);
+        float h = 0.005 + 0.05 * float(i)/8.0;
+        float d = max(map(pos + n * h), 0.0);
         occ += max(h-d, 0.0);
-        decay *= 0.7;
+        decay *= 0.85;
     }
 
-    return min(1.0 - 1.1 * occ, 1.0);
+    return max(1.0 - 1.7 * occ, 0.0);
 }
 
 float softshadow(vec3 ro, vec3 rd)
@@ -214,7 +214,26 @@ float softshadow(vec3 ro, vec3 rd)
     float res = 1.0;
     float ph = 1e20;
     float t = 0.005;
-    for( int i=0; i < 256 && t < 5.0; i++ )
+    for( int i=0; i < 512 && t < 10.0; i++ )
+    {
+        float h = map(ro + rd*t);
+        if( h < 1e-3 ) return 0.0;
+        // float y = h * h / (2.0 * ph);
+        // float d = sqrt(h * h - y * y);
+        // res = min(res, d / max(0.0,t-y));
+        res = min(res, h/t);
+        ph = h;
+        t += h;
+    }
+    return res;
+}
+
+float softshadowToPoint(vec3 ro, vec3 rd, float far)
+{
+    float res = 1.0;
+    float ph = 1e20;
+    float t = 0.005;
+    for( int i=0; i < 512 && t < far; i++ )
     {
         float h = map(ro + rd*t);
         if( h < 1e-3 ) return 0.0;
@@ -235,8 +254,8 @@ vec3 mapGradient(vec3 pos)
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
-    float metallic = 0.3;
-    float roughness = 0.5;
+    float metallic = 0.1;
+    float roughness = 0.7;
 
     //vec3 N = mapGradient(pos);
     vec3 N = normalize(gridNormal);
@@ -245,9 +264,10 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
     float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
 
-    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.72, 0.45, 0.20);
+    // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.72, 0.45, 0.20);
+    vec3 albedo = (pos.y < 0.37) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
 
-    vec3 F0 = vec3(0.95, 0.64, 0.54); 
+    vec3 F0 = vec3(0.17, 0.17, 0.17);
     F0 = mix(F0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
@@ -255,10 +275,14 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     {
         //vec3 L = normalize(vec3(-0.5, 0.4, -0.6));
         //vec3 L = normalize(vec3(0.0, 0.4, 0.0));
-        vec3 L = normalize(vec3(2.469, 3.5, 3.98));
+        // vec3 L = normalize(vec3(2.469, 3.5, 3.98));
+        // float distToLight = length(vec3(0.695968, 0.535887, 0.505242) - pos);
+        // vec3 L = normalize(vec3(0.695968, 0.535887, 0.505242) - pos);
+        vec3 L = normalize(vec3(0.05, 3.5, 1.5));
         vec3 H = normalize(V + L);
-        vec3 sunColor = 100.0 * vec3(1.0, 0.8, 0.6);
-        float intensity = min(softshadow(pos + 0.008 * N, L)/0.363, 1.0);
+        vec3 sunColor = 10.0 * vec3(1.0, 0.8, 0.6);
+        //float intensity = min(softshadowToPoint(pos + 0.0001 * N, L, distToLight)/0.0999, 1.0);
+        float intensity = min(softshadow(pos + 0.0001 * N, L)/0.0999, 1.0);
         // float intensity = 1.0;
         vec3 radiance = sunColor * intensity;
         
@@ -282,7 +306,6 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
 
     vec3 ambient = vec3(0.5) * albedo * getAO(pos, N);
     vec3 color = ambient + Lo;
-    // vec3 color = ambient;
 
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
