@@ -119,12 +119,6 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         glm::vec3(-1.0f, 1.0f, 1.0f),
         glm::vec3(1.0f, 1.0f, 1.0f)
     };
-
-    // TODO: Create the grid
-    // {
-    //     const uint32_t voxlesPerAxis = 1 << startDepth;
-    //     mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
-    // }
     
     {
         std::stack<NodeInfo>& nodes = mainThread.nodesStack;
@@ -613,7 +607,6 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             vistNode(octreeData[0], mainThread.startOctreeDepth);
 
             // Move the fist node to the correct start grid position
-            
             mOctreeData[i] = octreeData[0];
 
             // Copy to final array

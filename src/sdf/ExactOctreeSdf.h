@@ -10,7 +10,27 @@
 
 class ExactOctreeSdf : public SdfFunction
 {
+
+/**
+ * The class constructs and stores a structure for accelerating exact queries to distance fields.
+ * The structure is an octree where each leaf stores the triangles influencing it.
+ **/
 public:
+
+    /**
+     * @brief Structure representing a node of the octree.
+     * 
+     *        If it is an inner node, it stores the index pointing 
+     *          to the start of an array containing its 8 children.
+     *        Moreover, if it is in the bit encoding start depth, it stores 
+     *          the index pointing to the set of triangles containing the node.
+     *        Also, if it is in a lower depth than the bit encoding start depth,
+     *          it stores the index pointing the bit mask set that stores which triangles
+     *          influence the node regarding its parent triangles.
+     * 
+     *        If it is a leaf node, it only stores a index pointing 
+     *          to the set of triangles influencing the node.
+     **/ 
     struct OctreeNode
     {
         static inline OctreeNode getLeafNode()
@@ -55,44 +75,76 @@ public:
         }
     };
 
+    // Constructors
     ExactOctreeSdf() {}
+    /**
+     * @param mesh The input mesh.
+     * @param box The area that the structure must cover.
+     * @param maxDepth The maximum octree depth.
+     * @param startDepth The start depth of the octree.
+     * @param minTrianglesPerNode The minimum number of triangles influencing a node.
+     *                            All the leaves before the maximum depth must have less than 
+     *                            this minimum influencing them.
+     * @param numThreads The maximum number of threads to use during the structure construction.
+     **/
     ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDepth,
                    uint32_t startDepth=1, uint32_t minTrianglesPerNode = 128,
                    uint32_t numThreads=1);
 
+    /**
+     * @return The size of the start grid containing all 
+     *          the nodes of the start depth stored sequentially 
+     **/
     glm::ivec3 getStartGridSize() const { return glm::ivec3(mStartGridSize); }
+
+    /**
+     * @return The octree bounding box
+     **/
     const BoundingBox& getGridBoundingBox() const { return mBox; }
+
+    /**
+     * @return The octree bounding box
+     **/
     BoundingBox getSampleArea() const override { return mBox; }
+
+    /**
+     * @return Returns the maximum number of triangles influencing a leaf
+     **/
     uint32_t getMaxTrianglesInLeafs() const { return mMaxTrianglesInLeafs; }
+
+    /**
+     * @return Returns the minimum number of triangles influencing a leaf
+     **/
     uint32_t getMinTrianglesInLeafs() const { return mMinTrianglesInLeafs; }
+
+    /**
+     * @return The octree maximum depth
+     **/
     uint32_t getOctreeMaxDepth() const { return mMaxDepth; }
+
+    /**
+     * @return The array containing all the octree structure
+     **/
     const std::vector<OctreeNode>& getOctreeData() const { return mOctreeData; }
+
+    /**
+     * @return The array of triangles properties used to compute distances to triangles
+     **/
     const std::vector<TriangleUtils::TriangleData>& getTrianglesData() { return mTrianglesData; }
 
+    /**
+     * @return The signed distance to the mesh at the point
+     **/
     float getDistance(glm::vec3 sample) const override;
+    /**
+     * @return The signed distance and gradient field at the point
+     * @param outGradient Returns the gradient of the field
+     **/
     float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
     SdfFormat getFormat() const override { return SdfFormat::EXACT_OCTREE; }
 
-    void test(glm::vec3 sample)
-    {
-        float dist = getDistance(sample);
-        float minDist = INFINITY;
-        uint32_t minIndex = 0;
-        for(uint32_t t=0; t < mTrianglesData.size(); t++)
-        {
-            const float dist = TriangleUtils::getSqDistPointAndTriangle(sample, mTrianglesData[t]);
-            if(dist < minDist)
-            {
-                minIndex = t;
-                minDist = dist;
-            }
-        }
 
-        float dist2 = TriangleUtils::getSignedDistPointAndTriangle(sample, mTrianglesData[minIndex]);
-        
-        std::cout << dist << " // " << dist2 << std::endl;
-    }
-
+    // Load and save function for storing the structure on disk
     template<class Archive>
     void save(Archive & archive) const
     { 
@@ -110,6 +162,7 @@ public:
         mTrianglesCache[0].resize(mMaxTrianglesEncodedInLeafs);
         mTrianglesCache[1].resize(mMaxTrianglesEncodedInLeafs);
         
+        // Print structure size
         SPDLOG_INFO("Octree Data: {}", mOctreeData.size() * sizeof(OctreeNode));
         SPDLOG_INFO("Triangle Sets: {}", mTrianglesSets.size() * sizeof(uint32_t));
         SPDLOG_INFO("Triangle Masks: {}", mTrianglesMasks.size());
@@ -123,15 +176,18 @@ public:
 
 private:
 
-    // The depth in which the process start the subdivision
+    // The depth in which the process starts the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
+    // The last levels in which the triangles are bit encoded
     static constexpr uint32_t BIT_ENCODING_DEPTH = 2;
 
+    // Octree bounding box
     BoundingBox mBox;
 
+    // Array used to decode the bit encoding during the structure queries
     mutable std::array<std::vector<uint32_t>, 2> mTrianglesCache;
 
-    // Store the node with the leaf node with the maximum number of triangles
+    // Structure properties
     uint32_t mMinTrianglesInLeafs;
     uint32_t mMaxTrianglesInLeafs;
 
@@ -139,16 +195,21 @@ private:
     uint32_t mBitEncodingStartDepth;
     uint32_t mBitsPerIndex;
 
+    uint32_t mMaxDepth;
+
+    // Octree start grid
     int mStartGridSize = 0;
     int mStartGridXY = 0;
     uint32_t mStartDepth = 0;
     float mStartGridCellSize = 0.0f;
 
-    uint32_t mMaxDepth;
-    std::vector<OctreeNode> mOctreeData;
-    std::vector<uint32_t> mTrianglesSets;
-    std::vector<uint8_t> mTrianglesMasks;
-    std::vector<TriangleUtils::TriangleData> mTrianglesData;
+    // Structure arrays
+    std::vector<OctreeNode> mOctreeData; // List of nodes
+    std::vector<uint32_t> mTrianglesSets; // List storing sets of triangles
+                                          // The first element of each set is the size of the set
+                                          // Each triangle is stored using only a specific number of bits (mBitsPerIndex attribute)
+    std::vector<uint8_t> mTrianglesMasks; // List storing sets of triangles bit encoded
+    std::vector<TriangleUtils::TriangleData> mTrianglesData; // Triangle properties
 
     template<typename TrianglesInfluenceStrategy>
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
