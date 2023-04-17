@@ -82,7 +82,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     mainThread.maxTrianglesEncodedInLeafs = 0;
 
 #ifdef PRINT_STATISTICS
-    mainThread.verticesStatistics.resize(maxDepth, std::make_pair(0, 0));
+    mainThread.verticesStatistics.resize(maxDepth + 1, std::make_pair(0, 0));
     mainThread.verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
     mainThread.endedNodes.resize(maxDepth + 1, 0);
     mainThread.elapsedTime.resize(maxDepth + 1, 0.0f);
@@ -258,7 +258,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                 uint32_t arrayStartIndex = outputTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
                 const uint32_t arraySize = (numTriangles * tContext.bitsPerIndex + 31)/32;
-                outputTrianglesSets.resize(outputTrianglesSets.size() + arraySize + 1);
+                outputTrianglesSets.resize(outputTrianglesSets.size() + arraySize + 2);
 
                 octreeNode->trianglesArrayIndex = arrayStartIndex;
 
@@ -445,7 +445,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                 uint32_t arrayStartIndex = outputTrianglesSets.size();
                 const uint32_t numTriangles = nodeTriangles.size();
                 const uint32_t arraySize = (numTriangles * tContext.bitsPerIndex + 31)/32;
-                outputTrianglesSets.resize(outputTrianglesSets.size() + arraySize + 1);
+                outputTrianglesSets.resize(outputTrianglesSets.size() + arraySize + 2);
 
                 octreeNode->trianglesArrayIndex = arrayStartIndex;
 

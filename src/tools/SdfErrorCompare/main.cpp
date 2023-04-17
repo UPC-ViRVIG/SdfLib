@@ -18,7 +18,7 @@
 //#define TEST_CGAL
 #define TEST_OCTREE_SDF
 #define TEST_EXACT_OCTREE_SDF
-#define TEST_OPENVDB
+// #define TEST_OPENVDB
 
 #ifdef TEST_ICG
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>

@@ -161,8 +161,8 @@ target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})
 
 add_executable(SdfErrorCompare src/tools/SdfErrorCompare/main.cpp)
 #target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
-target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} OpenVDB::openvdb)
-#target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
+# target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME} OpenVDB::openvdb)
+target_link_libraries(SdfErrorCompare PUBLIC ${PROJECT_NAME})
 
 add_executable(ImageQueryTime src/tools/ImageQueryTime/main.cpp)
 # target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
