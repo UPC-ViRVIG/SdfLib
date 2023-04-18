@@ -91,15 +91,20 @@ int main()
 		triangles[i] = i;
 	}
 
-	std::array<std::array<float, 4>, 8> coeff;
+	std::array<std::array<float, 8>, 8> coeff;
 	typedef TriCubicInterpolation Inter;
 	auto f = [](glm::vec3 point)
 	{
-		std::array<float, 4> c;
+		std::array<float, 8> c;
 		c[0] = point.x;
 		c[1] = 1.0f;
 		c[2] = 0.0f;
 		c[3] = 0.0f;
+
+		c[4] = 0.0f;
+		c[5] = 0.0f;
+		c[6] = 0.0f;
+		c[7] = 0.0f;
 		return c;
 	};
 
@@ -118,7 +123,7 @@ int main()
 	std::array<float, 64> param;
 	Inter::calculateCoefficients(coeff, 5.0f, triangles, mesh, trianglesData, param);
 	
-	std::array<float, 4> interCoeff;
+	std::array<float, 8> interCoeff;
 	Inter::interpolateVertexValues(param, glm::vec3(0.5f, 0.0f, 0.0f), 5.0f, interCoeff);
 	
 	std::cout << interCoeff[0] << std::endl;

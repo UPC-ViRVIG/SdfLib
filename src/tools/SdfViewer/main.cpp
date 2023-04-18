@@ -141,8 +141,7 @@ public:
 					mGridSize = sdfGrid.getGridCellSize();
 					break;
 				case SdfFormat::OCTREE:
-					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), mStartDepth.value(), 
-										  mTerminationThreshold.value(), mTerminationRule.value());
+					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), mStartDepth.value(), mTerminationRule.value());
 					sdfBB = octreeSdf.getGridBoundingBox();
 					viewBB = octreeSdf.getGridBoundingBox();
 					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, mDepth.value());

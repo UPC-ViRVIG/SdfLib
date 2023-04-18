@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 
     Mesh meshSphere(modelPath);
 
-    BoundingBox box = meshSphere.getBoudingBox();
+    BoundingBox box = meshSphere.getBoundingBox();
     const glm::vec3 modelBBSize = box.getSize();
     box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     SPDLOG_INFO("Octree algorithm time {}s", timer.getElapsedSeconds());
     SPDLOG_INFO("Octree size: {} nodes", octreeSdf.getOctreeData().size());
 
-	BoundingBox modelBox = meshSphere.getBoudingBox();
+	BoundingBox modelBox = meshSphere.getBoundingBox();
     auto getRandomVec3 = [&] () -> glm::vec3
     {
         glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),

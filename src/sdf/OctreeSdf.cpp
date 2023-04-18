@@ -13,10 +13,10 @@ typedef TriCubicInterpolation InterpolationMethod;
 OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, 
                      uint32_t depth, uint32_t startDepth,
                      float terminationThreshold,
-					 OctreeSdf::TerminationRule terminationRule,
                      OctreeSdf::InitAlgorithm initAlgorithm,
                      uint32_t numThreads)
 {
+    const OctreeSdf::TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE;
     mMaxDepth = depth;
 
     const glm::vec3 bbSize = box.getSize();
@@ -31,28 +31,28 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
 
     switch(initAlgorithm)
     {
-        case OctreeSdf::InitAlgorithm::DF_UNIFORM:
+        case OctreeSdf::InitAlgorithm::UNIFORM:
             initUniformOctree(mesh, startDepth, depth);
             break;
-        case OctreeSdf::InitAlgorithm::DF_ADAPTATIVE:
+        case OctreeSdf::InitAlgorithm::NO_CONTINUITY:
             // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             //initOctree<FCPWQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
-        case OctreeSdf::InitAlgorithm::BF_ADAPTATIVE:
+        case OctreeSdf::InitAlgorithm::CONTINUITY:
             //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             // initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
-        case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
-            Timer time;
-            time.start();
-            //initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 1);
-            SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
-            time.start();
-            initOctreeInGPU(mesh, startDepth, depth, terminationThreshold, terminationRule);
-            SPDLOG_INFO("GPU version takes: {}s", time.getElapsedSeconds());
-            break;
+        // case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
+        //     Timer time;
+        //     time.start();
+        //     //initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, 1);
+        //     SPDLOG_INFO("CPU version takes: {}s", time.getElapsedSeconds());
+        //     time.start();
+        //     initOctreeInGPU(mesh, startDepth, depth, terminationThreshold, terminationRule);
+        //     SPDLOG_INFO("GPU version takes: {}s", time.getElapsedSeconds());
+        //     break;
     }
 
     computeMinBorderValue();
@@ -204,6 +204,7 @@ void OctreeSdf::computeMinBorderValue()
 
 void OctreeSdf::getDepthDensity(std::vector<float>& depthsDensity)
 {
+    depthsDensity.resize(mMaxDepth + 1);
     std::vector<uint32_t> nodesPerDepth(depthsDensity.size(), 0);
     uint32_t numLeaves = 0;
     std::function<void(OctreeNode&, uint32_t)> vistNode;

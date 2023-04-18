@@ -8,24 +8,23 @@
 #include "utils/UsefullSerializations.h"
 #include "SdfFunction.h"
 
+/**
+ * @brief The class constructs and stores a structure for accelerating exact queries to distance fields.
+ *        The structure is an octree where each leaf stores the triangles influencing it.
+ **/
 class ExactOctreeSdf : public SdfFunction
 {
-
-/**
- * The class constructs and stores a structure for accelerating exact queries to distance fields.
- * The structure is an octree where each leaf stores the triangles influencing it.
- **/
 public:
 
     /**
      * @brief Structure representing a node of the octree.
      * 
-     *        If it is an inner node, it stores the index pointing 
+     *        If it is an inner node, it stores a index pointing 
      *          to the start of an array containing its 8 children.
      *        Moreover, if it is in the bit encoding start depth, it stores 
-     *          the index pointing to the set of triangles containing the node.
+     *          a index pointing to the set of triangles containing the node.
      *        Also, if it is in a lower depth than the bit encoding start depth,
-     *          it stores the index pointing the bit mask set that stores which triangles
+     *          it stores a index pointing the bit mask set that stores which triangles
      *          influence the node regarding its parent triangles.
      * 
      *        If it is a leaf node, it only stores a index pointing 
@@ -101,10 +100,6 @@ public:
      * @return The octree bounding box
      **/
     const BoundingBox& getGridBoundingBox() const { return mBox; }
-
-    /**
-     * @return The octree bounding box
-     **/
     BoundingBox getSampleArea() const override { return mBox; }
 
     /**
@@ -132,14 +127,7 @@ public:
      **/
     const std::vector<TriangleUtils::TriangleData>& getTrianglesData() { return mTrianglesData; }
 
-    /**
-     * @return The signed distance to the mesh at the point
-     **/
     float getDistance(glm::vec3 sample) const override;
-    /**
-     * @return The signed distance and gradient field at the point
-     * @param outGradient Returns the gradient of the field
-     **/
     float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
     SdfFormat getFormat() const override { return SdfFormat::EXACT_OCTREE; }
 

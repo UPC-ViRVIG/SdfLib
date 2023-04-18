@@ -35,7 +35,7 @@ int main(int argc, char** argv)
 
     Mesh meshSphere(modelPath);
     
-    BoundingBox box = meshSphere.getBoudingBox();
+    BoundingBox box = meshSphere.getBoundingBox();
     const glm::vec3 modelBBSize = box.getSize();
     box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 

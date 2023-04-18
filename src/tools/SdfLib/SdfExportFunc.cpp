@@ -97,8 +97,8 @@ EXPORT SdfFunction* createOctreeSdf(glm::vec3* vertices, uint32_t numVertices,
         indices, numIndices);
        
     OctreeSdf* sdf = new OctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, maxError, 
-                        OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE, OctreeSdf::InitAlgorithm::BF_ADAPTATIVE, 
-                        numThreads);
+                                    OctreeSdf::InitAlgorithm::CONTINUITY, 
+                                    numThreads);
     //ExactOctreeSdf* sdf = new ExactOctreeSdf(mesh, octreeBox, maxOctreeDepth, startOctreeDepth, minTrianglesPerNode);
 
     return sdf;

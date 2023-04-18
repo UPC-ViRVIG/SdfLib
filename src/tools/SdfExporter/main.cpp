@@ -26,10 +26,9 @@ int main(int argc, char** argv)
     args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {'c', "cell_size"});
     args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {'d', "depth"});
     args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
-	args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "Octree generation termination rule", {"termination_rule"});
 	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
 	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree, grid, exact_octree", {"sdf_format"});
-    args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: df_uniform, df, bf", {"algorithm"});
+    args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: uniform, no_continuity, continuity", {"algorithm"});
     args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
     args::ValueFlag<uint32_t> numThreadsArg(parser, "num_threads", "Set the application maximum number of threads", {"num_threads"});
@@ -77,22 +76,11 @@ int main(int argc, char** argv)
     }
     else if(sdfFormat == "octree")
     {
-        std::optional<OctreeSdf::TerminationRule> terminationRule((terminationRuleArg) ? 
-                    OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg)) : 
-                    std::optional<OctreeSdf::TerminationRule>(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE));
-
-        if(!terminationRule.has_value())
-        {
-            std::cerr << args::get(terminationRuleArg) << " is not a valid termination rule" << std::endl;
-            return 0;
-        }
-
         std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "bf";
         OctreeSdf::InitAlgorithm initAlgorithm;
-        if(initAlgorithmStr == "df_uniform") initAlgorithm = OctreeSdf::InitAlgorithm::DF_UNIFORM;
-        else if(initAlgorithmStr == "df") initAlgorithm = OctreeSdf::InitAlgorithm::DF_ADAPTATIVE;
-        else if(initAlgorithmStr == "bf") initAlgorithm = OctreeSdf::InitAlgorithm::BF_ADAPTATIVE;
-        else if(initAlgorithmStr == "gpu") initAlgorithm = OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION;
+        if(initAlgorithmStr == "uniform") initAlgorithm = OctreeSdf::InitAlgorithm::UNIFORM;
+        else if(initAlgorithmStr == "no_continuity") initAlgorithm = OctreeSdf::InitAlgorithm::NO_CONTINUITY;
+        else if(initAlgorithmStr == "continuity") initAlgorithm = OctreeSdf::InitAlgorithm::CONTINUITY;
         else
         {
             std::cerr << initAlgorithmStr << " is not a valid supported octree generation algorithm" << std::endl;
@@ -105,7 +93,6 @@ int main(int argc, char** argv)
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
-            terminationRule.value(),
             initAlgorithm,
             (numThreadsArg) ? args::get(numThreadsArg) : 1
         ));
