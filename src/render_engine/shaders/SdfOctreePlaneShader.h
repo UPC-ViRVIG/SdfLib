@@ -10,7 +10,7 @@
 class SdfOctreePlaneShader : public Shader<SdfOctreePlaneShader> 
 {
 public:
-    SdfOctreePlaneShader(OctreeSdf& octreeSdf, const BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfOctreePlane.vert", SHADER_PATH + "sdfOctreePlane.frag") 
+    SdfOctreePlaneShader(sdflib::OctreeSdf& octreeSdf, const sdflib::BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfOctreePlane.vert", SHADER_PATH + "sdfOctreePlane.frag") 
     {
         worldToStartGridMatrixLocation = glGetUniformLocation(getProgramId(), "worldToStartGridMatrix");
         worldToStartGridMatrix = glm::scale(glm::mat4x4(1.0f), 1.0f / viewBB.getSize()) *
@@ -33,7 +33,7 @@ public:
         // Set octree data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, octreeSdf.getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), octreeSdf.getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, octreeSdf.getOctreeData().size() * sizeof(sdflib::OctreeSdf::OctreeNode), octreeSdf.getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }

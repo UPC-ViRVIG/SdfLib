@@ -7,6 +7,8 @@
 #include <array>
 #include <stack>
 
+namespace sdflib
+{
 template<int N>
 inline void calculateMinDistances(const std::array<glm::vec3, N>& inPos, std::array<float, N>& outDistance, 
                                    const std::vector<uint32_t>& triangles, const std::vector<TriangleUtils::TriangleData>& trianglesData)
@@ -181,6 +183,6 @@ inline float estimateErrorFunctionIntegralBySimpsonsRule(const std::array<float,
            4.0f / 216.0f * pow2(middlePoints[17][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 1.0f))) +
            4.0f / 216.0f * pow2(middlePoints[18][0] - Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 1.0f)));
 }
-
+}
 
 #endif

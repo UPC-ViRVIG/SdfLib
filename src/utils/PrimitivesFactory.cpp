@@ -3,6 +3,8 @@
 #include <map>
 #include <array>
 
+namespace sdflib
+{
 namespace PrimitivesFactory
 {
 
@@ -191,5 +193,6 @@ std::shared_ptr<Mesh> getCube()
     mesh->getVertices().assign(cubeData.begin(), cubeData.end());
 
     return mesh;
+}
 }
 }

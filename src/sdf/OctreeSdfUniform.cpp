@@ -5,6 +5,8 @@
 #include <array>
 #include <stack>
 
+namespace sdflib
+{
 namespace OctreeUniformData
 {
 	struct NodeInfo
@@ -211,4 +213,5 @@ void OctreeSdf::initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
     }
+}
 }

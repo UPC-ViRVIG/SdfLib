@@ -1,5 +1,7 @@
 #include "TriangleUtils.h"
 
+namespace sdflib
+{
 namespace TriangleUtils
 {
     std::vector<TriangleData> calculateMeshTriangleData(const Mesh& mesh)
@@ -424,4 +426,5 @@ namespace TriangleUtils
 
         return triangles;
     }
+}
 }

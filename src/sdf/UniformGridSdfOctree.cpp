@@ -7,7 +7,8 @@
 
 #include "RealSdf.h"
 
-
+namespace sdflib
+{
 void UniformGridSdf::evalNode(glm::vec3 center, glm::vec3 size, 
                   std::vector<std::pair<float, uint32_t>>& parentTriangles, 
                   const std::vector<TriangleUtils::TriangleData>& trianglesData,
@@ -222,4 +223,5 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
             SPDLOG_INFO("Depth {}, number of evaluations: {:.3f}M", d, static_cast<float>(numTrianglesEvaluated[d]) * 1e-6);
         }
     }
+}
 }

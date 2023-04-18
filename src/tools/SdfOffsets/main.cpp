@@ -21,6 +21,8 @@
 #include "sdf/SdfFunction.h"
 #include "utils/Timer.h"
 
+using namespace sdflib;
+
 class ICG
 {
 public:

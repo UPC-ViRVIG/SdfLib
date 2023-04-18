@@ -30,6 +30,7 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <fstream>
 
+using namespace sdflib;
 
 class MyScene : public Scene
 {

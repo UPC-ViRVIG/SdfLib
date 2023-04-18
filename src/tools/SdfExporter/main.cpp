@@ -15,6 +15,8 @@
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+using namespace sdflib;
+
 int main(int argc, char** argv)
 {
     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");

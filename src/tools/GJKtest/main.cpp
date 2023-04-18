@@ -3,6 +3,8 @@
 #include "utils/GJK.h"
 #include <iostream>
 
+using namespace sdflib;
+
 float distToQuad(glm::vec3 point, glm::vec3 quadMin, glm::vec3 quadMax)
 {
     const glm::vec3 center = 0.5f * (quadMin + quadMax);

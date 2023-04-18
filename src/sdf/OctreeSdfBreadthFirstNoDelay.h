@@ -9,6 +9,8 @@
 #include <stack>
 #include <omp.h>
 
+namespace sdflib
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX, int NUM_COEFFICIENTS>
 struct BreadthFirstNoDelayNodeInfo
 {
@@ -1205,6 +1207,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
 
     SPDLOG_INFO("Iter 1 {}s // Iter 2 {}s // After {}s // {}", iter1TotalTime, iter2TotalTime, afterSubdivisionTime, iter1TotalTime/(iter2TotalTime + afterSubdivisionTime));
     SPDLOG_INFO("Num nodes subdivided after desicion: {}", numNodesSubdividedAfterDecision);
+}
 }
 
 #endif

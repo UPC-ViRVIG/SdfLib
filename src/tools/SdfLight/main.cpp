@@ -10,6 +10,8 @@
 #include <spdlog/spdlog.h>
 #include <args.hxx>
 
+using namespace sdflib;
+
 class MyScene : public Scene
 {
 public:

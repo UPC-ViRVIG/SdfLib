@@ -128,9 +128,6 @@ target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
 add_executable(SdfError src/tools/SdfError/main.cpp)
 target_link_libraries(SdfError PUBLIC ${PROJECT_NAME})
 
-add_executable(ParticleSimulation src/tools/ParticleSimulation/main.cpp)
-target_link_libraries(ParticleSimulation PUBLIC ${PROJECT_NAME})
-
 add_library(SdfLib SHARED src/tools/SdfLib/SdfExportFunc.h
                           src/tools/SdfLib/SdfExportFunc.cpp)
 target_link_libraries(SdfLib PRIVATE ${PROJECT_NAME})                          

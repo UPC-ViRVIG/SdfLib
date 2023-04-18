@@ -7,6 +7,8 @@
 #include <array>
 #include <stack>
 
+namespace sdflib
+{
 // typedef TriLinearInterpolation InterpolationMethod;
 typedef TriCubicInterpolation InterpolationMethod;
 
@@ -247,4 +249,5 @@ void OctreeSdf::getDepthDensity(std::vector<float>& depthsDensity)
         depthsDensity[d] = size * static_cast<float>(nodesPerDepth[d]);
         size *= 0.125f;
     }
+}
 }

@@ -9,6 +9,8 @@
 #include <stack>
 #include <omp.h>
 
+namespace sdflib
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfo
 {
@@ -539,6 +541,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
     mainThread.trianglesInfluence.printStatistics();
 #endif
+}
 }
 
 #endif

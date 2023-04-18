@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <spdlog/spdlog.h>
 
+namespace sdflib
+{
 Mesh::Mesh(std::string filePath)
 {
     Assimp::Importer import;
@@ -131,4 +133,5 @@ void Mesh::applyTransform(glm::mat4 trans)
     }
 
     computeBoundingBox();
+}
 }

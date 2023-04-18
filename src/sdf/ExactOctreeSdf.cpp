@@ -2,6 +2,8 @@
 #include "TrianglesInfluence.h"
 #include "InterpolationMethods.h"
 
+namespace sdflib
+{
 ExactOctreeSdf::ExactOctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t maxDepth,
                                uint32_t startDepth, uint32_t minTrianglesPerNode,
                                uint32_t numThreads)
@@ -382,4 +384,5 @@ void ExactOctreeSdf::calculateStatistics()
     //     const float differentMean = static_cast<float>(differentTriangles[d]) / static_cast<float>(mergedNodes[d]);
     //     SPDLOG_INFO("Depth {}, mean of merged nodes: {} // mean of different nodes: {}", d, mergedMean, differentMean);
     // }
+}
 }

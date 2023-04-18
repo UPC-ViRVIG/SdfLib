@@ -13,10 +13,10 @@ void MainLoop::start(Scene& scene)
     Window window;
     window.start();
 
-    Timer deltaTimer;
+    sdflib::Timer deltaTimer;
 	deltaTimer.start();
 
-	Timer fpsTimer;
+	sdflib::Timer fpsTimer;
 	fpsTimer.start();
 
 	Window::setCurrentWindow(&window);

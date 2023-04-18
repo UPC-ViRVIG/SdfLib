@@ -3,6 +3,8 @@
 
 #include <chrono>
 
+namespace sdflib
+{
 class Timer {
 public:
 	void start();
@@ -12,5 +14,6 @@ public:
 private:
 	std::chrono::time_point<std::chrono::steady_clock> lastTime;
 };
+}
 
 #endif

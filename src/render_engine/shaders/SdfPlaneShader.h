@@ -10,7 +10,7 @@
 class SdfPlaneShader : public Shader<SdfPlaneShader> 
 {
 public:
-    SdfPlaneShader(UniformGridSdf& sdfGrid, const BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfPlane.vert", SHADER_PATH + "sdfPlane.frag") 
+    SdfPlaneShader(sdflib::UniformGridSdf& sdfGrid, const sdflib::BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfPlane.vert", SHADER_PATH + "sdfPlane.frag") 
     {   
         // Get uniform locations
         worldToGridMatrixLocation = glGetUniformLocation(getProgramId(), "worldToGridMatrix");

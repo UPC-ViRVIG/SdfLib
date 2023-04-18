@@ -14,7 +14,7 @@
 class RenderSdf : public System
 {
 public:
-    RenderSdf(std::shared_ptr<OctreeSdf> inputOctree) 
+    RenderSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree) 
     {
         mInputOctree = inputOctree;
     }
@@ -43,7 +43,7 @@ private:
     glm::mat4x4 mOctreeMatrix;
     float mOctreeDistanceScale;
     float mOctreeMinBorderValue;
-    std::shared_ptr<OctreeSdf> mInputOctree;
+    std::shared_ptr<sdflib::OctreeSdf> mInputOctree;
 
 };
 

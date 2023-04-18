@@ -27,6 +27,8 @@
 // #include <openvdb/tools/Interpolation.h>
 #endif
 
+using namespace sdflib;
+
 class ICG
 {
 public:

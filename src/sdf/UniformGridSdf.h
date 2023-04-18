@@ -10,6 +10,8 @@
 
 #include <cereal/types/vector.hpp>
 
+namespace sdflib
+{
 class UniformGridSdf : public SdfFunction
 {
 public:
@@ -70,5 +72,6 @@ private:
                   const std::vector<TriangleUtils::TriangleData>& trianglesData,
                   uint32_t depth);
 };
+}
 
 #endif

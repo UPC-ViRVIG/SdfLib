@@ -6,6 +6,8 @@
 #include "utils/TriangleUtils.h"
 #include "enoki/array.h"
 
+namespace sdflib
+{
 struct NoneInterpolation
 {
     static constexpr uint32_t VALUES_PER_VERTEX = 0;
@@ -489,5 +491,6 @@ struct TriCubicInterpolation
          + 3 * values[53] * fracPart[2] * fracPart[2] + 6 * values[54] * fracPart[0] * fracPart[2] * fracPart[2] + 9 * values[55] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 6 * values[57] * fracPart[1] * fracPart[2] * fracPart[2] + 12 * values[58] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 18 * values[59] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 9 * values[61] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 18 * values[62] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 27 * values[63] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]) / (sqNodeSize * nodeSize);
     }
 };
+}
 
 #endif

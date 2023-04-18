@@ -7,6 +7,7 @@
 #include "sdf/SdfFunction.h"
 #include "utils/Timer.h"
 
+using namespace sdflib;
 
 int main(int argc, char** argv)
 {

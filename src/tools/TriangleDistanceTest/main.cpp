@@ -5,6 +5,8 @@
 #include "utils/TriangleUtils.h"
 #include "utils/Timer.h"
 
+using namespace sdflib;
+
 int main()
 {
 	srand (2222);

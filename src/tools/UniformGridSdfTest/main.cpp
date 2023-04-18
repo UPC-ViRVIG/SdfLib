@@ -11,6 +11,8 @@
 #include "utils/Timer.h"
 #include <spdlog/spdlog.h>
 
+using namespace sdflib;
+
 int main(int argc, char** argv)
 {
     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");

@@ -4,6 +4,8 @@
 #include "OctreeSdf.h"
 #include "ExactOctreeSdf.h"
 
+namespace sdflib
+{
 bool SdfFunction::saveToFile(const std::string& outputPath)
 {
     std::ofstream os(outputPath, std::ios::out | std::ios::binary);
@@ -74,4 +76,5 @@ std::unique_ptr<SdfFunction> SdfFunction::loadFromFile(const std::string& inputP
         SPDLOG_ERROR("Unknown file format");
         return std::unique_ptr<SdfFunction>();
     }
+}
 }

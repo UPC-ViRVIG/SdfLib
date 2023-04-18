@@ -12,6 +12,8 @@
 
 //#define PRINT_TRIANGLES_STATS
 
+namespace sdflib
+{
 void compareTrees(uint32_t tIndex1, uint32_t tIndex2, OctreeSdf::OctreeNode* tree1, OctreeSdf::OctreeNode* tree2, float& accError, uint32_t& numSamples, float& maxError)
 {
     if(tree1[tIndex1].isLeaf() ^ tree2[tIndex2].isLeaf())
@@ -725,4 +727,5 @@ void OctreeSdf::initOctreeInGPU(const Mesh& mesh, uint32_t startDepth, uint32_t 
     }
     
     mOctreeData = std::move(octreeData);
+}
 }

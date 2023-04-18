@@ -12,6 +12,8 @@
 #include "Mesh.h"
 #include "UsefullSerializations.h"
 
+namespace sdflib
+{
 namespace TriangleUtils
 {
     struct TriangleData
@@ -389,6 +391,7 @@ namespace TriangleUtils
                 :
                 glm::dot(normal, pa) * glm::dot(normal, pa) / glm::dot(normal, normal);
     }
+}
 }
 
 #endif

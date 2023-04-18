@@ -34,5 +34,4 @@ namespace glm
     }
 }
 
-
 #endif

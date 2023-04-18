@@ -5,6 +5,8 @@
 #include "utils/TriangleUtils.h"
 #include "utils/PrimitivesFactory.h"
 
+using namespace sdflib;
+
 namespace InfluenceRegionCreator
 {
 

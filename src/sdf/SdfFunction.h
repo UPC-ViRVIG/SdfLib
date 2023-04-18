@@ -7,6 +7,8 @@
 
 #include "utils/Mesh.h"
 
+namespace sdflib
+{
 class SdfFunction
 {
 public:
@@ -52,5 +54,6 @@ public:
      **/
     static std::unique_ptr<SdfFunction> loadFromFile(const std::string& inputPath);
 };
+}
 
 #endif

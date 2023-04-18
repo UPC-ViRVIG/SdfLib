@@ -1,5 +1,7 @@
 #include "Timer.h"
 
+namespace sdflib
+{
 using namespace std;
 
 void Timer::start() {
@@ -16,4 +18,5 @@ float Timer::getElapsedMicroseconds() {
 
 int Timer::getElapsedMilliseconds() {
 	return chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - lastTime).count();
+}
 }

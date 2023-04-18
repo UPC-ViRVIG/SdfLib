@@ -2,6 +2,8 @@
 
 #include <spdlog/spdlog.h>
 
+namespace sdflib
+{
 namespace GJK
 {
 
@@ -863,4 +865,5 @@ bool IsNearMinimize(float halfNodeSize,
     return isNear || iter >= MAX_ITER;
 }
 
+}
 }

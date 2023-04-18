@@ -8,7 +8,8 @@
 #include <array>
 #include <stack>
 
-
+namespace sdflib
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct BreadthFirstNodeInfo
 {
@@ -507,6 +508,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         nextBuffer = (nextBuffer + 1) % 3;
         nodesBuffer[nextBuffer].clear();
     }
+}
 }
 
 #endif

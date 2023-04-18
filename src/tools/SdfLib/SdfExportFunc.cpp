@@ -3,6 +3,8 @@
 
 #include <InteractiveComputerGraphics/TriangleMeshDistance.h>
 
+using namespace sdflib;
+
 class ICG
 {
 public:

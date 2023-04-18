@@ -14,6 +14,8 @@
 #include "utils/Timer.h"
 #include "utils/Mesh.h"
 
+using namespace sdflib;
+
 //#define TEST_ICG
 //#define TEST_CGAL
 #define TEST_OCTREE_SDF

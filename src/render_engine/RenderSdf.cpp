@@ -12,6 +12,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "shaders/ScreenPlaneShader.h"
 
+using namespace sdflib;
+
 RenderSdf::~RenderSdf()
 {
     glDeleteProgram(mRenderProgramId);

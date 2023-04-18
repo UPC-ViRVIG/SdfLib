@@ -11,6 +11,8 @@
 
 #include <cereal/types/vector.hpp>
 
+namespace sdflib
+{
 /**
  * @brief The class constructs and stores a structure for accelerating queries to distance fields with an expected error.
  *        The structure is an octree where each leaf stores a polynomial representing the field behavior inside the node.
@@ -249,6 +251,7 @@ private:
 
     void computeMinBorderValue();
 };
+}
 
 #include "OctreeSdfDepthFirst.h"
 #include "OctreeSdfBreadthFirst.h"

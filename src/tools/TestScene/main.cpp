@@ -21,6 +21,8 @@
 #include <ImGuizmo.h>
 #include <glm/gtc/type_ptr.hpp>
 
+using namespace sdflib;
+
 class TestScene : public Scene
 {
 	void start() override

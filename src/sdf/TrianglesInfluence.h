@@ -16,6 +16,9 @@
 
 //#define PRINT_GJK_STATS
 
+namespace sdflib
+{
+
 const std::array<glm::vec3, 8> childrens = 
 {
     glm::vec3(-1.0f, -1.0f, -1.0f),
@@ -1115,5 +1118,6 @@ struct FCPWQueries
     {
     }
 };
+}
 
 #endif

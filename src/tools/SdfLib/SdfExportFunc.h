@@ -9,11 +9,11 @@
 #define EXPORT __declspec(dllexport)
 
 
-extern "C" EXPORT void saveSdf(SdfFunction* sdfPointer, char* path);
+extern "C" EXPORT void saveSdf(sdflib::SdfFunction* sdfPointer, char* path);
 
-extern "C" EXPORT SdfFunction* loadSdf(char* path);
+extern "C" EXPORT sdflib::SdfFunction* loadSdf(char* path);
 
-extern "C" EXPORT SdfFunction* createExactOctreeSdf(glm::vec3* vertices, uint32_t numVertices, 
+extern "C" EXPORT sdflib::SdfFunction* createExactOctreeSdf(glm::vec3* vertices, uint32_t numVertices, 
                                               uint32_t* indices, uint32_t numIndices,
                                               float bbMinX, float bbMinY, float bbMinZ,
                                               float bbMaxX, float bbMaxY, float bbMaxZ,
@@ -22,7 +22,7 @@ extern "C" EXPORT SdfFunction* createExactOctreeSdf(glm::vec3* vertices, uint32_
                                               uint32_t minTrianglesPerNode,
                                               uint32_t numThreads);
 
-extern "C" EXPORT SdfFunction* createOctreeSdf(glm::vec3* vertices, uint32_t numVertices,
+extern "C" EXPORT sdflib::SdfFunction* createOctreeSdf(glm::vec3* vertices, uint32_t numVertices,
                                     uint32_t* indices, uint32_t numIndices,
                                     float bbMinX, float bbMinY, float bbMinZ,
                                     float bbMaxX, float bbMaxY, float bbMaxZ,
@@ -37,20 +37,20 @@ extern "C" EXPORT SdfFunction* createOctreeSdf(glm::vec3* vertices, uint32_t num
 //                                                     uint32_t maxOctreeDepth,
 //                                                     uint32_t minTrianglesPerNode);
 
-extern "C" EXPORT float getDistance(SdfFunction* sdfPointer, float pointX, float pointY, float pointZ);
+extern "C" EXPORT float getDistance(sdflib::SdfFunction* sdfPointer, float pointX, float pointY, float pointZ);
 
-extern "C" EXPORT float getDistanceAndGradient(SdfFunction* sdfPointer, float pointX, float pointY, float pointZ, glm::vec3* outGradient);
+extern "C" EXPORT float getDistanceAndGradient(sdflib::SdfFunction* sdfPointer, float pointX, float pointY, float pointZ, glm::vec3* outGradient);
 
-extern "C" EXPORT glm::vec3 getBBMinPoint(SdfFunction* sdfPointer);
+extern "C" EXPORT glm::vec3 getBBMinPoint(sdflib::SdfFunction* sdfPointer);
 
-extern "C" EXPORT glm::vec3 getBBSize(SdfFunction* sdfPointer);
+extern "C" EXPORT glm::vec3 getBBSize(sdflib::SdfFunction* sdfPointer);
 
-extern "C" EXPORT uint32_t getStartGridSize(SdfFunction* sdfPointer);
+extern "C" EXPORT uint32_t getStartGridSize(sdflib::SdfFunction* sdfPointer);
 
-extern "C" EXPORT uint32_t getOctreeDataSize(SdfFunction* sdfPointer);
+extern "C" EXPORT uint32_t getOctreeDataSize(sdflib::SdfFunction* sdfPointer);
 
-extern "C" EXPORT void getOctreeData(SdfFunction* sdfPointer, uint32_t* data);
+extern "C" EXPORT void getOctreeData(sdflib::SdfFunction* sdfPointer, uint32_t* data);
 
-extern "C" EXPORT void deleteSdf(SdfFunction* sdfPointer);
+extern "C" EXPORT void deleteSdf(sdflib::SdfFunction* sdfPointer);
 
 #endif

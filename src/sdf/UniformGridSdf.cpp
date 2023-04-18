@@ -5,6 +5,8 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 
+namespace sdflib
+{
 UniformGridSdf::UniformGridSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, 
                    InitAlgorithm initAlgorithm)
 {
@@ -113,4 +115,5 @@ float UniformGridSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) cons
 {
     // TODO
     return 0.0f;
+}
 }

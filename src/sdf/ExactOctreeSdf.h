@@ -8,6 +8,8 @@
 #include "utils/UsefullSerializations.h"
 #include "SdfFunction.h"
 
+namespace sdflib
+{
 /**
  * @brief The class constructs and stores a structure for accelerating exact queries to distance fields.
  *        The structure is an octree where each leaf stores the triangles influencing it.
@@ -210,6 +212,7 @@ private:
 
     void calculateStatistics();
 };
+}
 
 #include "ExactOctreeSdfDepthFirst.h"
 

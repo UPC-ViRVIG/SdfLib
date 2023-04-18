@@ -5,6 +5,8 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+namespace sdflib
+{
 namespace GJK
 {
     float getMinDistance(const std::vector<glm::vec3>& e1, const std::vector<glm::vec3>& e2);
@@ -51,6 +53,7 @@ namespace GJK
                         const std::array<glm::vec3, 3>& triangle,
                         float distThreshold,
                         uint32_t* pIter = nullptr);
+}
 }
 
 #endif

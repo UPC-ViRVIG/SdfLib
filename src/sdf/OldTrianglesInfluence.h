@@ -11,6 +11,8 @@
 #include <array>
 #include <glm/glm.hpp>
 
+namespace sdflib
+{
 const std::array<glm::vec3, 8> childrens = 
 {
     glm::vec3(-1.0f, -1.0f, -1.0f),
@@ -216,5 +218,6 @@ private:
         outDiffTRadius = slope;
     }
 };
+}
 
 #endif

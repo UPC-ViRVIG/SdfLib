@@ -6,6 +6,8 @@
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 
+namespace sdflib
+{
 class RealSdf : public SdfFunction
 {
 public:
@@ -16,5 +18,6 @@ public:
 private:
     std::vector<TriangleUtils::TriangleData> mTriangles;
 };
+}
 
 #endif
