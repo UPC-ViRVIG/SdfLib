@@ -2,7 +2,7 @@
 #define SDF_OCTREE_LIGHT_SHADER_H
 
 #include "Shader.h"
-#include "sdf/OctreeSdf.h"
+#include "SdfLib/OctreeSdf.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>

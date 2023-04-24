@@ -4,8 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
-#include "sdf/SdfFunction.h"
-#include "utils/Timer.h"
+#include "SdfLib/SdfFunction.h"
+#include "SdfLib/utils/Timer.h"
 
 using namespace sdflib;
 

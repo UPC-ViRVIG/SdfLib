@@ -1,9 +1,9 @@
 #ifndef INFLUENCE_REGION_CREATOR_H
 #define INFLUENCE_REGION_CREATOR_H
 
-#include "utils/Mesh.h"
-#include "utils/TriangleUtils.h"
-#include "utils/PrimitivesFactory.h"
+#include "SdfLib/utils/Mesh.h"
+#include "SdfLib/utils/TriangleUtils.h"
+#include "SdfLib/utils/PrimitivesFactory.h"
 
 using namespace sdflib;
 

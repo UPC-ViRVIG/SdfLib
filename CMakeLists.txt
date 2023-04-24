@@ -24,6 +24,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Get all project files
 file(GLOB SOURCE_FILES src/*.cpp)
 file(GLOB HEADER_FILES src/*.h)
+file(GLOB PUBLIC_HEADER_FILES include/SdfLib/*.h)
 
 file(GLOB RENDER_ENGINE_SOURCE_FILES src/render_engine/*.cpp)
 file(GLOB RENDER_ENGINE_HEADER_FILES src/render_engine/*.h)
@@ -37,14 +38,13 @@ file(GLOB SDF_HEADER_FILES src/sdf/*.h)
 file(GLOB UTILS_SOURCE_FILES src/utils/*.cpp)
 file(GLOB UTILS_HEADER_FILES src/utils/*.h)
 
-include_directories(include)
-
 # Add libraries
-add_library(${PROJECT_NAME}    ${SOURCE_FILES} ${HEADER_FILES}
+add_library(${PROJECT_NAME}    ${SOURCE_FILES} ${HEADER_FILES} ${PUBLIC_HEADER_FILES}
                                ${SDF_SOURCE_FILES} ${SDF_HEADER_FILES}
                                ${UTILS_SOURCE_FILES} ${UTILS_HEADER_FILES})
 
-target_include_directories(${PROJECT_NAME} PUBLIC src/)
+target_include_directories(${PROJECT_NAME} PUBLIC include/)
+target_include_directories(${PROJECT_NAME} PRIVATE src/)
 
 # Add shaders
 file(GLOB SHADER_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/src/render_engine/shaders 
@@ -74,6 +74,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
 target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
 target_link_libraries(${PROJECT_NAME} PUBLIC eigen)
 target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
+target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
+target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
 # Add openMP
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -98,16 +100,19 @@ if(SDFLIB_BUILD_APPS)
                     ${RENDER_ENGINE_SOURCE_FILES} ${RENDER_ENGINE_HEADER_FILES}
                     ${RENDER_ENGINE_SHADERS_SOURCE_FILES} ${RENDER_ENGINE_SHADERS_HEADER_FILES})
     target_link_libraries(SdfViewer PUBLIC ${PROJECT_NAME} glfw imgui imguizmo glad)
+    target_include_directories(SdfViewer PRIVATE src/)
 
     add_executable(SdfRender src/tools/SdfRender/main.cpp
                     ${RENDER_ENGINE_SOURCE_FILES} ${RENDER_ENGINE_HEADER_FILES}
                     ${RENDER_ENGINE_SHADERS_SOURCE_FILES} ${RENDER_ENGINE_SHADERS_HEADER_FILES})
     target_link_libraries(SdfRender PUBLIC ${PROJECT_NAME} glfw imgui imguizmo glad)
+    target_include_directories(SdfRender PRIVATE src/)
 
     add_executable(SdfLight src/tools/SdfLight/main.cpp
                     ${RENDER_ENGINE_SOURCE_FILES} ${RENDER_ENGINE_HEADER_FILES}
                     ${RENDER_ENGINE_SHADERS_SOURCE_FILES} ${RENDER_ENGINE_SHADERS_HEADER_FILES})
     target_link_libraries(SdfLight PUBLIC ${PROJECT_NAME} glfw imgui imguizmo glad)
+    target_include_directories(SdfLight PRIVATE src/)
 
     add_executable(SdfExporter src/tools/SdfExporter/main.cpp)
     target_link_libraries(SdfExporter PUBLIC ${PROJECT_NAME})
@@ -133,6 +138,7 @@ if(SDFLIB_BUILD_DEBUG_APPS)
                     ${RENDER_ENGINE_SOURCE_FILES} ${RENDER_ENGINE_HEADER_FILES}
                     ${RENDER_ENGINE_SHADERS_SOURCE_FILES} ${RENDER_ENGINE_SHADERS_HEADER_FILES})
     target_link_libraries(OctreeExactMeanOfTrianglesViewer PUBLIC ${PROJECT_NAME} glfw imgui imguizmo glad)
+    target_include_directories(OctreeExactMeanOfTrianglesViewer PRIVATE src/)
 
     add_executable(SdfOctreeTest src/tools/SdfOctreeTest/main.cpp)
     target_link_libraries(SdfOctreeTest PUBLIC ${PROJECT_NAME})

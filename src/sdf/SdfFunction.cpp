@@ -1,8 +1,8 @@
-#include "SdfFunction.h"
+#include "SdfLib/SdfFunction.h"
 
-#include "UniformGridSdf.h"
-#include "OctreeSdf.h"
-#include "ExactOctreeSdf.h"
+#include "SdfLib/UniformGridSdf.h"
+#include "SdfLib/OctreeSdf.h"
+#include "SdfLib/ExactOctreeSdf.h"
 
 namespace sdflib
 {

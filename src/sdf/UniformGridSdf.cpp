@@ -1,6 +1,6 @@
-#include "UniformGridSdf.h"
-#include "utils/TriangleUtils.h"
-#include "utils/UsefullSerializations.h"
+#include "SdfLib/UniformGridSdf.h"
+#include "SdfLib/utils/TriangleUtils.h"
+#include "SdfLib/utils/UsefullSerializations.h"
 
 #include <iostream>
 #include <spdlog/spdlog.h>

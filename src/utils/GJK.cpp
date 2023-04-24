@@ -1,4 +1,4 @@
-#include "GJK.h"
+#include "SdfLib/utils/GJK.h"
 
 #include <spdlog/spdlog.h>
 

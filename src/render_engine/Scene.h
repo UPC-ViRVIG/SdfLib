@@ -7,7 +7,6 @@
 #include <vector>
 #include "Camera.h"
 #include "System.h"
-#include "render_engine/System.h"
 
 class Scene 
 {

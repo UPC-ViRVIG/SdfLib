@@ -1,4 +1,4 @@
-#include "PrimitivesFactory.h"
+#include "SdfLib/utils/PrimitivesFactory.h"
 
 #include <map>
 #include <array>

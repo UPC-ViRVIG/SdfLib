@@ -1,5 +1,5 @@
-#include "utils/Mesh.h"
-#include "utils/PrimitivesFactory.h"
+#include "SdfLib/utils/Mesh.h"
+#include "SdfLib/utils/PrimitivesFactory.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"

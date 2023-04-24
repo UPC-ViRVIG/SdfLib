@@ -1,10 +1,10 @@
 #ifndef OCTREE_SDF_BREADTH_FIRST_NO_DELAY_H
 #define OCTREE_SDF_BREADTH_FIRST_NO_DELAY_H
 
-#include "OctreeSdf.h"
-#include "utils/Timer.h"
-#include "utils/GJK.h"
-#include "OctreeSdfUtils.h"
+#include "SdfLib/OctreeSdf.h"
+#include "SdfLib/utils/Timer.h"
+#include "SdfLib/utils/GJK.h"
+#include "SdfLib/OctreeSdfUtils.h"
 #include <array>
 #include <stack>
 #include <omp.h>

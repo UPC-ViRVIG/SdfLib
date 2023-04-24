@@ -1,9 +1,9 @@
 #ifndef SDF_EXPORT_FUNC_H
 #define SDF_EXPORT_FUNC_H
 
-#include "utils/Mesh.h"
-#include "sdf/ExactOctreeSdf.h"
-#include "sdf/OctreeSdf.h"
+#include "SdfLib/utils/Mesh.h"
+#include "SdfLib/ExactOctreeSdf.h"
+#include "SdfLib/OctreeSdf.h"
 #include <vector>
 
 #define EXPORT __declspec(dllexport)

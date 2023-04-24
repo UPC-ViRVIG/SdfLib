@@ -7,7 +7,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>      
 #include <assimp/postprocess.h>
-#include "utils/UsefullSerializations.h"
+#include "SdfLib/utils/UsefullSerializations.h"
 
 namespace sdflib
 {

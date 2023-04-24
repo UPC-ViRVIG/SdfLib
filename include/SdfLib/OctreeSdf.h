@@ -253,8 +253,4 @@ private:
 };
 }
 
-#include "OctreeSdfDepthFirst.h"
-#include "OctreeSdfBreadthFirst.h"
-#include "OctreeSdfBreadthFirstNoDelay.h"
-
 #endif

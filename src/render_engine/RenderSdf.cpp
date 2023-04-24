@@ -1,9 +1,9 @@
 #include "RenderSdf.h"
 #include "Window.h"
 #include "Camera.h"
-#include "utils/PrimitivesFactory.h"
+#include "SdfLib/utils/PrimitivesFactory.h"
 #include "shaders/Shader.h"
-#include "sdf/OctreeSdf.h"
+#include "SdfLib/OctreeSdf.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>

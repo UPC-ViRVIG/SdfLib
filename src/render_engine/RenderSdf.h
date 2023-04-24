@@ -9,7 +9,7 @@
 #include "shaders/ScreenPlaneShader.h"
 #include "RenderMesh.h"
 
-#include "sdf/OctreeSdf.h"
+#include "SdfLib/OctreeSdf.h"
 
 class RenderSdf : public System
 {

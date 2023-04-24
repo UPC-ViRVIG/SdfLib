@@ -1,11 +1,11 @@
-#include "UniformGridSdf.h"
-#include "utils/TriangleUtils.h"
-#include "utils/GJK.h"
-#include "utils/Timer.h"
+#include "SdfLib/UniformGridSdf.h"
+#include "SdfLib/utils/TriangleUtils.h"
+#include "SdfLib/utils/GJK.h"
+#include "SdfLib/utils/Timer.h"
 #include <stack>
 #include <algorithm>
 
-#include "RealSdf.h"
+#include "SdfLib/RealSdf.h"
 
 namespace sdflib
 {

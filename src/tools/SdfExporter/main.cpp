@@ -2,16 +2,16 @@
 #include <random>
 #include <algorithm>
 #include <optional>
-#include "sdf/UniformGridSdf.h"
-#include "sdf/RealSdf.h"
-#include "sdf/OctreeSdf.h"
-#include "sdf/ExactOctreeSdf.h"
-#include "utils/Mesh.h"
+#include "SdfLib/UniformGridSdf.h"
+#include "SdfLib/RealSdf.h"
+#include "SdfLib/OctreeSdf.h"
+#include "SdfLib/ExactOctreeSdf.h"
+#include "SdfLib/utils/Mesh.h"
 #include <iostream>
 #include <random>
 #include <args.hxx>
-#include "utils/TriangleUtils.h"
-#include "utils/Timer.h"
+#include "SdfLib/utils/TriangleUtils.h"
+#include "SdfLib/utils/Timer.h"
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 
