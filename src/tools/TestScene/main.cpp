@@ -81,7 +81,11 @@ private:
 
 int main()
 {
-	spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+	#ifdef SDFLIB_PRINT_STATISTICS
+        spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #else
+        spdlog::set_pattern("[%^%l%$] %v");
+    #endif
 
     Mesh mesh("../models/sphere.glb");
 

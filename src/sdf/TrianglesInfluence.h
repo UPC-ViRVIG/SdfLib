@@ -14,7 +14,7 @@
 #include <array>
 #include <glm/glm.hpp>
 
-//#define PRINT_GJK_STATS
+#define SDFLIB_PRINT_GJK_STATS
 
 namespace sdflib
 {
@@ -437,7 +437,7 @@ struct PerVertexTrianglesInfluence
                     isInside = false;
                 }
 
-                #ifdef PRINT_GJK_STATS
+                #ifdef SDFLIB_PRINT_GJK_STATS
                 if(verticesInfo[vId] != idx)
                 {
                     if(isInside)
@@ -471,7 +471,7 @@ struct PerVertexTrianglesInfluence
 
     void printStatistics() 
     {
-        #ifdef PRINT_GJK_STATS
+        #ifdef SDFLIB_PRINT_GJK_STATS
         SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
         for(uint32_t p=0; p < 20; p++)
         {
@@ -832,7 +832,7 @@ struct PerNodeRegionTrianglesInfluence
             //    }
             //}
 
-#ifdef PRINT_GJK_STATS
+#ifdef SDFLIB_PRINT_GJK_STATS
             if(verticesInfo[vId] != idx)
             {
                 if(isInside)
@@ -858,7 +858,7 @@ struct PerNodeRegionTrianglesInfluence
 
     void printStatistics() 
     {
-#ifdef PRINT_GJK_STATS
+#ifdef SDFLIB_PRINT_GJK_STATS
         SPDLOG_INFO("Mean of GJK iterations: {}", static_cast<float>(gjkIter) / static_cast<float>(gjkCallsInside + gjkCallsOutside));
         for(uint32_t p=0; p < 20; p++)
         {

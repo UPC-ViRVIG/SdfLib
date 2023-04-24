@@ -46,7 +46,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         uint32_t maxTrianglesEncodedInLeafs;
         uint32_t padding[16];
 
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
         std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics;
         std::vector<uint32_t> endedNodes;
         std::vector<float> elapsedTime;
@@ -83,7 +83,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     mainThread.maxTrianglesInLeafs = 0;
     mainThread.maxTrianglesEncodedInLeafs = 0;
 
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
     mainThread.verticesStatistics.resize(maxDepth + 1, std::make_pair(0, 0));
     mainThread.verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
     mainThread.endedNodes.resize(maxDepth + 1, 0);
@@ -179,7 +179,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             glm::vec3(0.0f, 1.0f, 1.0f),
         };
 
-        #ifdef PRINT_STATISTICS
+        #ifdef SDFLIB_PRINT_STATISTICS
             tContext.timer.start();
         #endif
 
@@ -464,7 +464,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                 }
             }
 
-            #ifdef PRINT_STATISTICS
+            #ifdef SDFLIB_PRINT_STATISTICS
                 const uint64_t numNodes = 1 << (3 * (tContext.maxDepth - node.depth));
                 tContext.numTrianglesInLeafs += nodeTriangles.size() * numNodes;
                 tContext.numLeafs += numNodes;
@@ -475,7 +475,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             tContext.maxTrianglesInLeafs = glm::max(tContext.maxTrianglesInLeafs, static_cast<uint32_t>(nodeTriangles.size()));
         }
 
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
         {
             tContext.verticesStatistics[node.depth].first += nodeTriangles.size();
             tContext.verticesStatistics[node.depth].second += 1;
@@ -625,7 +625,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             mMaxTrianglesInLeafs = glm::max(mMaxTrianglesInLeafs, tCtx.maxTrianglesInLeafs);
         }
 
-        #ifdef PRINT_STATISTICS
+        #ifdef SDFLIB_PRINT_STATISTICS
             for(ThreadContext& tCtx : threadsContext)
             {
                 for(uint32_t d=0; d < maxDepth+1; d++)
@@ -645,7 +645,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         #endif
     }
 	
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
     for(uint32_t d=0; d < maxDepth+1; d++)
     {

@@ -12,86 +12,6 @@ if(NOT glm_lib_POPULATED)
 	add_subdirectory(${glm_lib_SOURCE_DIR} ${glm_lib_BINARY_DIR})
 endif()
 
-# eigen
-FetchContent_Declare(eigen_lib
-  GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-  GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
-)
-
-FetchContent_GetProperties(eigen_lib)
-if(NOT eigen_lib_POPULATED)
-	FetchContent_Populate(eigen_lib)
-	add_library(eigen INTERFACE)
-	target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
-endif()
-
-# glfw
-FetchContent_Declare(glfw_lib
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 7d5a16ce714f0b5f4efa3262de22e4d948851525 # 3.3.6
-)
-
-FetchContent_GetProperties(glfw_lib)
-if(NOT glfw_lib_POPULATED)
-	FetchContent_Populate(glfw_lib)
-	add_subdirectory(${glfw_lib_SOURCE_DIR} ${glfw_lib_BINARY_DIR})
-endif()
-
-# glad
-add_library(glad STATIC glad/src/glad.c)
-target_include_directories(glad PUBLIC glad/include)
-
-# vulkan
-add_library(vulkan INTERFACE)
-target_include_directories(vulkan INTERFACE ${VULKAN_PATH}/Include)
-target_link_directories(vulkan INTERFACE ${VULKAN_PATH}/Bin 
-							   INTERFACE ${VULKAN_PATH}/Lib)
-target_link_libraries(vulkan INTERFACE "vulkan-1")
-
-# imgui
-FetchContent_Declare(imgui_lib
-  GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG c71a50deb5ddf1ea386b91e60fa2e4a26d080074 # 1.87
-)
-
-FetchContent_GetProperties(imgui_lib)
-if(NOT imgui_lib_POPULATED)
-	FetchContent_Populate(imgui_lib)
-	file(GLOB imgui_SOURCE_FILES ${imgui_lib_SOURCE_DIR}/*.cpp)
-	file(GLOB imgui_HEADER_FILES ${imgui_lib_SOURCE_DIR}/*.h)
-	add_library(imgui STATIC ${imgui_SOURCE_FILES} 
-							 ${imgui_lib_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-							 ${imgui_lib_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-							 ${imgui_HEADER_FILES}
-							 ${imgui_lib_SOURCE_DIR}/backends/imgui_impl_glfw.h
-							 ${imgui_lib_SOURCE_DIR}/backends/imgui_impl_opengl3.h)
-	
-	target_include_directories(imgui PUBLIC ${imgui_lib_SOURCE_DIR}
-									 PUBLIC ${imgui_lib_SOURCE_DIR}/backends)
-	target_link_libraries(imgui PRIVATE glfw
-								PRIVATE glad)
-endif()
-
-# imguizmo
-FetchContent_Declare(imguizmo_lib
-  GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
-  GIT_TAG 664cf2d73864a36b2a8b5091d33fc4578c885eca # 1.83
-)
-
-FetchContent_GetProperties(imguizmo_lib)
-if(NOT imguizmo_lib_POPULATED)
-	FetchContent_Populate(imguizmo_lib)
-	file(GLOB imguizmo_SOURCE_FILES ${imguizmo_lib_SOURCE_DIR}/*.cpp)
-	file(GLOB imguizmo_HEADER_FILES ${imguizmo_lib_SOURCE_DIR}/*.h)
-	add_library(imguizmo STATIC ${imguizmo_SOURCE_FILES} 
-							 ${imguizmo_HEADER_FILES})
-	
-	target_include_directories(imguizmo PUBLIC ${imguizmo_lib_SOURCE_DIR})
-	target_link_libraries(imguizmo  PRIVATE glfw
-									PRIVATE glad
-									PRIVATE imgui)
-endif()
-
 # assimp
 FetchContent_Declare(assimp_lib
   GIT_REPOSITORY https://github.com/assimp/assimp.git
@@ -101,6 +21,7 @@ FetchContent_Declare(assimp_lib
 if(NOT assimp_lib)
 	FetchContent_Populate(assimp_lib)
 	
+	set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 	set(BUILD_SHARED_LIBS OFF)
 	set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
 	set(ASSIMP_BUILD_TESTS OFF)
@@ -166,6 +87,18 @@ if(NOT enoki_lib_POPULATED)
 	target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
 endif()
 
+# eigen
+FetchContent_Declare(eigen_lib
+GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
+)
+
+FetchContent_GetProperties(eigen_lib)
+if(NOT eigen_lib_POPULATED)
+	FetchContent_Populate(eigen_lib)
+	add_library(eigen INTERFACE)
+	target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
+endif()
 
 # FCPW
 FetchContent_Declare(fcpw_lib
@@ -178,4 +111,66 @@ if(NOT fcpw_lib_POPULATED)
 	FetchContent_Populate(fcpw_lib)
 	add_subdirectory(${fcpw_lib_SOURCE_DIR} ${fcpw_lib_BINARY_DIR})
 	target_include_directories(fcpw INTERFACE ${fcpw_lib_SOURCE_DIR})
+endif()
+
+if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
+	# glfw
+	FetchContent_Declare(glfw_lib
+	GIT_REPOSITORY https://github.com/glfw/glfw.git
+	GIT_TAG 7d5a16ce714f0b5f4efa3262de22e4d948851525 # 3.3.6
+	)
+
+	FetchContent_GetProperties(glfw_lib)
+	if(NOT glfw_lib_POPULATED)
+		FetchContent_Populate(glfw_lib)
+		add_subdirectory(${glfw_lib_SOURCE_DIR} ${glfw_lib_BINARY_DIR})
+	endif()
+
+	# glad
+	add_library(glad STATIC glad/src/glad.c)
+	target_include_directories(glad PUBLIC glad/include)
+
+	# imgui
+	FetchContent_Declare(imgui_lib
+	GIT_REPOSITORY https://github.com/ocornut/imgui.git
+	GIT_TAG c71a50deb5ddf1ea386b91e60fa2e4a26d080074 # 1.87
+	)
+
+	FetchContent_GetProperties(imgui_lib)
+	if(NOT imgui_lib_POPULATED)
+		FetchContent_Populate(imgui_lib)
+		file(GLOB imgui_SOURCE_FILES ${imgui_lib_SOURCE_DIR}/*.cpp)
+		file(GLOB imgui_HEADER_FILES ${imgui_lib_SOURCE_DIR}/*.h)
+		add_library(imgui STATIC ${imgui_SOURCE_FILES} 
+								${imgui_lib_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+								${imgui_lib_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+								${imgui_HEADER_FILES}
+								${imgui_lib_SOURCE_DIR}/backends/imgui_impl_glfw.h
+								${imgui_lib_SOURCE_DIR}/backends/imgui_impl_opengl3.h)
+		
+		target_include_directories(imgui PUBLIC ${imgui_lib_SOURCE_DIR}
+										PUBLIC ${imgui_lib_SOURCE_DIR}/backends)
+		target_link_libraries(imgui PRIVATE glfw
+									PRIVATE glad)
+	endif()
+
+	# imguizmo
+	FetchContent_Declare(imguizmo_lib
+	GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+	GIT_TAG 664cf2d73864a36b2a8b5091d33fc4578c885eca # 1.83
+	)
+
+	FetchContent_GetProperties(imguizmo_lib)
+	if(NOT imguizmo_lib_POPULATED)
+		FetchContent_Populate(imguizmo_lib)
+		file(GLOB imguizmo_SOURCE_FILES ${imguizmo_lib_SOURCE_DIR}/*.cpp)
+		file(GLOB imguizmo_HEADER_FILES ${imguizmo_lib_SOURCE_DIR}/*.h)
+		add_library(imguizmo STATIC ${imguizmo_SOURCE_FILES} 
+								${imguizmo_HEADER_FILES})
+		
+		target_include_directories(imguizmo PUBLIC ${imguizmo_lib_SOURCE_DIR})
+		target_link_libraries(imguizmo  PRIVATE glfw
+										PRIVATE glad
+										PRIVATE imgui)
+	endif()
 endif()

@@ -48,7 +48,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         float valueRange;
         uint32_t padding[16];
 
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
         std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics;
         std::vector<uint32_t> notEndedNodes;
         std::vector<float> elapsedTime;
@@ -70,7 +70,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold;
     mainThread.valueRange = 0.0f;
 
-    #ifdef PRINT_STATISTICS
+    #ifdef SDFLIB_PRINT_STATISTICS
         mainThread.verticesStatistics.resize(maxDepth, std::make_pair(0, 0));
         mainThread.verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
         mainThread.notEndedNodes.resize(maxDepth + 1, 0);
@@ -154,7 +154,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             glm::vec3(0.0f, 1.0f, 1.0f),
         };
 
-        #ifdef PRINT_STATISTICS
+        #ifdef SDFLIB_PRINT_STATISTICS
             tContext.timer.start();
         #endif
 
@@ -324,7 +324,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 					child.verticesInfo[4] = pointsInfo[16]; child.verticesInfo[5] = pointsInfo[17];
 					child.verticesInfo[6] = pointsInfo[18]; child.verticesInfo[7] = node.verticesInfo[7];
 				}
-                #ifdef PRINT_STATISTICS
+                #ifdef SDFLIB_PRINT_STATISTICS
                     tContext.verticesStatistics[node.depth].first += tContext.triangles[rDepth].size();
                     tContext.verticesStatistics[node.depth].second += 1;
                     tContext.notEndedNodes[node.depth]++;
@@ -351,7 +351,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 }
             }
 
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
             {
                 tContext.elapsedTime[node.depth] += tContext.timer.getElapsedSeconds();
                 tContext.numTrianglesEvaluated[node.depth] += tContext.triangles[rDepth-1].size();
@@ -495,7 +495,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             mValueRange = glm::max(mValueRange, tCtx.valueRange);
         }
 
-        #ifdef PRINT_STATISTICS
+        #ifdef SDFLIB_PRINT_STATISTICS
             for(ThreadContext& tCtx : threadsContext)
             {
                 for(uint32_t d=0; d < maxDepth; d++)
@@ -512,7 +512,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         #endif
     }
 	
-#ifdef PRINT_STATISTICS
+#ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
     for(uint32_t d=0; d < maxDepth; d++)
     {

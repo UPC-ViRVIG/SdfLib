@@ -115,7 +115,11 @@ private:
 
 int main(int argc, char** argv)
 {
-    spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #ifdef SDFLIB_PRINT_STATISTICS
+        spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #else
+        spdlog::set_pattern("[%^%l%$] %v");
+    #endif
 
     args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");

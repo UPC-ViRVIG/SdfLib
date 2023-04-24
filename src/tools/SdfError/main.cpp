@@ -11,7 +11,11 @@ using namespace sdflib;
 
 int main(int argc, char** argv)
 {
-    spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #ifdef SDFLIB_PRINT_STATISTICS
+        spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #else
+        spdlog::set_pattern("[%^%l%$] %v");
+    #endif
 
     args::ArgumentParser parser("Calculate the error of a sdf", "");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
