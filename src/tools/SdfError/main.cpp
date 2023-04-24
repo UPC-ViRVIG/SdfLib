@@ -78,12 +78,19 @@ int main(int argc, char** argv)
 
     auto pow2 = [](float a) { return a * a; };
     
-    double accError = 0.0;
+    double rmseError = 0.0;
+    double maeError = 0.0;
+    float maxError = 0.0;
     for(uint32_t s=0; s < numSamples; s++)
     {
-        accError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
+        rmseError += static_cast<double>(pow2(sdfDist[s] - exactSdfDist[s]));
+        maeError += static_cast<double>(glm::abs(sdfDist[s] - exactSdfDist[s]));
+        maxError = glm::max(maxError, glm::abs(sdfDist[s] - exactSdfDist[s]));
     }
-    accError = glm::sqrt(accError / static_cast<double>(numSamples));
+    rmseError = glm::sqrt(rmseError / static_cast<double>(numSamples));
+    maeError = maeError / static_cast<double>(numSamples);
 
-    SPDLOG_INFO("RMSE: {}", accError);
+    SPDLOG_INFO("RMSE: {}", rmseError);
+    SPDLOG_INFO("MAE: {}", maeError);
+    SPDLOG_INFO("Max error: {}", maxError);
 }
