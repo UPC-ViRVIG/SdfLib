@@ -1205,8 +1205,11 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         }
     }
 
+#ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Iter 1 {}s // Iter 2 {}s // After {}s // {}", iter1TotalTime, iter2TotalTime, afterSubdivisionTime, iter1TotalTime/(iter2TotalTime + afterSubdivisionTime));
     SPDLOG_INFO("Num nodes subdivided after desicion: {}", numNodesSubdividedAfterDecision);
+#endif
+
 }
 }
 

@@ -19,13 +19,11 @@ using namespace sdflib;
 
 int main(int argc, char** argv)
 {
-    std::cout << "start" << std::endl;
-    // #ifdef SDFLIB_PRINT_STATISTICS
-    //     spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
-    // #else
-    //     spdlog::set_pattern("[%^%l%$] %v");
-    // #endif
-    spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #ifdef SDFLIB_PRINT_STATISTICS
+        spdlog::set_pattern("[%^%l%$] [%s:%#] %v");
+    #else
+        spdlog::set_pattern("[%^%l%$] %v");
+    #endif
 
     args::ArgumentParser parser("SdfExporter export an sdf", "");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
