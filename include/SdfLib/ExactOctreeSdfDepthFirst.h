@@ -569,8 +569,6 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
 
         // Merge all the subtrees
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
-        std::cout << mTrianglesSets.size() << std::endl;
-        std::cout << mTrianglesMasks.size() << std::endl;
         for(uint32_t i=0; i < subOctrees.size(); i++)
         {
             std::vector<OctreeNode>& octreeData = subOctrees[i].octreeData;

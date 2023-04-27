@@ -1,5 +1,8 @@
 #version 430
 
+//#define USE_TRILINEAR_INTERPOLATION
+#define USE_TRICUBIC_INTERPOLATION
+
 out vec4 fragColor;
 
 in vec3 gridPosition;
@@ -16,14 +19,14 @@ uniform float octreeValueRange = 1.0;
 uniform vec3 startGridSize;
 
 // uniform float surfaceThickness = 2.0;
-uniform float surfaceThickness = 4.0;
-// uniform float gridThickness = 0.01;
-uniform float gridThickness = 0.0005;
-uniform float linesThickness = 0.6;
-// uniform float linesThickness = 3.0;
+uniform float surfaceThickness = 3.5;
+uniform float gridThickness = 0.01;
+// uniform float gridThickness = 0.001;
+// uniform float linesThickness = 0.6;
+uniform float linesThickness = 2.5;
 
-// uniform float linesSpace = 0.05;
-uniform float linesSpace = 0.006;
+uniform float linesSpace = 0.03;
+// uniform float linesSpace = 0.006;
 
 uniform bool printGrid = true;
 uniform bool printIsolines = true;
@@ -53,50 +56,55 @@ uint roundFloat(float a)
     return (a >= 0.5) ? 1 : 0;
 }
 
-// float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength)
-// {
-//     vec3 fracPart = point * startGridSize;
-//     ivec3 arrayPos = ivec3(floor(fracPart));
-//     fracPart = fract(fracPart);
-//     int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
-//                 arrayPos.y * int(startGridSize.x) +
-//                 arrayPos.x;
-//     uint currentNode = octreeData[index];
-//     nodeRelativeLength = 1.0;
+#ifdef USE_TRILINEAR_INTERPOLATION
+// -- Function for linear interpolation --
+float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength)
+{
+    vec3 fracPart = point * startGridSize;
+    ivec3 arrayPos = ivec3(floor(fracPart));
+    fracPart = fract(fracPart);
+    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
+                arrayPos.y * int(startGridSize.x) +
+                arrayPos.x;
+    uint currentNode = octreeData[index];
+    nodeRelativeLength = 1.0;
 
-//     while(!bool(currentNode & isLeafMask))
-//     {
-//         uint childIdx = (roundFloat(fracPart.z) << 2) + 
-//                         (roundFloat(fracPart.y) << 1) + 
-//                          roundFloat(fracPart.x);
+    while(!bool(currentNode & isLeafMask))
+    {
+        uint childIdx = (roundFloat(fracPart.z) << 2) + 
+                        (roundFloat(fracPart.y) << 1) + 
+                         roundFloat(fracPart.x);
 
-//         currentNode = octreeData[(currentNode & childrenIndexMask) + childIdx];
-//         fracPart = fract(2.0 * fracPart);
-//         nodeRelativeLength *= 0.5;
-//     }
+        currentNode = octreeData[(currentNode & childrenIndexMask) + childIdx];
+        fracPart = fract(2.0 * fracPart);
+        nodeRelativeLength *= 0.5;
+    }
 
-//     vec3 distToGridAxis = vec3(0.5) - abs(fracPart - vec3(0.5));
-//     distToGrid = min(min((abs(planeNormal.x) < 0.95) ? distToGridAxis.x : 1.0, 
-//                          (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
-//                          (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
+    vec3 distToGridAxis = vec3(0.5) - abs(fracPart - vec3(0.5));
+    distToGrid = min(min((abs(planeNormal.x) < 0.95) ? distToGridAxis.x : 1.0, 
+                         (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
+                         (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
 
-//     uint vIndex = currentNode & childrenIndexMask;
+    uint vIndex = currentNode & childrenIndexMask;
 
-//     float d00 = uintBitsToFloat(octreeData[vIndex]) * (1.0f - fracPart.x) +
-//                 uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
-//     float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
-//                 uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
-//     float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
-//                 uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
-//     float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
-//                 uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
+    float d00 = uintBitsToFloat(octreeData[vIndex]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
+    float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
+    float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
+    float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
 
-//     float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
-//     float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+    float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+    float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
 
-//     return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
-// }
+    return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
+}
+#endif
 
+#ifdef USE_TRICUBIC_INTERPOLATION
+// -- Function for tricubic interpolation --
 float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength)
 {
     vec3 fracPart = point * startGridSize;
@@ -132,6 +140,7 @@ float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength
          + uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
          + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
 }
+#endif
 
 void main()
 {

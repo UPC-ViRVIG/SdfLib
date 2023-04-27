@@ -65,8 +65,9 @@ public:
 		// Window::getCurrentWindow().setBackgroudColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
 		// Create camera
+		std::shared_ptr<NavigationCamera> camera;
 		{
-			auto camera = std::make_shared<NavigationCamera>();
+			camera = std::make_shared<NavigationCamera>();
 			camera->start();
 			setMainCamera(camera);
 			addSystem(camera);
@@ -100,7 +101,12 @@ public:
 			std::unique_ptr<SdfFunction> sdfFunc = SdfFunction::loadFromFile(mSdfPath.value());
 			if(!sdfFunc)
 			{
-				assert(false);
+				SPDLOG_ERROR("Could not find the path {}", mSdfPath.value());
+				return;
+			}
+			else if(sdfFunc->getFormat() == SdfFunction::SdfFormat::EXACT_OCTREE)
+			{
+				SPDLOG_ERROR("Exact octrees are not supported.");
 				return;
 			}
 
@@ -305,6 +311,9 @@ public:
 				glm::scale(glm::mat4(1.0f), viewBB.getSize() / sdfBB.getSize()) *
 				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
 			);
+			#ifndef SDFLIB_PRINT_STATISTICS
+				meshNormals->callDrawGui = false;
+			#endif
 			addSystem(meshNormals);
 		}
 
@@ -353,6 +362,9 @@ public:
 				glm::translate(glm::mat4(1.0f), -sdfBB.getCenter())
 			);
 			//mColoredModelRenderer->callDrawGui = false;
+			#ifndef SDFLIB_PRINT_STATISTICS
+				mColoredModelRenderer->callDrawGui = false;
+			#endif
 			mColoredModelRenderer->callDraw = false;
 			addSystem(mColoredModelRenderer);
 		}
@@ -388,6 +400,9 @@ public:
 
 		addInfluenceRegion(mInfluenceRegion, mInfluenceRegionBufferIdVert, mInfluenceRegionBufferIdNorm);
 		mInfluenceRegion->systemName = "Influence region";
+		#ifndef SDFLIB_PRINT_STATISTICS
+			mInfluenceRegion->callDrawGui = false;
+		#endif
 		addSystem(mInfluenceRegion);
 
 		mGreenNormalsShader = std::unique_ptr<NormalsShader>(new NormalsShader());
@@ -396,7 +411,16 @@ public:
 		addInfluenceRegion(mOptimalInfluenceRegion, mOptimalInfluenceRegionBufferIdVert, mOptimalInfluenceRegionBufferIdNorm);
 		mOptimalInfluenceRegion->systemName = "Optimal influence region";
 		mOptimalInfluenceRegion->setShader(mGreenNormalsShader.get());
+		#ifndef SDFLIB_PRINT_STATISTICS
+			mOptimalInfluenceRegion->callDrawGui = false;
+		#endif
 		addSystem(mOptimalInfluenceRegion);
+
+		// Move camera in the z-axis to be able to see the whole model
+		{
+			float zMovment = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
+			camera->setPosition(sdfBB.getCenter() + glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovment));
+		}
 	}
 
 	void update(float deltaTime) override
@@ -441,6 +465,18 @@ public:
 		{
 			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mGizmoStartMatrix;
 		}
+		else if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_4))
+		{
+			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mGizmoStartMatrix;
+		}
+		else if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_5))
+		{
+			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(-90.0f), glm::vec3(-1.0f, 0.0f, 0.0f)) * mGizmoStartMatrix;
+		}
+		else if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_6))
+		{
+			mGizmoMatrix = glm::rotate(glm::mat4x4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, -1.0f, 0.0f)) * mGizmoStartMatrix;
+		}
 
 		if(!Window::getCurrentWindow().isKeyPressed(GLFW_KEY_LEFT_CONTROL))
 		{
@@ -481,7 +517,9 @@ public:
 		// Selection option
 		if(!mMesh.has_value()) return;
 		bool lastSelectZone = mSelectZone;
-		ImGui::Checkbox("Visualize zone", &mSelectZone);
+		#ifdef SDFLIB_PRINT_STATISTICS
+			ImGui::Checkbox("Visualize zone", &mSelectZone);
+		#endif
 		if(mSelectZone) 
 		{
 			const char* selectionAlgorithms[] = {
@@ -1063,6 +1101,29 @@ public:
 				mOptimalInfluenceRegion->callDraw = false;
 				mModelRenderer->setIndexData(mMesh.value().getIndices());
 			}
+		}
+
+
+		// Print shortcuts information
+		{
+			ImGui::Spacing();
+			ImGui::Separator();
+			ImGui::Text("-> Shortcuts:");
+			ImGui::Spacing();
+			ImGui::Spacing();
+			ImGui::Text("Keys A/D: Move left/right regarding the camera position");
+			ImGui::Text("Keys W/S: Move forward/backwards regarding the camera position");
+			ImGui::Text("Keys Space/Shift: Move up/down regarding the world Y-axis");
+			ImGui::Spacing();
+			ImGui::Text("Key Alt: Change to rotation gizmo to rotate freely the cutting plane");
+			ImGui::Text("Key Ctrl: Hide all the plane gizmos");
+			ImGui::Spacing();
+			ImGui::Text("Key 1: Align plane normal to Z axis");
+			ImGui::Text("Key 2: Align plane normal to Y axis");
+			ImGui::Text("Key 3: Align plane normal to X axis");
+			ImGui::Text("Key 4: Align plane normal to -Z axis");
+			ImGui::Text("Key 5: Align plane normal to -Y axis");
+			ImGui::Text("Key 6: Align plane normal to -X axis");
 		}
 	}
 private:

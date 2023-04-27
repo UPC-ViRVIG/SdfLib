@@ -82,7 +82,7 @@ int main(int argc, char** argv)
     }
     else if(sdfFormat == "octree")
     {
-        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "bf";
+        std::string initAlgorithmStr = (octreeAlgorithmArg) ? args::get(octreeAlgorithmArg) : "continuity";
         OctreeSdf::InitAlgorithm initAlgorithm;
         if(initAlgorithmStr == "uniform") initAlgorithm = OctreeSdf::InitAlgorithm::UNIFORM;
         else if(initAlgorithmStr == "no_continuity") initAlgorithm = OctreeSdf::InitAlgorithm::NO_CONTINUITY;
