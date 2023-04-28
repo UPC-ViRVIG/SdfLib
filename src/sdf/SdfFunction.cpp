@@ -53,19 +53,19 @@ std::unique_ptr<SdfFunction> SdfFunction::loadFromFile(const std::string& inputP
     SdfFunction::SdfFormat format = SdfFunction::SdfFormat::NONE;
     archive(format);
 
-    if(format == UniformGridSdf::GRID)
+    if(format == SdfFormat::GRID)
     {
         std::unique_ptr<UniformGridSdf> obj(new UniformGridSdf());
         archive(*obj);
         return obj;
     }
-    else if(format == UniformGridSdf::OCTREE)
+    else if(format == SdfFormat::OCTREE)
     {
         std::unique_ptr<OctreeSdf> obj(new OctreeSdf());
         archive(*obj);
         return obj;
     }
-    else if(format == UniformGridSdf::EXACT_OCTREE)
+    else if(format == SdfFormat::EXACT_OCTREE)
     {
         std::unique_ptr<ExactOctreeSdf> obj(new ExactOctreeSdf());
         archive(*obj);

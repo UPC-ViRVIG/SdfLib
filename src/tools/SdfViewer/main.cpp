@@ -7,6 +7,7 @@
 #include "SdfLib/utils/PrimitivesFactory.h"
 #include "SdfLib/utils/Timer.h"
 #include "SdfLib/utils/GJK.h"
+#include "SdfLib/OctreeSdfUtils.h"
 #include "InfluenceRegionCreator.h"
 #include "SdfLib/TrianglesInfluence.h"
 #include "SdfLib/InterpolationMethods.h"

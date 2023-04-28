@@ -6,7 +6,8 @@
 #include "SdfLib/OctreeSdf.h"
 #include <vector>
 
-#define EXPORT __declspec(dllexport)
+//#define EXPORT __declspec(dllexport)
+#define EXPORT  __attribute__((dllexport))
 
 
 extern "C" EXPORT void saveSdf(sdflib::SdfFunction* sdfPointer, char* path);

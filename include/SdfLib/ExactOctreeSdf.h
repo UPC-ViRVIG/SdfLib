@@ -205,10 +205,10 @@ private:
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                     uint32_t minTrianglesPerNode, uint32_t numThreads = 1);
 
-    std::vector<uint32_t> ExactOctreeSdf::evalNode(uint32_t nodeIndex, uint32_t depth, 
-                                                   std::vector<uint32_t>& mergedTriangles, 
-                                                   std::vector<uint32_t>& nodesMerged,
-                                                   std::vector<uint32_t>& differentTriangles);
+    std::vector<uint32_t> evalNode(uint32_t nodeIndex, uint32_t depth, 
+                                    std::vector<uint32_t>& mergedTriangles, 
+                                    std::vector<uint32_t>& nodesMerged,
+                                    std::vector<uint32_t>& differentTriangles);
 
     void calculateStatistics();
 };

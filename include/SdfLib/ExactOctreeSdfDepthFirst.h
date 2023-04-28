@@ -3,6 +3,7 @@
 
 #include <string>
 #include <omp.h>
+#include <stack>
 
 namespace sdflib
 {
@@ -25,8 +26,8 @@ template<typename TrianglesInfluenceStrategy>
 void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                                 uint32_t minTrianglesPerNode, uint32_t numThreads)
 {
-    typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
-    typedef DepthFirstNodeInfoExactOctree<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
+    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    typedef DepthFirstNodeInfoExactOctree<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     struct ThreadContext
     {
@@ -138,9 +139,9 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
                     NodeInfo& n = nodes.top();
                     std::array<float, InterpolationMethod::NUM_COEFFICIENTS> nullArray;
                     mainThread.trianglesInfluence.calculateVerticesInfo(n.center, n.size, mainThread.triangles[0][0], childrens,
-                                                             0u, nullArray,
-                                                             n.verticesValues, n.verticesInfo,
-                                                             mesh, trianglesData);
+                                                                        0u, nullArray,
+                                                                        n.verticesValues, n.verticesInfo,
+                                                                        mesh, trianglesData);
                 }
             }
         }
@@ -304,7 +305,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             if(node.depth < tContext.bitEncodingStartDepth) tContext.nodesStack.pop();
 
             std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
-            std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
+            std::array<typename TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
             tContext.trianglesInfluence.calculateVerticesInfo(node.center, node.size, nodeTriangles, nodeSamplePoints,
                                                      0u, interpolationCoeff,

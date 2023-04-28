@@ -9,7 +9,7 @@
 
 namespace sdflib
 {
-template<int N>
+template<size_t N>
 inline void calculateMinDistances(const std::array<glm::vec3, N>& inPos, std::array<float, N>& outDistance, 
                                    const std::vector<uint32_t>& triangles, const std::vector<TriangleUtils::TriangleData>& trianglesData)
 {

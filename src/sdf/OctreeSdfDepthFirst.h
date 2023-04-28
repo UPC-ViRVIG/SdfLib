@@ -30,8 +30,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                            float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
                            uint32_t numThreads)
 {
-    typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
-    typedef DepthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
+    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    typedef DepthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
 
@@ -172,7 +172,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                                                mesh, trianglesData);
 
             std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
-            std::array<TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
+            std::array<typename TrianglesInfluenceStrategy::VertexInfo, 19> pointsInfo;
 
             tContext.trianglesInfluence.calculateVerticesInfo(node.center, node.size, tContext.triangles[rDepth], nodeSamplePoints,
                                                      0u, interpolationCoeff,

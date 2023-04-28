@@ -34,7 +34,7 @@ const std::array<glm::vec3, 8> childrens =
 
 namespace
 {
-template<int N, typename InterpolationMethod>
+template<size_t N, typename InterpolationMethod>
 inline void standardCalculateVerticesInfo(  const glm::vec3 offset, const float size,
                                             const std::vector<uint32_t>& triangles,
                                             const std::array<glm::vec3, N>& pointsRelPos,
@@ -97,7 +97,7 @@ struct BasicTrianglesInfluence
     uint32_t gjkCallsOutside = 0;
     std::array<uint32_t, 10> gjkIterHistogramOutside = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(  const glm::vec3 nodeCenter, const float nodeHalfSize,
                                         const std::vector<uint32_t>& triangles,
                                         const std::array<glm::vec3, N>& pointsRelPos,
@@ -192,7 +192,7 @@ struct PreciseTrianglesInfluence
     typedef float VertexInfo;
     struct NodeInfo {};
 
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
@@ -305,7 +305,7 @@ struct PerVertexTrianglesInfluence
         minPoint = box.min;
     }
 
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
@@ -519,7 +519,7 @@ struct PerVertexTrianglesInfluence<8, T>
         minPoint = box.min;
     }
 
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
@@ -686,7 +686,7 @@ struct PerNodeRegionTrianglesInfluence
         minPoint = box.min;
     }
     
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
@@ -945,7 +945,7 @@ struct VHQueries
         minPoint = box.min;
     }
     
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,
@@ -1034,7 +1034,7 @@ struct FCPWQueries
         minPoint = box.min;
     }
     
-    template<int N>
+    template<size_t N>
     inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
                                       const std::vector<uint32_t>& triangles,
                                       const std::array<glm::vec3, N>& pointsRelPos,

@@ -83,8 +83,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                               float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
                               uint32_t numThreads)
 {
-    typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
-    typedef BreadthFirstNoDelayNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
+    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    typedef BreadthFirstNoDelayNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
 
     // terminationThreshold = terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
     // const float sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
@@ -516,7 +516,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                 }
 
                 std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19>& midPointsValues = node.midPointsValues;
-                std::array<TrianglesInfluenceStrategy::VertexInfo, 19>& midPointsInfo = node.midPointsInfo;
+                std::array<typename TrianglesInfluenceStrategy::VertexInfo, 19>& midPointsInfo = node.midPointsInfo;
 
 				// Low Z children
 				nodesBuffer[currentDepth + 1].push_back(NodeInfo(childIndex, (node.childIndices << 3) | 0, node.center + glm::vec3(-newSize, -newSize, -newSize), newSize, false));
@@ -943,7 +943,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     }
 
                     std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19>& midPointsValues = node.midPointsValues;
-                    std::array<TrianglesInfluenceStrategy::VertexInfo, 19>& midPointsInfo = node.midPointsInfo;
+                    std::array<typename TrianglesInfluenceStrategy::VertexInfo, 19>& midPointsInfo = node.midPointsInfo;
 
                     // Low Z children
                     depthCache.push_back(depth+1);

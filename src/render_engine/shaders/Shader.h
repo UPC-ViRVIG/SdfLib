@@ -15,9 +15,6 @@ public:
 		return instance;
 	}
 
-	unsigned int getVertexShader() { return vertexShaderId; }
-	unsigned int getFragmentShader() { return fragmentShaderId; }
-
 private:
 	static T* instance;
 };

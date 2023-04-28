@@ -92,8 +92,8 @@ template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                               float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
 {
-    typedef TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
-    typedef BreadthFirstNodeInfo<TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
+    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    typedef BreadthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
 
@@ -288,7 +288,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                     InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, interpolationCoeff);
                 }
                 std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, 19> midPointsValues;
-                std::array<TrianglesInfluenceStrategy::VertexInfo, 19> midPointsInfo;
+                std::array<typename TrianglesInfluenceStrategy::VertexInfo, 19> midPointsInfo;
                 trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
                                                          samplesMask, interpolationCoeff,
                                                          midPointsValues, midPointsInfo,

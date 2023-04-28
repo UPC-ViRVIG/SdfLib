@@ -120,7 +120,7 @@ inline bool getTriangleOriginDirection(S& simplex, glm::vec3& outDirection)
         }
         else
         {
-            S::Point aux = simplex.points[1];
+            typename S::Point aux = simplex.points[1];
             simplex.points[1] = simplex.points[2];
             simplex.points[2] = aux;
             outDirection = -n;

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.16)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMakeConfig.txt")
     include("${CMAKE_CURRENT_SOURCE_DIR}/CMakeConfig.txt")
@@ -6,6 +6,8 @@ endif()
 
 # Set the project name and version
 project(SdfLib VERSION 0.1)
+
+add_compile_options(-fPIC)
 
 # Project options
 option(SDFLIB_DEBUG_INFO "Print debug information" OFF)
@@ -39,9 +41,9 @@ file(GLOB UTILS_SOURCE_FILES src/utils/*.cpp)
 file(GLOB UTILS_HEADER_FILES src/utils/*.h)
 
 # Add libraries
-add_library(${PROJECT_NAME}    ${SOURCE_FILES} ${HEADER_FILES} ${PUBLIC_HEADER_FILES}
-                               ${SDF_SOURCE_FILES} ${SDF_HEADER_FILES}
-                               ${UTILS_SOURCE_FILES} ${UTILS_HEADER_FILES})
+add_library(${PROJECT_NAME} STATIC  ${SOURCE_FILES} ${HEADER_FILES} ${PUBLIC_HEADER_FILES}
+                                    ${SDF_SOURCE_FILES} ${SDF_HEADER_FILES}
+                                    ${UTILS_SOURCE_FILES} ${UTILS_HEADER_FILES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC include/)
 target_include_directories(${PROJECT_NAME} PRIVATE src/)
@@ -61,7 +63,7 @@ endforeach()
 
 add_custom_target(copyShaders ALL SOURCES ${SHADER_FILES})
 
-add_dependencies(${PROJECT_NAME} copyShaders)
+#add_dependencies(${PROJECT_NAME} copyShaders)
 
 # Add dependencies
 add_subdirectory(libs)
@@ -92,7 +94,7 @@ endif()
 
 # Add executable
 add_library(SdfLibUnity SHARED src/tools/SdfLibUnity/SdfExportFunc.h
-                          src/tools/SdfLibUnity/SdfExportFunc.cpp)
+                               src/tools/SdfLibUnity/SdfExportFunc.cpp)
 target_link_libraries(SdfLibUnity PRIVATE ${PROJECT_NAME})
 
 if(SDFLIB_BUILD_APPS)
