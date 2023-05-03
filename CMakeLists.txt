@@ -7,7 +7,10 @@ endif()
 # Set the project name and version
 project(SdfLib VERSION 0.1)
 
-add_compile_options(-fPIC)
+if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
+    add_compile_options(-fPIC)
+endif()
+
 
 # Project options
 option(SDFLIB_DEBUG_INFO "Print debug information" OFF)

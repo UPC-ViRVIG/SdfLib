@@ -516,138 +516,443 @@ public:
 
 
 		// Selection option
-		if(!mMesh.has_value()) return;
-		bool lastSelectZone = mSelectZone;
-		#ifdef SDFLIB_PRINT_STATISTICS
-			ImGui::Checkbox("Visualize zone", &mSelectZone);
-		#endif
-		if(mSelectZone) 
+		if(mMesh.has_value())
 		{
-			const char* selectionAlgorithms[] = {
-				"Basic",
-				"Precise",
-				"Per vertex",
-				"Per node region"
-			};
-
-			if(ImGui::BeginCombo("Selection Algorithm", mSelectionAlgorithm))
+			bool lastSelectZone = mSelectZone;
+			#ifdef SDFLIB_PRINT_STATISTICS
+				ImGui::Checkbox("Visualize zone", &mSelectZone);
+			#endif
+			if(mSelectZone) 
 			{
-				for (int n = 0; n < IM_ARRAYSIZE(selectionAlgorithms); n++)
-    			{
-					bool is_selected = mSelectionAlgorithm == selectionAlgorithms[n];
-					if (ImGui::Selectable(selectionAlgorithms[n], is_selected))
-						std::strcpy(mSelectionAlgorithm, selectionAlgorithms[n]);
-					if (is_selected)
-						ImGui::SetItemDefaultFocus();
+				const char* selectionAlgorithms[] = {
+					"Basic",
+					"Precise",
+					"Per vertex",
+					"Per node region"
+				};
+
+				if(ImGui::BeginCombo("Selection Algorithm", mSelectionAlgorithm))
+				{
+					for (int n = 0; n < IM_ARRAYSIZE(selectionAlgorithms); n++)
+					{
+						bool is_selected = mSelectionAlgorithm == selectionAlgorithms[n];
+						if (ImGui::Selectable(selectionAlgorithms[n], is_selected))
+							std::strcpy(mSelectionAlgorithm, selectionAlgorithms[n]);
+						if (is_selected)
+							ImGui::SetItemDefaultFocus();
+					}
+
+					ImGui::EndCombo();
 				}
 
-				ImGui::EndCombo();
-			}
-
-			ImGui::Checkbox("Draw influence zone", &mDrawInfluenceZone);
-			ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
-			ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
-			ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
-			ImGui::Checkbox("Print node error", &mPrintNodeError);
-			//ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
-			if(mPrintTrianglesInfluence)
-			{
-				ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
-				ImGui::Checkbox("Print if it has some influence", &mPrintIfSomeInfluence);
-			}
-			ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
-			if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
-			{
-				// Get selected point and selected region
-				glm::vec3 cameraPos = getMainCamera()->getPosition();
-				glm::vec3 cameraDir(0.0f);
+				ImGui::Checkbox("Draw influence zone", &mDrawInfluenceZone);
+				ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
+				ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
+				ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
+				ImGui::Checkbox("Print node error", &mPrintNodeError);
+				//ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
+				if(mPrintTrianglesInfluence)
 				{
-					glm::vec2 w = Window::getCurrentWindow().getWindowSize();
-					glm::vec2 m = Window::getCurrentWindow().getMousePosition();
-					float realWidth = glm::tan(glm::radians(getMainCamera()->getFov() / 2.0f));
-					glm::vec3 wPos (
-						glm::clamp(m.x / w.x, 0.0f, 1.0f) * getMainCamera()->getRatio() * realWidth * 2.0f - realWidth * getMainCamera()->getRatio(),
-						-glm::clamp(m.y / w.y, 0.0f, 1.0f) * realWidth * 2.0f + realWidth,
-						-1.0f
+					ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
+					ImGui::Checkbox("Print if it has some influence", &mPrintIfSomeInfluence);
+				}
+				ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
+				if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
+				{
+					// Get selected point and selected region
+					glm::vec3 cameraPos = getMainCamera()->getPosition();
+					glm::vec3 cameraDir(0.0f);
+					{
+						glm::vec2 w = Window::getCurrentWindow().getWindowSize();
+						glm::vec2 m = Window::getCurrentWindow().getMousePosition();
+						float realWidth = glm::tan(glm::radians(getMainCamera()->getFov() / 2.0f));
+						glm::vec3 wPos (
+							glm::clamp(m.x / w.x, 0.0f, 1.0f) * getMainCamera()->getRatio() * realWidth * 2.0f - realWidth * getMainCamera()->getRatio(),
+							-glm::clamp(m.y / w.y, 0.0f, 1.0f) * realWidth * 2.0f + realWidth,
+							-1.0f
+						);
+
+						cameraDir = glm::vec3(glm::inverse(getMainCamera()->getViewMatrix()) * glm::vec4(wPos, 0.0f));
+					}
+					float t = glm::dot(planePoint - cameraPos, planeNormal) / glm::dot(cameraDir, planeNormal);
+					glm::vec3 selPoint = cameraPos + cameraDir * t;
+					const float size = mGridSize * static_cast<float>(1 << mSelectedDepth);
+
+					glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min) / size) * size + 0.5f * size;
+
+					// Position cube
+					mSelectionCube->setTransform( 
+						glm::translate(glm::mat4(1.0f), centerPoint) * 
+						glm::scale(glm::mat4(1.0f), glm::vec3(size))
 					);
+					mSelectionCube->callDraw = true;
 
-					cameraDir = glm::vec3(glm::inverse(getMainCamera()->getViewMatrix()) * glm::vec4(wPos, 0.0f));
-				}
-				float t = glm::dot(planePoint - cameraPos, planeNormal) / glm::dot(cameraDir, planeNormal);
-				glm::vec3 selPoint = cameraPos + cameraDir * t;
-				const float size = mGridSize * static_cast<float>(1 << mSelectedDepth);
+					// Serach triangles influencing the selected zone
+					const std::vector<uint32_t>& indices = mMesh.value().getIndices();
+					const std::vector<glm::vec3>& vertices = mMesh.value().getVertices();
 
-				glm::vec3 centerPoint = mSelectArea.min + glm::floor((selPoint - mSelectArea.min) / size) * size + 0.5f * size;
+					std::vector<uint32_t> triangles;
 
-				// Position cube
-				mSelectionCube->setTransform( 
-					glm::translate(glm::mat4(1.0f), centerPoint) * 
-					glm::scale(glm::mat4(1.0f), glm::vec3(size))
-				);
-				mSelectionCube->callDraw = true;
+					const std::array<glm::vec3, 8> childrens = 
+					{
+						glm::vec3(-1.0f, -1.0f, -1.0f),
+						glm::vec3(1.0f, -1.0f, -1.0f),
+						glm::vec3(-1.0f, 1.0f, -1.0f),
+						glm::vec3(1.0f, 1.0f, -1.0f),
 
-				// Serach triangles influencing the selected zone
-				const std::vector<uint32_t>& indices = mMesh.value().getIndices();
-				const std::vector<glm::vec3>& vertices = mMesh.value().getVertices();
+						glm::vec3(-1.0f, -1.0f, 1.0f),
+						glm::vec3(1.0f, -1.0f, 1.0f),
+						glm::vec3(-1.0f, 1.0f, 1.0f),
+						glm::vec3(1.0f, 1.0f, 1.0f)
+					};
 
-				std::vector<uint32_t> triangles;
+					for(uint32_t i=0; i < 8; i++)
+					{
+						const glm::vec3 pos = glm::vec3(invTransform * glm::vec4((centerPoint + 0.5f * childrens[i] * size), 1.0f));
+						std::cout << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+					}
 
-				const std::array<glm::vec3, 8> childrens = 
-				{
-					glm::vec3(-1.0f, -1.0f, -1.0f),
-					glm::vec3(1.0f, -1.0f, -1.0f),
-					glm::vec3(-1.0f, 1.0f, -1.0f),
-					glm::vec3(1.0f, 1.0f, -1.0f),
+					const std::array<glm::vec3, 19> nodeSamplePoints =
+					{
+						glm::vec3(0.0f, -1.0f, -1.0f),
+						glm::vec3(-1.0f, 0.0f, -1.0f),
+						glm::vec3(0.0f, 0.0f, -1.0f),
+						glm::vec3(1.0f, 0.0f, -1.0f),
+						glm::vec3(0.0f, 1.0f, -1.0f),
 
-					glm::vec3(-1.0f, -1.0f, 1.0f),
-					glm::vec3(1.0f, -1.0f, 1.0f),
-					glm::vec3(-1.0f, 1.0f, 1.0f),
-					glm::vec3(1.0f, 1.0f, 1.0f)
-				};
+						glm::vec3(-1.0f, -1.0f, 0.0f),
+						glm::vec3(0.0f, -1.0f, 0.0f),
+						glm::vec3(1.0f, -1.0f, 0.0f),
+						glm::vec3(-1.0f, 0.0f, 0.0f),
+						glm::vec3(0.0f),
+						glm::vec3(1.0f, 0.0f, 0.0f),
+						glm::vec3(-1.0f, 1.0f, 0.0f),
+						glm::vec3(0.0f, 1.0f, 0.0f),
+						glm::vec3(1.0f, 1.0f, 0.0f),
 
-				for(uint32_t i=0; i < 8; i++)
-				{
-					const glm::vec3 pos = glm::vec3(invTransform * glm::vec4((centerPoint + 0.5f * childrens[i] * size), 1.0f));
-					std::cout << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
-				}
+						glm::vec3(0.0f, -1.0f, 1.0f),
+						glm::vec3(-1.0f, 0.0f, 1.0f),
+						glm::vec3(0.0f, 0.0f, 1.0f),
+						glm::vec3(1.0f, 0.0f, 1.0f),
+						glm::vec3(0.0f, 1.0f, 1.0f),
+					};
 
-				const std::array<glm::vec3, 19> nodeSamplePoints =
-				{
-					glm::vec3(0.0f, -1.0f, -1.0f),
-					glm::vec3(-1.0f, 0.0f, -1.0f),
-					glm::vec3(0.0f, 0.0f, -1.0f),
-					glm::vec3(1.0f, 0.0f, -1.0f),
-					glm::vec3(0.0f, 1.0f, -1.0f),
+					std::shared_ptr<Mesh> influenceRegionMesh = (mDrawInfluenceZone)
+						? PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions)
+						: nullptr;
 
-					glm::vec3(-1.0f, -1.0f, 0.0f),
-					glm::vec3(0.0f, -1.0f, 0.0f),
-					glm::vec3(1.0f, -1.0f, 0.0f),
-					glm::vec3(-1.0f, 0.0f, 0.0f),
-					glm::vec3(0.0f),
-					glm::vec3(1.0f, 0.0f, 0.0f),
-					glm::vec3(-1.0f, 1.0f, 0.0f),
-					glm::vec3(0.0f, 1.0f, 0.0f),
-					glm::vec3(1.0f, 1.0f, 0.0f),
+					std::vector<TriangleUtils::TriangleData> trianglesInfo = TriangleUtils::calculateMeshTriangleData(mMesh.value());
 
-					glm::vec3(0.0f, -1.0f, 1.0f),
-					glm::vec3(-1.0f, 0.0f, 1.0f),
-					glm::vec3(0.0f, 0.0f, 1.0f),
-					glm::vec3(1.0f, 0.0f, 1.0f),
-					glm::vec3(0.0f, 1.0f, 1.0f),
-				};
+					float maxMinDist = 0.0f;
 
-				std::shared_ptr<Mesh> influenceRegionMesh = (mDrawInfluenceZone)
-					? PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions)
-					: nullptr;
+					{
+						SPDLOG_INFO("Center point: {}, {}, {}", centerPoint.x, centerPoint.y, centerPoint.z);
 
-				std::vector<TriangleUtils::TriangleData> trianglesInfo = TriangleUtils::calculateMeshTriangleData(mMesh.value());
+						auto getRandomSample = [&] () -> glm::vec3
+						{
+							glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+												static_cast<float>(rand())/static_cast<float>(RAND_MAX),
+												static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+							return centerPoint + (p - 0.5f) * size;
+						};
 
-				float maxMinDist = 0.0f;
+						auto getNearestTriangle = [&](glm::vec3 point)
+						{
+							uint32_t tIndex;
+							float minIndexDist = INFINITY;
+							for(uint32_t t=0; t < trianglesInfo.size(); t++)
+							{
+								float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
+								if(dist < minIndexDist)
+								{
+									tIndex = t;
+									minIndexDist = dist;
+								}
+							}
 
-				{
-					SPDLOG_INFO("Center point: {}, {}, {}", centerPoint.x, centerPoint.y, centerPoint.z);
+							return tIndex;
+						};
 
-					auto getRandomSample = [&] () -> glm::vec3
+						auto getDistance = [&](glm::vec3 point)
+						{
+							uint32_t tIndex;
+							float minIndexDist = INFINITY;
+							for(uint32_t t=0; t < trianglesInfo.size(); t++)
+							{
+								float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
+								if(dist < minIndexDist)
+								{
+									tIndex = t;
+									minIndexDist = dist;
+								}
+							}
+
+							return TriangleUtils::getSignedDistPointAndTriangle(point, trianglesInfo[tIndex]);
+						};
+
+						double sdfRMSE = 0.0f;
+						double sdfMAE = 0.0f;
+						for(uint32_t s=0; s < 64; s++)
+						{
+							glm::vec3 point = getRandomSample();
+							float exactDist = getDistance(point);
+							sdfRMSE += static_cast<double>(pow2((octreeSdf.getDistance(point) - exactDist)));
+							sdfMAE += static_cast<double>(glm::abs(octreeSdf.getDistance(point) - exactDist));
+						}
+
+						SPDLOG_INFO("MC RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
+						SPDLOG_INFO("MC MAE: {}", sdfMAE / static_cast<double>(64));
+
+						std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 8> vertexValues; 
+						for(uint32_t s=0; s < 8; s++)
+						{
+							const glm::vec3 p = centerPoint + childrens[s] * 0.5f * size;
+							TriCubicInterpolation::calculatePointValues(p, getNearestTriangle(p), mMesh.value(), trianglesInfo, vertexValues[s]);
+						}
+
+						const std::vector<uint32_t> emptyArray;
+						std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS> coefficients;
+						TriCubicInterpolation::calculateCoefficients(vertexValues, size, emptyArray, mMesh.value(), trianglesInfo, coefficients);
+
+						std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 19> middlePoints;
+						for(uint32_t s=0; s < 19; s++)
+						{
+							middlePoints[s][0] = getDistance(centerPoint + nodeSamplePoints[s] * 0.5f * size);
+						}
+
+						SPDLOG_INFO("Trapezoid RMSE: {}", glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
+						SPDLOG_INFO("Max Face Trapezoid RMSE: {}", glm::sqrt(estimateFaceErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
+						SPDLOG_INFO("Max RMSE: {}", glm::sqrt(estimateMaxError<TriCubicInterpolation>(coefficients, middlePoints)));
+					}
+
+					// Serach triangles influencing the zone
+					if(false) {
+						typedef TriLinearInterpolation Inter;
+
+						std::vector<uint32_t> inTriangles(indices.size()/3);
+						for(uint32_t i=0; i < indices.size()/3; i++)
+						{
+							inTriangles[i] = i;
+						}
+
+						std::vector<uint32_t> newTriangles;
+						// Ground truth process
+						{
+							std::vector<uint32_t> outTriangles;
+							std::array<PreciseTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+							std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> minDistToVertices;
+							std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+
+							PreciseTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																					inTriangles,
+																					childrens, 0u, nullArray,
+																					minDistToVertices, verticesInfo,
+																					mMesh.value(), trianglesInfo);
+							PreciseTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
+																		inTriangles, outTriangles,
+																		minDistToVertices, verticesInfo,
+																		mMesh.value(), trianglesInfo);
+
+							for(const uint32_t idx : outTriangles)
+							{
+								std::cout << idx << ", ";
+							}
+
+							std::cout << std::endl;
+
+							newTriangles = std::move(outTriangles);
+							triangles = newTriangles;
+
+							SPDLOG_INFO("PreciseTrianglesInfluence num selected triangles: {}", newTriangles.size());
+						}
+
+						std::sort(newTriangles.begin(), newTriangles.end());
+
+						auto printErrors = [&](std::string&& algorithmName, std::vector<uint32_t>& selectedTriangles)
+						{
+							uint32_t numErrors = glm::abs(newTriangles.size() - selectedTriangles.size());
+							std::sort(selectedTriangles.begin(), selectedTriangles.end());
+							uint32_t falsePositive = 0;
+							uint32_t falseNegative = 0;
+							uint32_t i, j;
+							for(i=0, j=0; i < selectedTriangles.size() && j < newTriangles.size();)
+							{
+								if(selectedTriangles[i] < newTriangles[j]) 
+								{
+									falsePositive++;
+									i++;
+								}
+								else if(selectedTriangles[i] > newTriangles[j]) 
+								{
+									falseNegative++;
+									j++;
+								}
+								else
+								{
+									i++; j++;
+								}
+							}
+
+							if(i < selectedTriangles.size())
+							{
+								falsePositive += selectedTriangles.size() - i;
+							}
+							else if(j < newTriangles.size())
+							{
+								falseNegative += newTriangles.size() - j;
+							}
+
+							SPDLOG_INFO("{} results // FP: {}, FN: {}", algorithmName, falsePositive, falseNegative);
+							SPDLOG_INFO("{} num selected triangles: {}", algorithmName, selectedTriangles.size());
+						};
+
+						{
+							std::vector<uint32_t> outTriangles;
+							std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+							std::array<BasicTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+							std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+							BasicTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																			inTriangles, 
+																			childrens, 0u, nullArray,
+																			verticesDist, verticesInfo,
+																			mMesh.value(), trianglesInfo);
+
+							for(const auto& d : verticesDist) maxMinDist = glm::max(maxMinDist, d[0]);
+							BasicTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
+																			inTriangles, outTriangles,
+																			verticesDist, verticesInfo,
+																			mMesh.value(), trianglesInfo);
+
+							printErrors("BasicTrianglesInfluence", outTriangles);
+
+							for(const uint32_t idx : outTriangles)
+							{
+								std::cout << idx << ", ";
+							}
+
+							std::cout << std::endl;
+
+							if(std::strcmp(mSelectionAlgorithm, "Basic") == 0)
+							{
+								triangles = std::move(outTriangles);
+							}
+						}
+
+						{
+							std::vector<uint32_t> outTriangles;
+							std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+							std::array<PerVertexTrianglesInfluence<1, Inter>::VertexInfo, 8> verticesInfo;
+							std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+							PerVertexTrianglesInfluence<1, Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																				inTriangles,
+																				childrens, 0u, nullArray,
+																				verticesDist, verticesInfo,
+																				mMesh.value(), trianglesInfo);
+							PerVertexTrianglesInfluence<1, Inter>().filterTriangles(centerPoint, 0.5f * size, 
+																			inTriangles, outTriangles,
+																			verticesDist, verticesInfo,
+																			mMesh.value(), trianglesInfo);
+
+							printErrors("PerVertexTrianglesInfluence", outTriangles);
+
+							if(std::strcmp(mSelectionAlgorithm, "Per vertex") == 0)
+							{
+								triangles = std::move(outTriangles);
+							}
+						}
+
+						{
+							std::vector<uint32_t> outTriangles;
+							std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
+							std::array<PerNodeRegionTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
+							std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
+							PerNodeRegionTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
+																				inTriangles,
+																				childrens, 0u, nullArray,
+																				verticesDist, verticesInfo,
+																				mMesh.value(), trianglesInfo);
+							PerNodeRegionTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
+																			inTriangles, outTriangles,
+																			verticesDist, verticesInfo,
+																			mMesh.value(), trianglesInfo);
+
+							printErrors("PerNodeRegionTrianglesInfluence", outTriangles);
+
+							for(const uint32_t idx : outTriangles)
+							{
+								std::cout << idx << ", ";
+							}
+
+							std::cout << std::endl;
+
+							if(std::strcmp(mSelectionAlgorithm, "Per node region") == 0)
+							{
+								triangles = std::move(outTriangles);
+							}
+						}
+					}
+					
+					if(mDrawInfluenceZone)
+					{
+						std::vector<std::pair<glm::vec3, float>> sphereQuad(8);
+						for(uint32_t i=0; i < 8; i++)
+						{
+							sphereQuad[i] = std::make_pair(childrens[i] * 0.5f * size, maxMinDist);
+						}
+						InfluenceRegionCreator::createConvexHull(*influenceRegionMesh, centerPoint, sphereQuad);
+
+						mInfluenceRegion->setIndexData(influenceRegionMesh->getIndices());
+						mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdVert, 
+															influenceRegionMesh->getVertices().data(),
+															influenceRegionMesh->getVertices().size());
+
+						mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdNorm, 
+															influenceRegionMesh->getNormals().data(),
+															influenceRegionMesh->getNormals().size());
+						mInfluenceRegion->callDraw = true;
+					} else mInfluenceRegion->callDraw = false;
+
+
+					// Compute optimal region
+					if(mDrawOptimalZone)
+					{
+						std::shared_ptr<Mesh> optimalInfluenceRegionMesh = PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions);
+
+						InfluenceRegionCreator::createOptimalRegion(*optimalInfluenceRegionMesh, centerPoint, 0.5f * size, triangles, trianglesInfo);
+
+						mOptimalInfluenceRegion->setIndexData(optimalInfluenceRegionMesh->getIndices());
+						mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdVert, 
+															optimalInfluenceRegionMesh->getVertices().data(),
+															optimalInfluenceRegionMesh->getVertices().size());
+
+						mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdNorm, 
+															optimalInfluenceRegionMesh->getNormals().data(),
+															optimalInfluenceRegionMesh->getNormals().size());
+
+						mOptimalInfluenceRegion->callDraw = true;
+					} else mOptimalInfluenceRegion->callDraw = false;
+
+					std::vector<std::pair<TriangleUtils::TriangleData, uint32_t>> trianglesData;
+					trianglesData.reserve(triangles.size());
+					std::vector<uint32_t> newIndices;
+					newIndices.reserve(3 * triangles.size());
+
+					for(const uint32_t& idx : triangles)
+					{
+						newIndices.push_back(indices[3 * idx]);
+						newIndices.push_back(indices[3 * idx + 1]);
+						newIndices.push_back(indices[3 * idx + 2]);
+
+						trianglesData.push_back(std::make_pair(TriangleUtils::TriangleData(
+							vertices[indices[3 * idx]],
+							vertices[indices[3 * idx + 1]],
+							vertices[indices[3 * idx + 2]]
+						), 0));
+					}
+
+					mModelRenderer->setIndexData(newIndices);
+
+					auto getRandomVec3 = [&] () -> glm::vec3
 					{
 						glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
 											static_cast<float>(rand())/static_cast<float>(RAND_MAX),
@@ -655,452 +960,149 @@ public:
 						return centerPoint + (p - 0.5f) * size;
 					};
 
-					auto getNearestTriangle = [&](glm::vec3 point)
+					if(mPrintTrianglesInfluence)
 					{
-						uint32_t tIndex;
-						float minIndexDist = INFINITY;
-						for(uint32_t t=0; t < trianglesInfo.size(); t++)
+						for(uint32_t s=0; s < mInfluenceNumSamples; s++)
 						{
-							float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
-							if(dist < minIndexDist)
+							glm::vec3 sample = getRandomVec3();
+							float minDist = INFINITY;
+							uint32_t nearestTriangle = 0;
+							for(uint32_t t=0; t < trianglesData.size(); t++)
 							{
-								tIndex = t;
-								minIndexDist = dist;
+								const float dist = 
+									TriangleUtils::getSqDistPointAndTriangle(sample, trianglesData[t].first);
+								if (dist < minDist)
+								{
+									nearestTriangle = t;
+									minDist = dist;
+								}
 							}
+
+							trianglesData[nearestTriangle].second += 1;
 						}
 
-						return tIndex;
-					};
-
-					auto getDistance = [&](glm::vec3 point)
-					{
-						uint32_t tIndex;
-						float minIndexDist = INFINITY;
-						for(uint32_t t=0; t < trianglesInfo.size(); t++)
+						uint32_t maxValue = 0;
+						for(const std::pair<TriangleUtils::TriangleData, uint32_t>& p : trianglesData)
 						{
-							float dist = TriangleUtils::getSqDistPointAndTriangle(point, trianglesInfo[t]);
-							if(dist < minIndexDist)
-							{
-								tIndex = t;
-								minIndexDist = dist;
-							}
+							maxValue = glm::max(maxValue, p.second);
 						}
+					
+						std::vector<glm::vec3> newVertices;
+						newVertices.reserve(6 * triangles.size());
+						const float maxValueF = static_cast<float>(maxValue);
+						std::array<glm::vec3, 4> colorsPalette = {
+							glm::vec3(1.0f, 1.0f, 1.0f), 
+							glm::vec3(1.0f, 1.0f, 0.0f), 
+							glm::vec3(1.0f, 0.5f, 0.0f), 
+							glm::vec3(1.0f, 0.0f, 0.0f)
+						};
 
-						return TriangleUtils::getSignedDistPointAndTriangle(point, trianglesInfo[tIndex]);
-					};
-
-					double sdfRMSE = 0.0f;
-					double sdfMAE = 0.0f;
-					for(uint32_t s=0; s < 64; s++)
-					{
-						glm::vec3 point = getRandomSample();
-						float exactDist = getDistance(point);
-						sdfRMSE += static_cast<double>(pow2((octreeSdf.getDistance(point) - exactDist)));
-        				sdfMAE += static_cast<double>(glm::abs(octreeSdf.getDistance(point) - exactDist));
-					}
-
-					SPDLOG_INFO("MC RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
-    				SPDLOG_INFO("MC MAE: {}", sdfMAE / static_cast<double>(64));
-
-					std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 8> vertexValues; 
-					for(uint32_t s=0; s < 8; s++)
-					{
-						const glm::vec3 p = centerPoint + childrens[s] * 0.5f * size;
-						TriCubicInterpolation::calculatePointValues(p, getNearestTriangle(p), mMesh.value(), trianglesInfo, vertexValues[s]);
-					}
-
-					const std::vector<uint32_t> emptyArray;
-					std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS> coefficients;
-					TriCubicInterpolation::calculateCoefficients(vertexValues, size, emptyArray, mMesh.value(), trianglesInfo, coefficients);
-
-					std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 19> middlePoints;
-					for(uint32_t s=0; s < 19; s++)
-					{
-						middlePoints[s][0] = getDistance(centerPoint + nodeSamplePoints[s] * 0.5f * size);
-					}
-
-					SPDLOG_INFO("Trapezoid RMSE: {}", glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
-					SPDLOG_INFO("Max Face Trapezoid RMSE: {}", glm::sqrt(estimateFaceErrorFunctionIntegralByTrapezoidRule<TriCubicInterpolation>(coefficients, middlePoints)));
-					SPDLOG_INFO("Max RMSE: {}", glm::sqrt(estimateMaxError<TriCubicInterpolation>(coefficients, middlePoints)));
-				}
-
-				// Serach triangles influencing the zone
-				if(false) {
-					typedef TriLinearInterpolation Inter;
-
-					std::vector<uint32_t> inTriangles(indices.size()/3);
-					for(uint32_t i=0; i < indices.size()/3; i++)
-					{
-						inTriangles[i] = i;
-					}
-
-					std::vector<uint32_t> newTriangles;
-					// Ground truth process
-					{
-						std::vector<uint32_t> outTriangles;
-						std::array<PreciseTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
-						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> minDistToVertices;
-						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
-
-						PreciseTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
-																				inTriangles,
-																				childrens, 0u, nullArray,
-																				minDistToVertices, verticesInfo,
-																				mMesh.value(), trianglesInfo);
-						PreciseTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
-																	inTriangles, outTriangles,
-																	minDistToVertices, verticesInfo,
-																	mMesh.value(), trianglesInfo);
-
-						for(const uint32_t idx : outTriangles)
+						for(uint32_t t=0; t < trianglesData.size(); t++)
 						{
-							std::cout << idx << ", ";
-						}
-
-						std::cout << std::endl;
-
-						newTriangles = std::move(outTriangles);
-						triangles = newTriangles;
-
-						SPDLOG_INFO("PreciseTrianglesInfluence num selected triangles: {}", newTriangles.size());
-					}
-
-					std::sort(newTriangles.begin(), newTriangles.end());
-
-					auto printErrors = [&](std::string&& algorithmName, std::vector<uint32_t>& selectedTriangles)
-					{
-						uint32_t numErrors = glm::abs(newTriangles.size() - selectedTriangles.size());
-						std::sort(selectedTriangles.begin(), selectedTriangles.end());
-						uint32_t falsePositive = 0;
-						uint32_t falseNegative = 0;
-						uint32_t i, j;
-						for(i=0, j=0; i < selectedTriangles.size() && j < newTriangles.size();)
-						{
-							if(selectedTriangles[i] < newTriangles[j]) 
+							// Calculate triangle color
+							glm::vec3 color(0.0);
+							if(mPrintIfSomeInfluence)
 							{
-								falsePositive++;
-								i++;
-							}
-							else if(selectedTriangles[i] > newTriangles[j]) 
-							{
-								falseNegative++;
-								j++;
+								color = (trianglesData[t].second > 0) ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(1.0f);
 							}
 							else
 							{
-								i++; j++;
+								const float value = static_cast<float>(trianglesData[t].second) / maxValueF;
+								const float colorIndex = glm::clamp(value * static_cast<float>(colorsPalette.size() - 1), 
+																	0.0f, static_cast<float>(colorsPalette.size() - 1) - 0.01f);
+								color = glm::mix(colorsPalette[static_cast<int>(colorIndex)], 
+																colorsPalette[static_cast<int>(colorIndex) + 1],
+																glm::fract(colorIndex));
 							}
-						}
 
-						if(i < selectedTriangles.size())
-						{
-							falsePositive += selectedTriangles.size() - i;
-						}
-						else if(j < newTriangles.size())
-						{
-							falseNegative += newTriangles.size() - j;
-						}
+							// if(t == mSelectedTriangle) color = glm::vec3(0.0f, 0.0f, 1.0f);
 
-						SPDLOG_INFO("{} results // FP: {}, FN: {}", algorithmName, falsePositive, falseNegative);
-						SPDLOG_INFO("{} num selected triangles: {}", algorithmName, selectedTriangles.size());
-					};
-
-					{
-						std::vector<uint32_t> outTriangles;
-						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
-						std::array<BasicTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
-						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
-						BasicTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
-																		inTriangles, 
-																		childrens, 0u, nullArray,
-																		verticesDist, verticesInfo,
-																		mMesh.value(), trianglesInfo);
-
-						for(const auto& d : verticesDist) maxMinDist = glm::max(maxMinDist, d[0]);
-						BasicTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
-																		inTriangles, outTriangles,
-																		verticesDist, verticesInfo,
-																		mMesh.value(), trianglesInfo);
-
-						printErrors("BasicTrianglesInfluence", outTriangles);
-
-						for(const uint32_t idx : outTriangles)
-						{
-							std::cout << idx << ", ";
+							// Add triangle
+							const uint32_t& idx = triangles[t];
+							if(trianglesData[t].second > 0) std::cout << idx << ", ";
+							newVertices.push_back(vertices[indices[3 * idx]]);
+							newVertices.push_back(color);
+							newVertices.push_back(vertices[indices[3 * idx + 1]]);
+							newVertices.push_back(color);
+							newVertices.push_back(vertices[indices[3 * idx + 2]]);
+							newVertices.push_back(color);
 						}
 
 						std::cout << std::endl;
 
-						if(std::strcmp(mSelectionAlgorithm, "Basic") == 0)
-						{
-							triangles = std::move(outTriangles);
-						}
+						mColoredModelRenderer->setVertexData(mColoredModelRendererBufferId, 
+															newVertices.data(), 
+															newVertices.size() / 2);
+
+						mModelRenderer->drawSurface(false);
+						mModelRenderer->drawWireframe(false);
+						mColoredModelRenderer->callDraw = true;
+					}
+					else
+					{
+						mModelRenderer->drawWireframe(true);
+						mModelRenderer->drawWireframe(true);
+						mColoredModelRenderer->callDraw = false;
 					}
 
+					if(mPrintNodeError)
 					{
-						std::vector<uint32_t> outTriangles;
-						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
-						std::array<PerVertexTrianglesInfluence<1, Inter>::VertexInfo, 8> verticesInfo;
-						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
-						PerVertexTrianglesInfluence<1, Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
-																			inTriangles,
-																			childrens, 0u, nullArray,
-																			verticesDist, verticesInfo,
-																			mMesh.value(), trianglesInfo);
-						PerVertexTrianglesInfluence<1, Inter>().filterTriangles(centerPoint, 0.5f * size, 
-																		inTriangles, outTriangles,
-																		verticesDist, verticesInfo,
-																		mMesh.value(), trianglesInfo);
-
-						printErrors("PerVertexTrianglesInfluence", outTriangles);
-
-						if(std::strcmp(mSelectionAlgorithm, "Per vertex") == 0)
+						std::array<float, 8> distanceToVertices;
 						{
-							triangles = std::move(outTriangles);
-						}
-					}
-
-					{
-						std::vector<uint32_t> outTriangles;
-						std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 8> verticesDist;
-						std::array<PerNodeRegionTrianglesInfluence<Inter>::VertexInfo, 8> verticesInfo;
-						std::array<float, Inter::NUM_COEFFICIENTS> nullArray;
-						PerNodeRegionTrianglesInfluence<Inter>().calculateVerticesInfo(centerPoint, 0.5f * size,
-																			inTriangles,
-																			childrens, 0u, nullArray,
-																			verticesDist, verticesInfo,
-																			mMesh.value(), trianglesInfo);
-						PerNodeRegionTrianglesInfluence<Inter>().filterTriangles(centerPoint, 0.5f * size, 
-																		inTriangles, outTriangles,
-																		verticesDist, verticesInfo,
-																		mMesh.value(), trianglesInfo);
-
-						printErrors("PerNodeRegionTrianglesInfluence", outTriangles);
-
-						for(const uint32_t idx : outTriangles)
-						{
-							std::cout << idx << ", ";
-						}
-
-						std::cout << std::endl;
-
-						if(std::strcmp(mSelectionAlgorithm, "Per node region") == 0)
-						{
-							triangles = std::move(outTriangles);
-						}
-					}
-				}
-				
-				if(mDrawInfluenceZone)
-				{
-					std::vector<std::pair<glm::vec3, float>> sphereQuad(8);
-					for(uint32_t i=0; i < 8; i++)
-					{
-						sphereQuad[i] = std::make_pair(childrens[i] * 0.5f * size, maxMinDist);
-					}
-					InfluenceRegionCreator::createConvexHull(*influenceRegionMesh, centerPoint, sphereQuad);
-
-					mInfluenceRegion->setIndexData(influenceRegionMesh->getIndices());
-					mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdVert, 
-														influenceRegionMesh->getVertices().data(),
-														influenceRegionMesh->getVertices().size());
-
-					mInfluenceRegion->setVertexData(mInfluenceRegionBufferIdNorm, 
-														influenceRegionMesh->getNormals().data(),
-														influenceRegionMesh->getNormals().size());
-					mInfluenceRegion->callDraw = true;
-				} else mInfluenceRegion->callDraw = false;
-
-
-				// Compute optimal region
-				if(mDrawOptimalZone)
-				{
-					std::shared_ptr<Mesh> optimalInfluenceRegionMesh = PrimitivesFactory::getIsosphere(mInfluenceZoneSubdivisions);
-
-					InfluenceRegionCreator::createOptimalRegion(*optimalInfluenceRegionMesh, centerPoint, 0.5f * size, triangles, trianglesInfo);
-
-					mOptimalInfluenceRegion->setIndexData(optimalInfluenceRegionMesh->getIndices());
-					mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdVert, 
-														optimalInfluenceRegionMesh->getVertices().data(),
-														optimalInfluenceRegionMesh->getVertices().size());
-
-					mOptimalInfluenceRegion->setVertexData(mOptimalInfluenceRegionBufferIdNorm, 
-														optimalInfluenceRegionMesh->getNormals().data(),
-														optimalInfluenceRegionMesh->getNormals().size());
-
-					mOptimalInfluenceRegion->callDraw = true;
-				} else mOptimalInfluenceRegion->callDraw = false;
-
-				std::vector<std::pair<TriangleUtils::TriangleData, uint32_t>> trianglesData;
-				trianglesData.reserve(triangles.size());
-				std::vector<uint32_t> newIndices;
-				newIndices.reserve(3 * triangles.size());
-
-				for(const uint32_t& idx : triangles)
-				{
-					newIndices.push_back(indices[3 * idx]);
-					newIndices.push_back(indices[3 * idx + 1]);
-					newIndices.push_back(indices[3 * idx + 2]);
-
-					trianglesData.push_back(std::make_pair(TriangleUtils::TriangleData(
-						vertices[indices[3 * idx]],
-						vertices[indices[3 * idx + 1]],
-						vertices[indices[3 * idx + 2]]
-					), 0));
-				}
-
-				mModelRenderer->setIndexData(newIndices);
-
-				auto getRandomVec3 = [&] () -> glm::vec3
-				{
-					glm::vec3 p =  glm::vec3(static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-										static_cast<float>(rand())/static_cast<float>(RAND_MAX),
-										static_cast<float>(rand())/static_cast<float>(RAND_MAX));
-					return centerPoint + (p - 0.5f) * size;
-				};
-
-				if(mPrintTrianglesInfluence)
-				{
-					for(uint32_t s=0; s < mInfluenceNumSamples; s++)
-					{
-						glm::vec3 sample = getRandomVec3();
-						float minDist = INFINITY;
-						uint32_t nearestTriangle = 0;
-						for(uint32_t t=0; t < trianglesData.size(); t++)
-						{
-							const float dist = 
-								TriangleUtils::getSqDistPointAndTriangle(sample, trianglesData[t].first);
-							if (dist < minDist)
+							std::array<glm::vec3, 8> inPos;
+							for(uint32_t i=0; i < 8; i++)
 							{
-								nearestTriangle = t;
-								minDist = dist;
+								inPos[i] = centerPoint + childrens[i] * 0.5f * size;
 							}
+							calculateMinDistances(inPos, distanceToVertices, triangles, trianglesInfo);
 						}
 
-						trianglesData[nearestTriangle].second += 1;
-					}
-
-					uint32_t maxValue = 0;
-					for(const std::pair<TriangleUtils::TriangleData, uint32_t>& p : trianglesData)
-					{
-						maxValue = glm::max(maxValue, p.second);
-					}
-				
-					std::vector<glm::vec3> newVertices;
-					newVertices.reserve(6 * triangles.size());
-					const float maxValueF = static_cast<float>(maxValue);
-					std::array<glm::vec3, 4> colorsPalette = {
-						glm::vec3(1.0f, 1.0f, 1.0f), 
-						glm::vec3(1.0f, 1.0f, 0.0f), 
-						glm::vec3(1.0f, 0.5f, 0.0f), 
-						glm::vec3(1.0f, 0.0f, 0.0f)
-					};
-
-					for(uint32_t t=0; t < trianglesData.size(); t++)
-					{
-						// Calculate triangle color
-						glm::vec3 color(0.0);
-						if(mPrintIfSomeInfluence)
+						std::array<float, 19> distanceToMidPoints;
 						{
-							color = (trianglesData[t].second > 0) ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(1.0f);
+							std::array<glm::vec3, 19> inPos;
+							for(uint32_t i=0; i < 19; i++)
+							{
+								inPos[i] = centerPoint + nodeSamplePoints[i] * 0.5f * size;
+							}
+							calculateMinDistances(inPos, distanceToMidPoints, triangles, trianglesInfo);
 						}
-						else
+
+						const float trapezoidRMSE = glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriLinearInterpolation>(
+																distanceToVertices, *reinterpret_cast<const std::array<std::array<float, 1>, 19>*>(&distanceToMidPoints)));
+						SPDLOG_INFO("RMSE using trapezoid method: {}", trapezoidRMSE);
+
+						auto pow2 = [](float a) { return a * a; };
+
+						std::array<float, 1> dist;
+						std::array<glm::vec3, 1> pos;
+						double accError = 0.0;
+						for(uint32_t s=0; s < mInfluenceNumSamples; s++)
 						{
-							const float value = static_cast<float>(trianglesData[t].second) / maxValueF;
-							const float colorIndex = glm::clamp(value * static_cast<float>(colorsPalette.size() - 1), 
-																0.0f, static_cast<float>(colorsPalette.size() - 1) - 0.01f);
-							color = glm::mix(colorsPalette[static_cast<int>(colorIndex)], 
-															colorsPalette[static_cast<int>(colorIndex) + 1],
-															glm::fract(colorIndex));
+							pos[0] = getRandomVec3();
+							calculateMinDistances(pos, dist, triangles, trianglesInfo);
+
+							const float d2 = interpolateValue(reinterpret_cast<const float*>(&distanceToVertices), 
+															(pos[0] - centerPoint + 0.5f * size) / size);
+
+							accError += static_cast<double>(pow2(dist[0] - d2));
 						}
-
-						// if(t == mSelectedTriangle) color = glm::vec3(0.0f, 0.0f, 1.0f);
-
-						// Add triangle
-						const uint32_t& idx = triangles[t];
-						if(trianglesData[t].second > 0) std::cout << idx << ", ";
-						newVertices.push_back(vertices[indices[3 * idx]]);
-						newVertices.push_back(color);
-						newVertices.push_back(vertices[indices[3 * idx + 1]]);
-						newVertices.push_back(color);
-						newVertices.push_back(vertices[indices[3 * idx + 2]]);
-						newVertices.push_back(color);
+						const float montecarloRMSE = glm::sqrt(static_cast<float>(accError / static_cast<double>(mInfluenceNumSamples)));
+						SPDLOG_INFO("MSE uisng monte carlo method: {}", montecarloRMSE);
 					}
 
-					std::cout << std::endl;
-
-					mColoredModelRenderer->setVertexData(mColoredModelRendererBufferId, 
-														 newVertices.data(), 
-														 newVertices.size() / 2);
-
-					mModelRenderer->drawSurface(false);
-					mModelRenderer->drawWireframe(false);
-					mColoredModelRenderer->callDraw = true;
+					SPDLOG_INFO("Number of selected triangles: {}", triangles.size());
 				}
-				else
-				{
-					mModelRenderer->drawWireframe(true);
-					mModelRenderer->drawWireframe(true);
-					mColoredModelRenderer->callDraw = false;
-				}
-
-				if(mPrintNodeError)
-				{
-					std::array<float, 8> distanceToVertices;
-					{
-						std::array<glm::vec3, 8> inPos;
-						for(uint32_t i=0; i < 8; i++)
-						{
-							inPos[i] = centerPoint + childrens[i] * 0.5f * size;
-						}
-						calculateMinDistances(inPos, distanceToVertices, triangles, trianglesInfo);
-					}
-
-					std::array<float, 19> distanceToMidPoints;
-					{
-						std::array<glm::vec3, 19> inPos;
-						for(uint32_t i=0; i < 19; i++)
-						{
-							inPos[i] = centerPoint + nodeSamplePoints[i] * 0.5f * size;
-						}
-						calculateMinDistances(inPos, distanceToMidPoints, triangles, trianglesInfo);
-					}
-
-					const float trapezoidRMSE = glm::sqrt(estimateErrorFunctionIntegralByTrapezoidRule<TriLinearInterpolation>(
-															distanceToVertices, *reinterpret_cast<const std::array<std::array<float, 1>, 19>*>(&distanceToMidPoints)));
-					SPDLOG_INFO("RMSE using trapezoid method: {}", trapezoidRMSE);
-
-					auto pow2 = [](float a) { return a * a; };
-
-					std::array<float, 1> dist;
-					std::array<glm::vec3, 1> pos;
-					double accError = 0.0;
-					for(uint32_t s=0; s < mInfluenceNumSamples; s++)
-					{
-						pos[0] = getRandomVec3();
-						calculateMinDistances(pos, dist, triangles, trianglesInfo);
-
-						const float d2 = interpolateValue(reinterpret_cast<const float*>(&distanceToVertices), 
-														  (pos[0] - centerPoint + 0.5f * size) / size);
-
-						accError += static_cast<double>(pow2(dist[0] - d2));
-					}
-					const float montecarloRMSE = glm::sqrt(static_cast<float>(accError / static_cast<double>(mInfluenceNumSamples)));
-					SPDLOG_INFO("MSE uisng monte carlo method: {}", montecarloRMSE);
-				}
-
-				SPDLOG_INFO("Number of selected triangles: {}", triangles.size());
 			}
-		}
-		else
-		{
-			if(lastSelectZone)
+			else
 			{
-				mSelectionCube->callDraw = false;
-				mColoredModelRenderer->callDraw = false;
-				mInfluenceRegion->callDraw = false;
-				mOptimalInfluenceRegion->callDraw = false;
-				mModelRenderer->setIndexData(mMesh.value().getIndices());
+				if(lastSelectZone)
+				{
+					mSelectionCube->callDraw = false;
+					mColoredModelRenderer->callDraw = false;
+					mInfluenceRegion->callDraw = false;
+					mOptimalInfluenceRegion->callDraw = false;
+					mModelRenderer->setIndexData(mMesh.value().getIndices());
+				}
 			}
 		}
 
