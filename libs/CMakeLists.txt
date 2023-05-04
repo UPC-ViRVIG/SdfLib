@@ -1,4 +1,5 @@
 include(FetchContent)
+set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
 
 # glm
 FetchContent_Declare(glm_lib
@@ -15,7 +16,7 @@ endif()
 # assimp
 FetchContent_Declare(assimp_lib
   GIT_REPOSITORY https://github.com/assimp/assimp.git
-  GIT_TAG ed8612ea356021080898ea2378f0b545431ccae3 # 5.2.1
+  GIT_TAG 9519a62dd20799c5493c638d1ef5a6f484e5faf1 # 5.2.5
 )
 
 if(NOT assimp_lib)
