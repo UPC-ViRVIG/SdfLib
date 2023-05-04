@@ -101,9 +101,11 @@ else()
 endif()                   
 
 # Add executable
-add_library(SdfLibUnity SHARED src/tools/SdfLibUnity/SdfExportFunc.h
-                               src/tools/SdfLibUnity/SdfExportFunc.cpp)
-target_link_libraries(SdfLibUnity PRIVATE ${PROJECT_NAME})
+if (NOT UNIX)
+    add_library(SdfLibUnity SHARED src/tools/SdfLibUnity/SdfExportFunc.h
+                                src/tools/SdfLibUnity/SdfExportFunc.cpp)
+    target_link_libraries(SdfLibUnity PRIVATE ${PROJECT_NAME})
+endif()
 
 if(SDFLIB_BUILD_APPS)
     add_executable(SdfViewer src/tools/SdfViewer/main.cpp src/tools/SdfViewer/InfluenceRegionCreator.h
