@@ -9,6 +9,7 @@ project(SdfLib VERSION 0.1)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
     add_compile_options(-fPIC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lstdc++fs -std=c++17")
 endif()
 
 
@@ -81,6 +82,10 @@ target_link_libraries(${PROJECT_NAME} PUBLIC eigen)
 target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
 target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
 target_link_libraries(${PROJECT_NAME} PUBLIC icg)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
+    target_link_libraries(${PROJECT_NAME} PUBLIC -lstdc++fs)
+endif()
 
 # Add openMP
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
