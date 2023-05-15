@@ -8,11 +8,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstring>
 
-#include "sdf/SdfFunction.h"
-#include "sdf/OctreeSdf.h"
-#include "sdf/ExactOctreeSdf.h"
-#include "utils/Timer.h"
-#include "utils/Mesh.h"
+#include "SdfLib/SdfFunction.h"
+#include "SdfLib/OctreeSdf.h"
+#include "SdfLib/ExactOctreeSdf.h"
+#include "SdfLib/utils/Timer.h"
+#include "SdfLib/utils/Mesh.h"
 
 using namespace sdflib;
 
