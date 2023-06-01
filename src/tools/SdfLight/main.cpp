@@ -70,6 +70,7 @@ public:
 
 			mModelRenderer->setIndexData(mesh.getIndices());
 			mModelRenderer->setShader(mOctreeLightShader.get());
+            mModelRenderer->callDraw = false; // Disable the automatic call because we already call the function
 			addSystem(mModelRenderer);
         }
 
@@ -95,6 +96,7 @@ public:
                                          glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
                                         glm::scale(glm::mat4(1.0f), glm::vec3(12.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
+            mPlaneRenderer->callDraw = false; // Disable the automatic call because we already call the function
             addSystem(mPlaneRenderer);
         }
 
@@ -127,6 +129,17 @@ public:
     void update(float deltaTime) override
 	{
         Scene::update(deltaTime);
+    }
+
+    virtual void draw() override
+    {
+        // Set albedo color at each object
+        mOctreeLightShader->setAlbedoColor(glm::vec3(0.4707, 0.173, 0.554));
+        mModelRenderer->draw(getMainCamera());
+        mOctreeLightShader->setAlbedoColor(glm::vec3(0.7, 0.7, 0.7));
+        mPlaneRenderer->draw(getMainCamera());
+
+        Scene::draw();
     }
 
 private:
