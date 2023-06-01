@@ -2,7 +2,7 @@
 
 ![](.github/media/TitileCaption.png)
 
-SdfLib is a library for accelerating the queries of signed distance fields from triangle meshes. The library has an exact method that always returns the distance to the nearest triangle and an approximated one that represents the file given a maximum error.
+SdfLib is a library for accelerating the queries of signed distance fields from triangle meshes. The library has an exact method that always returns the distance to the nearest triangle and an approximated one that return distances with a configurable maximum error.
 
 ## Installing and Compiling
 
@@ -140,12 +140,12 @@ Next, we have some of the provided tools. We offer some executables to use the l
 
 SdfExporter is a console application that creates the desired structure from an input mesh and stores the resulting structure on disk.
 
-Example using exact sdf:
+Example using the exact structure:
 ```
 ./SdfExporter PATH_TO_FOLDER/MY_MESH.ply PATH_TO_FOLDER/MY_SAVED_SDF.bin -d 8 --start_depth 3 --sdf_format exact_octree --min_triangles_per_node 128 --num_threads 8
 ```
 
-Example using approximated sdf:
+Example using the approximated structure:
 ```
 ./SdfExporter PATH_TO_FOLDER/MY_MESH.ply PATH_TO_FOLDER/MY_SAVED_SDF.bin -d 8 --start_depth 3 --sdf_format octree --termination_threshold 1e-3 --num_threads 8
 ```
