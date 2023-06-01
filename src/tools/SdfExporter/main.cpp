@@ -38,6 +38,7 @@ int main(int argc, char** argv)
     args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
     args::ValueFlag<uint32_t> numThreadsArg(parser, "num_threads", "Set the application maximum number of threads", {"num_threads"});
+    args::ValueFlag<float> bbMarginArg(parser, "bb_margin", "Percentage of margin added between the structure BB and the model BB", {"bb_margin"});
 
     try
     {
@@ -66,7 +67,8 @@ int main(int argc, char** argv)
 
     const glm::vec3 modelBBSize = box.getSize();
     // box.addMargin(0.12f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
-    box.addMargin(0.2f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
+    const float margin = ((bbMarginArg) ? args::get(bbMarginArg) : 20.0f) / 100.0f;
+    box.addMargin(margin * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
     // box.addMargin(0.8f * glm::max(glm::max(modelBBSize.x, modelBBSize.y), modelBBSize.z));
 
     Timer timer;

@@ -3,6 +3,7 @@
 
 #include "Shader.h"
 #include "SdfLib/OctreeSdf.h"
+#include "SdfLib/utils/Timer.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -27,6 +28,8 @@ public:
         minBorderValue = octreeSdf.getOctreeMinBorderValue();
         distanceScaleLocation = glGetUniformLocation(getProgramId(), "distanceScale");
         distanceScale = 1.0f / octreeSdf.getGridBoundingBox().getSize().x;
+        timeLocation = glGetUniformLocation(getProgramId(), "time");
+        timer.start();
 
         // Set octree data
         glGenBuffers(1, &mOctreeSSBO);
@@ -44,6 +47,7 @@ public:
         glUniform3f(startGridSizeLocation, startGridSize.x, startGridSize.y, startGridSize.z);
         glUniform1f(minBorderValueLocation, minBorderValue);
         glUniform1f(distanceScaleLocation, distanceScale);
+        glUniform1f(timeLocation, timer.getElapsedSeconds());
     }
 private:
     unsigned int mOctreeSSBO;
@@ -57,6 +61,8 @@ private:
     unsigned int minBorderValueLocation;
     float distanceScale;
     unsigned int distanceScaleLocation;
+    sdflib::Timer timer;
+    unsigned int timeLocation;
 };
 
 #endif

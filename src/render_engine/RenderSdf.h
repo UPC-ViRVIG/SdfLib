@@ -10,6 +10,7 @@
 #include "RenderMesh.h"
 
 #include "SdfLib/OctreeSdf.h"
+#include "SdfLib/utils/Timer.h"
 
 class RenderSdf : public System
 {
@@ -38,6 +39,9 @@ private:
     unsigned int mStartGridSizeLocation;
     unsigned int mDistanceScaleLocation;
     unsigned int mOctreeMinBorderValueLocation;
+    
+    sdflib::Timer mTimer;
+    unsigned int mTimeLocation;
 
     glm::ivec3 mOctreeStartGridSize;
     glm::mat4x4 mOctreeMatrix;

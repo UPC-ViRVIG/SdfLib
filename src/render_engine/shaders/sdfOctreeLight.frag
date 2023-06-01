@@ -18,6 +18,7 @@ uint roundFloat(float a)
 
 uniform float minBorderValue;
 uniform float distanceScale;
+uniform float time;
 
 in vec3 gridPosition;
 in vec3 gridNormal;
@@ -213,11 +214,11 @@ float softshadow(vec3 ro, vec3 rd)
 {
     float res = 1.0;
     float ph = 1e20;
-    float t = 0.005;
+    float t = 0.009;
     for( int i=0; i < 512 && t < 10.0; i++ )
     {
         float h = map(ro + rd*t);
-        if( h < 1e-3 ) return 0.0;
+        if( h < 1e-4 ) return 0.0;
         // float y = h * h / (2.0 * ph);
         // float d = sqrt(h * h - y * y);
         // res = min(res, d / max(0.0,t-y));
@@ -257,36 +258,45 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     float metallic = 0.1;
     float roughness = 0.7;
 
-    //vec3 N = mapGradient(pos);
     vec3 N = normalize(gridNormal);
     vec3 V = normalize(cameraPos - pos);
 
     vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
     float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
 
+    // Object color
     // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.72, 0.45, 0.20);
-    vec3 albedo = (pos.y < 0.37) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
+    // vec3 albedo = (pos.y < 0.163) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
+    // vec3 albedo = vec3(0.867, 0.831, 0.773);
+    // vec3 albedo = vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
+    vec3 albedo = (pos.y < 0.315) ? vec3(0.7, 0.7, 0.7) : vec3(0.4707, 0.173, 0.554);
 
+    // Fresnel parameter
     vec3 F0 = vec3(0.17, 0.17, 0.17);
     F0 = mix(F0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
     // Directional light
     {
-        //vec3 L = normalize(vec3(-0.5, 0.4, -0.6));
-        //vec3 L = normalize(vec3(0.0, 0.4, 0.0));
-        // vec3 L = normalize(vec3(2.469, 3.5, 3.98));
-        // float distToLight = length(vec3(0.695968, 0.535887, 0.505242) - pos);
-        // vec3 L = normalize(vec3(0.695968, 0.535887, 0.505242) - pos);
-        vec3 L = normalize(vec3(0.05, 3.5, 1.5));
+        // Light position
+        vec3 lightPos = vec3(0.873572, 1.42857, 1.09321);
+        // vec3 lightPos = vec3(0.609615, 0.517692, 0.501346);
+        // float t = 0.5 * sin(time) + 0.5;
+        // vec3 lightPos = vec3(0.56, 0.501346, 0.496346) * (1.0-t) + vec3(0.44, 0.501346, 0.496346) * t;
+
+        float distToLight = length(lightPos - pos);
+        vec3 L = normalize(lightPos - pos);
         vec3 H = normalize(V + L);
-        vec3 sunColor = 10.0 * vec3(1.0, 0.8, 0.6);
-        //float intensity = min(softshadowToPoint(pos + 0.0001 * N, L, distToLight)/0.0999, 1.0);
-        float intensity = min(softshadow(pos + 0.0001 * N, L)/0.0999, 1.0);
+        vec3 sunColor = 20.0 * vec3(1.0, 0.8, 0.6); // Mix light color and intensity
+        // float intensity = min(softshadowToPoint(pos + 0.0001 * N, L, distToLight)/0.0999, 1.0);
+        // float intensity = min(softshadow(pos + 0.0001 * N, L)/0.0999, 1.0);
+        float sphereLightRadius = 0.0961538;
+        float coneAngle = atan(sphereLightRadius/distToLight); // Compute the cone angle if the light was totally visible
+        float intensity = min(atan(softshadowToPoint(pos + 0.0003 * N, L, distToLight))/coneAngle, 1.0);
         // float intensity = 1.0;
         vec3 radiance = sunColor * intensity;
         
-        // cook-torrance brdf
+        // Cook-torrance brdf
         float NDF = DistributionGGX(N, H, roughness);        
         float G = GeometrySmith(N, V, L, roughness);      
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
@@ -299,12 +309,12 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
         vec3 specular = numerator / denominator;  
             
-        // add to outgoing radiance Lo
+        // Add to outgoing radiance to Lo
         float NdotL = max(dot(N, L), 0.0);                
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.5) * albedo * getAO(pos, N);
+    vec3 ambient = vec3(0.5) * albedo * getAO(pos, N); // Ambient light estimation
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));

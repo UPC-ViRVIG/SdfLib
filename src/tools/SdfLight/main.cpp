@@ -7,6 +7,7 @@
 #include "render_engine/RenderSdf.h"
 #include "render_engine/Window.h"
 #include "render_engine/shaders/SdfOctreeLightShader.h"
+#include "render_engine/shaders/BasicShader.h"
 #include <spdlog/spdlog.h>
 #include <args.hxx>
 
@@ -92,10 +93,35 @@ public:
 			mPlaneRenderer->setIndexData(plane->getIndices());
 			mPlaneRenderer->setTransform(glm::translate(glm::mat4(1.0f), glm::vec3(mesh.getBoundingBox().getCenter().x, mesh.getBoundingBox().min.y, mesh.getBoundingBox().getCenter().z)) * 
                                          glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
-                                        glm::scale(glm::mat4(1.0f), glm::vec3(8.0f)));
+                                        glm::scale(glm::mat4(1.0f), glm::vec3(12.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
             addSystem(mPlaneRenderer);
         }
+
+        // // Light Model
+        // {
+        //     mLightRenderer = std::make_shared<RenderMesh>();
+		// 	mLightRenderer->start();
+
+		// 	// Plane
+		// 	std::shared_ptr<Mesh> plane = PrimitivesFactory::getIsosphere(3);
+        //     plane->computeNormals();
+
+		// 	mLightRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+		// 								RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+		// 						}, plane->getVertices().data(), plane->getVertices().size());
+
+        //     mLightRenderer->setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+		// 								RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+		// 						}, plane->getNormals().data(), plane->getNormals().size());
+
+		// 	mLightRenderer->setIndexData(plane->getIndices());
+		// 	mLightRenderer->setTransform(glm::translate(glm::mat4(1.0f), glm::vec3(1.046f, 2.6f, 1.661f)) * 
+        //                                 glm::scale(glm::mat4(1.0f), glm::vec3(0.08f)));
+        //     mLightRenderer->setShader(BasicShader::getInstance());
+        //     BasicShader::getInstance()->setDrawColor(glm::vec4(0.95f, 0.95f, 0.1f, 1.0f));
+        //     addSystem(mLightRenderer);
+        // }
     }
 
     void update(float deltaTime) override
@@ -109,6 +135,7 @@ private:
     std::shared_ptr<RenderSdf> mRenderSdf;
     std::shared_ptr<RenderMesh> mModelRenderer;
     std::shared_ptr<RenderMesh> mPlaneRenderer;
+    std::shared_ptr<RenderMesh> mLightRenderer;
 
     std::unique_ptr<SdfOctreeLightShader> mOctreeLightShader;
 };

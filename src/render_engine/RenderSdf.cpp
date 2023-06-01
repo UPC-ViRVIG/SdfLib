@@ -92,6 +92,8 @@ void RenderSdf::start()
         mStartGridSizeLocation = glGetUniformLocation(mRenderProgramId, "startGridSize");
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
+        mTimeLocation = glGetUniformLocation(mRenderProgramId, "time");
+        mTimer.start();
 
         checkForOpenGLErrors();
     }
@@ -180,6 +182,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform3f(mStartGridSizeLocation, mOctreeStartGridSize.x, mOctreeStartGridSize.y, mOctreeStartGridSize.z);
     glUniform1f(mDistanceScaleLocation, mOctreeDistanceScale);
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
+    glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
