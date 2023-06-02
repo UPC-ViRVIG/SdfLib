@@ -180,7 +180,7 @@ SdfLib is licensed under CC BY-SA 4.0. Please, see the [license](https://github.
 If you are using the exact method algorithm for a publication, please cite the paper:
 
 ```
-@inproceedings{triangleInfluence,
+@article{triangleInfluence,
   title={Triangle influence supersets for fast distance computation},
   author={Eduard Pujol and Antonio Chica},
   booktitle={},
@@ -194,7 +194,7 @@ If you are using the approximated method algorithm for a publication, please cit
 
 ```
 @inproceedings{appoxSDF,
-  title={{A}liceVision {M}eshroom: An open-source {3D} reconstruction pipeline},
+  title={Adaptive approximation of signed distance fields through piecewise continuous interpolation},
   author={Eduard Pujol and Antonio Chica},
   booktitle={},
   doi = {},
