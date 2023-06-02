@@ -171,6 +171,10 @@ Notice that in both calls, we use the argument ``-n``. This option normalizes th
 
 SdfError is a console application that computes the error of the approximated method regarding the exact one.
 
+## License
+
+SdfLib is licensed under CC BY-SA 4.0. Please, see the [license](https://github.com/UPC-ViRVIG/SdfLib/LICENSE) for further details.
+
 ## Citations
 
 If you are using the exact method algorithm for a publication, please cite the paper:
