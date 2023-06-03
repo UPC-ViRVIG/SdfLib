@@ -99,6 +99,12 @@ void RenderSdf::start()
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
         mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
 
+        //Material
+        mMetallicLocation = glGetUniformLocation(mRenderProgramId, "matMetallic");
+        mRoughnessLocation = glGetUniformLocation(mRenderProgramId, "matRoughness");
+        mAlbedoLocation = glGetUniformLocation(mRenderProgramId, "matAlbedo");
+        mF0Location = glGetUniformLocation(mRenderProgramId, "matF0");
+        //Plane
         mPlanePosLocation = glGetUniformLocation(mRenderProgramId, "planePos");
 
 
@@ -199,7 +205,13 @@ void RenderSdf::draw(Camera* camera)
     glUniform3f(mLightColorLocation, mLightColor.x, mLightColor.y, mLightColor.z);
     glUniform1f(mLightIntensityLocation, mLightIntensity);
 
+    //Material
+    glUniform1f(mMetallicLocation, mMetallic);
+    glUniform1f(mRoughnessLocation, mRoughness);
+    glUniform3f(mAlbedoLocation, mAlbedo.x, mAlbedo.y, mAlbedo.z);
+    glUniform3f(mF0Location, mF0.x, mF0.y, mF0.z);
 
+    //Plane
     glUniform1f(mPlanePosLocation, mPlanePos);
 
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
@@ -225,6 +237,9 @@ void RenderSdf::drawGui()
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Material");
-
+    ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
+    ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
+    ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
     ImGui::End();
 }

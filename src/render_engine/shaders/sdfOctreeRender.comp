@@ -37,6 +37,12 @@ uniform vec3 lightPos;
 uniform float lightIntensity;
 uniform vec3 lightColor;
 
+//Material
+uniform float matMetallic;
+uniform float matRoughness;
+uniform vec3 matAlbedo;
+uniform vec3 matF0;
+
 uniform float time;
 
 // Perlin noise function
@@ -345,8 +351,6 @@ vec3 mapGradient(vec3 pos)
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
-    float metallic = 0.1;
-    float roughness = 0.7;
 
     vec3 N = mapGradient(pos);
     vec3 V = normalize(cameraPos - pos);
@@ -354,12 +358,13 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     float fd = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
 
     // Object color
-    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
+    float metallic =  (fd < 1e-4) ? 0.1 : matMetallic;
+    float roughness = (fd < 1e-4) ? 0.7 : matRoughness;
+    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
     // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
     // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
 
-    vec3 F0 = vec3(0.07, 0.07, 0.07); 
-    F0 = mix(F0, albedo, metallic);
+    vec3 F0 = (fd < 1e-4) ? vec3(0.07f, 0.07f, 0.07f) : mix(matF0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
     // Directional light

@@ -49,6 +49,16 @@ private:
     glm::vec3 mLightColor = glm::vec3(1.0f, 0.8f, 0.8f);
     float mLightIntensity = 10.0f;
 
+    //Material
+    unsigned int mMetallicLocation;
+    unsigned int mRoughnessLocation;
+    unsigned int mAlbedoLocation;
+    unsigned int mF0Location;
+
+    float mMetallic = 0.0f;
+    float mRoughness = 0.5f;
+    glm::vec3 mAlbedo = glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
 
     //Plane
     unsigned int mPlanePosLocation;
