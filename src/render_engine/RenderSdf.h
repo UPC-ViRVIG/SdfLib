@@ -42,8 +42,13 @@ private:
     
     //Lighting
     unsigned int mLightPosLocation;
+    unsigned int mLightColorLocation;
+    unsigned int mLightIntensityLocation;
 
-    glm::vec3 mLightPosition = glm::vec3(0.873572f, 1.42857f, 1.09321f);
+    glm::vec3 mLightPosition = glm::vec3(1.0f, 2.0f, 1.0f);
+    glm::vec3 mLightColor = glm::vec3(1.0f, 0.8f, 0.8f);
+    float mLightIntensity = 10.0f;
+
     sdflib::Timer mTimer;
     unsigned int mTimeLocation;
 

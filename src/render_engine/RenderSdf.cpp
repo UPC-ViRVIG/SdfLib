@@ -93,7 +93,12 @@ void RenderSdf::start()
         mStartGridSizeLocation = glGetUniformLocation(mRenderProgramId, "startGridSize");
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
+
+        //Lighting
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
+        mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
+        mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
+
         mTimeLocation = glGetUniformLocation(mRenderProgramId, "time");
         mTimer.start();
 
@@ -188,6 +193,9 @@ void RenderSdf::draw(Camera* camera)
 
     //Lighting
     glUniform3f(mLightPosLocation, mLightPosition.x, mLightPosition.y, mLightPosition.z);
+    glUniform3f(mLightColorLocation, mLightColor.x, mLightColor.y, mLightColor.z);
+    glUniform1f(mLightIntensityLocation, mLightIntensity);
+
 
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
@@ -202,4 +210,6 @@ void RenderSdf::drawGui()
     ImGui::Separator();
     ImGui::Text("Lighting and material");
     ImGui::InputFloat3("Light position", reinterpret_cast<float*>(&mLightPosition));
+    ImGui::InputFloat3("Light color", reinterpret_cast<float*>(&mLightColor));
+    ImGui::InputFloat("Light intensity", &mLightIntensity);
 }
