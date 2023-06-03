@@ -1,7 +1,7 @@
 #version 460 core
 
 #define MAX_ITERATIONS 1024
-#define EPSILON 1e-4
+#define MAX_SHADOW_ITERATIONS 512
 
 
 layout (local_size_x = 16, local_size_y = 16) in;
@@ -30,8 +30,9 @@ uniform float distanceScale;
 uniform float minBorderValue;
 
 
-
 uniform float planePos; 
+
+uniform float Epsilon;
 
 //Options
 uniform float overRelaxation;
@@ -309,16 +310,16 @@ vec3 mapGradient(vec3 pos)
     // Get the exact gradient
     // vec3 aPos = pos + planePosition;
     // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
-    // return (fd < EPSILON) 
+    // return (fd < Epsilon) 
     //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
     //         : getGradient(pos);
 
     // Get an approximation of the gradient
     float dist = map(pos);
     return normalize(vec3(
-        map(pos + vec3(EPSILON, 0, 0)) - dist,
-        map(pos + vec3(0, EPSILON, 0)) - dist,
-        map(pos + vec3(0, 0, EPSILON)) - dist
+        map(pos + vec3(Epsilon, 0, 0)) - dist,
+        map(pos + vec3(0, Epsilon, 0)) - dist,
+        map(pos + vec3(0, 0, Epsilon)) - dist
     ));
 }
 
@@ -347,13 +348,44 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
     for( int i=0; i < 512 && t < far; i++ )
     {
         float h = map(ro + rd*t);
-        if( h < EPSILON ) return 0.0;
+        if( h < Epsilon ) return 0.0;
         // float y = h * h / (2.0 * ph);
         // float d = sqrt(h * h - y * y);
         // res = min(res, d / max(0.0,t-y));
         res = min(res, h/t);
         ph = h;
         t += h;
+    }
+    return res;
+}
+
+//Attempt to apply over relaxation to soft shadows too
+float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
+{
+    float res = 1.0;
+    float ph = 0.0;
+    float t = 0.005;
+    float stepLength = 0.0;
+    for( int i=0; i < MAX_SHADOW_ITERATIONS && t < far; i++ )
+    {
+        vec3 p = ro + rd * t;
+        float h = map(p);
+        bool fail = omega > 1.0f && (h + ph) < stepLength;
+        if (fail)
+        {
+            t -= omega * stepLength;
+            omega = 1.0f;
+        }
+        else
+        {
+            stepLength = h * omega;
+            t += stepLength;
+        }
+
+        if(!fail && h < Epsilon ) return 0.0;
+
+        res = min(res, h/t);
+        ph = h;
     }
     return res;
 }
@@ -369,13 +401,13 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     float fd = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
 
     // Object material
-    float metallic =  (fd < EPSILON) ? 0.1 : matMetallic;
-    float roughness = (fd < EPSILON) ? 0.7 : matRoughness;
-    vec3 albedo = (fd < EPSILON) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
-    // vec3 albedo = (fd < EPSILON) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
-    // vec3 albedo = (fd < EPSILON) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
+    float metallic =  (fd < Epsilon) ? 0.1 : matMetallic;
+    float roughness = (fd < Epsilon) ? 0.7 : matRoughness;
+    vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
+    // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
+    // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
 
-    vec3 F0 = (fd < EPSILON) ? vec3(0.07f, 0.07f, 0.07f) : mix(matF0, albedo, metallic);
+    vec3 F0 = (fd < Epsilon) ? vec3(0.07f, 0.07f, 0.07f) : mix(matF0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
 
@@ -389,8 +421,8 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         vec3 sunColor = lightIntensity * lightColor;
 
         float coneAngle = atan(0.0961538/distToLight);
-        float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + EPSILON * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
-        
+        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + Epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + Epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf
@@ -403,7 +435,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         kD *= 1.0 - metallic;	  
         
         vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + EPSILON;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + Epsilon;
         vec3 specular = numerator / denominator;  
             
         // Add to outgoing radiance Lo
@@ -430,7 +462,7 @@ bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
     vec3 pos = startPos;
     float lastDistance = 1e8;
     uint it = 0;
-    while (lastDistance > EPSILON && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
+    while (lastDistance > Epsilon && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
     {
         resultPos = pos;
         // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
@@ -440,7 +472,7 @@ bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
         pos += dir * dist;
         it += 1;
     }
-    return lastDistance < EPSILON;
+    return lastDistance < Epsilon;
 }
 
 //Mine
@@ -451,31 +483,41 @@ float rayMarchOR(vec3 o, vec3 d, float omega)
     float stepLength = 0.0;
     for (int i = 0; i < MAX_ITERATIONS; i++) 
     {
-        
+        //compute the distance in current point along the ray
         vec3 p = o + d * t;
         float dist = map(p);
+
+        //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
         bool fail = omega > 1.0f && (dist + previousDist) < stepLength;
         if (fail)
         {
+            //backtrack
             t -= omega * stepLength;
             omega = 1.0f;
         }
         else 
         {
+            //advance using overrelaxation parameter
             stepLength = dist * omega;
             t += stepLength;
         }
 
-        if (!fail && dist < EPSILON) return t;
+        //update previous distance
+        previousDist = dist;
 
+        //if we hit something, return the distance
+        if (!fail && dist < Epsilon) return t;
         
-
+        //if we are too far away, return the far plane
         if (t > nearAndFarPlane.y) return nearAndFarPlane.y;
     }
+    
+    //if we didn't hit anything, return the far plane
     return nearAndFarPlane.y;
 }
 
 
+/*
 const int paletteNumColors = 5;
 const vec3 palette[5] = vec3[5](
     vec3(1.0f, 0.0f, 1.0f), 
@@ -484,7 +526,7 @@ const vec3 palette[5] = vec3[5](
     vec3(1.0f, 1.0f, 0.0f), 
     vec3(1.0f, 0.0f, 0.0f)
 );
-
+*/
 
 
 //MAIN LOOP
@@ -505,7 +547,7 @@ void main()
     //Call to raymarching algorithm
     //if(raycast(worldPos, worldDir, hitPoint))
     float dist = rayMarchOR(worldPos, worldDir, overRelaxation);
-    if (dist < nearAndFarPlane.y-EPSILON)
+    if (dist < nearAndFarPlane.y-Epsilon)
     {
         vec3 hitPoint = worldPos + worldDir * dist;
         outColor = mapColor(hitPoint, worldPos);

@@ -94,6 +94,8 @@ void RenderSdf::start()
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
 
+        mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "Epsilon");
+
         //Options
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
@@ -205,6 +207,8 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
+    mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
+    glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
     glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);

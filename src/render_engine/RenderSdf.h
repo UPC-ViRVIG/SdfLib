@@ -40,6 +40,9 @@ private:
     unsigned int mDistanceScaleLocation;
     unsigned int mOctreeMinBorderValueLocation;
     
+    unsigned int mEpsilonLocation;
+    float mEpsilon = 0.0001f;
+    
     //Options
     unsigned int mUseAOLocation;
     unsigned int mUseSoftShadowsLocation;
