@@ -11,6 +11,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "shaders/ScreenPlaneShader.h"
+#include <imgui.h>
 
 using namespace sdflib;
 
@@ -92,6 +93,7 @@ void RenderSdf::start()
         mStartGridSizeLocation = glGetUniformLocation(mRenderProgramId, "startGridSize");
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
+        mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
         mTimeLocation = glGetUniformLocation(mRenderProgramId, "time");
         mTimer.start();
 
@@ -184,6 +186,9 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
+    //Lighting
+    glUniform3f(mLightPosLocation, mLightPosition.x, mLightPosition.y, mLightPosition.z);
+
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -193,5 +198,8 @@ void RenderSdf::draw(Camera* camera)
 
 void RenderSdf::drawGui()
 {
-
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Lighting and material");
+    ImGui::InputFloat3("Light position", reinterpret_cast<float*>(&mLightPosition));
 }

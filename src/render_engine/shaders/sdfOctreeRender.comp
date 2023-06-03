@@ -27,6 +27,9 @@ uniform mat4 invViewModelMatrix;
 uniform float distanceScale;
 uniform float minBorderValue;
 
+//Lighting 
+uniform vec3 lightPos;
+
 uniform float time;
 
 // Perlin noise function
@@ -240,7 +243,7 @@ vec3 getGradient(vec3 point)
     ));
 }
 
-const vec3 planePosition = vec3(-0.5, -0.255, -0.5);
+const vec3 planePosition = vec3(0, 0, 0);
 
 float opSmoothIntersection( float d1, float d2, float k ) {
     float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
@@ -249,9 +252,9 @@ float opSmoothIntersection( float d1, float d2, float k ) {
 float map(vec3 pos)
 {
     vec3 aPos = pos + planePosition;
-    float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
-    float distToObj = opSmoothIntersection(distanceScale * getDistance(pos), noiseValue, 0.006);
-    // float distToObj = distanceScale * getDistance(pos);
+    //float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
+    //float distToObj = opSmoothIntersection(distanceScale * getDistance(pos), noiseValue, 0.006);
+    float distToObj = distanceScale * getDistance(pos);
     return min(distToObj, max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07)) * 0.6;
 }
 
@@ -349,7 +352,6 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     // Directional light
     {
         // Light position
-        vec3 lightPos = vec3(0.873572, 1.42857, 1.09321);
         float distToLight = length(lightPos - pos);
 
         vec3 L = normalize(lightPos - pos);

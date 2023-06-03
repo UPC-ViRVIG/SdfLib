@@ -40,6 +40,10 @@ private:
     unsigned int mDistanceScaleLocation;
     unsigned int mOctreeMinBorderValueLocation;
     
+    //Lighting
+    unsigned int mLightPosLocation;
+
+    glm::vec3 mLightPosition = glm::vec3(0.873572f, 1.42857f, 1.09321f);
     sdflib::Timer mTimer;
     unsigned int mTimeLocation;
 
