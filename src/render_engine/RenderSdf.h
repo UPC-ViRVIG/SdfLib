@@ -49,6 +49,12 @@ private:
     glm::vec3 mLightColor = glm::vec3(1.0f, 0.8f, 0.8f);
     float mLightIntensity = 10.0f;
 
+
+    //Plane
+    unsigned int mPlanePosLocation;
+    float mPlanePos = 0.0f;
+
+
     sdflib::Timer mTimer;
     unsigned int mTimeLocation;
 

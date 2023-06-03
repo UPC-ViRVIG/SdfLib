@@ -99,6 +99,9 @@ void RenderSdf::start()
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
         mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
 
+        mPlanePosLocation = glGetUniformLocation(mRenderProgramId, "planePos");
+
+
         mTimeLocation = glGetUniformLocation(mRenderProgramId, "time");
         mTimer.start();
 
@@ -197,6 +200,8 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mLightIntensityLocation, mLightIntensity);
 
 
+    glUniform1f(mPlanePosLocation, mPlanePos);
+
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -206,10 +211,20 @@ void RenderSdf::draw(Camera* camera)
 
 void RenderSdf::drawGui()
 {
+    ImGui::Begin("Scene");
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Text("Lighting and material");
+    ImGui::Text("Scene");
+    ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Lighting");
     ImGui::InputFloat3("Light position", reinterpret_cast<float*>(&mLightPosition));
-    ImGui::InputFloat3("Light color", reinterpret_cast<float*>(&mLightColor));
-    ImGui::InputFloat("Light intensity", &mLightIntensity);
+    ImGui::ColorEdit3("Light color", reinterpret_cast<float*>(&mLightColor));
+    ImGui::SliderFloat("Light intensity", &mLightIntensity, 0.0f, 20.0f);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Material");
+
+    ImGui::End();
 }

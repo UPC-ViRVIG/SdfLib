@@ -81,6 +81,7 @@ void NavigationCamera::update(float deltaTime)
 
 void NavigationCamera::drawGui()
 {
+    ImGui::Begin("Camera");
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Camera");
@@ -96,4 +97,5 @@ void NavigationCamera::drawGui()
         glm::angleAxis(mEulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f)) *
         glm::angleAxis(mEulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f))
     );
+    ImGui::End();
 }

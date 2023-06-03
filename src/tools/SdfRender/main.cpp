@@ -43,7 +43,7 @@ public:
         // Move camera in the z-axis to be able to see the whole model
 		{
 			float zMovement = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
-			camera->setPosition(sdfBB.getCenter() + glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovement));
+			camera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovement));
 		}
     }
 
