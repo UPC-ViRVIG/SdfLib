@@ -44,10 +44,12 @@ private:
     unsigned int mUseAOLocation;
     unsigned int mUseSoftShadowsLocation;
     unsigned int mUsePerlinNoiseLocation;
+    unsigned int mOverRelaxationLocation;
 
     bool mUseAO = false;
     bool mUseSoftShadows = false;
     bool mUsePerlinNoise = false;
+    float mOverRelaxation = 1.2f;
 
     //Lighting
     unsigned int mLightPosLocation;
