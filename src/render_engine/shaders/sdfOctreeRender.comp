@@ -390,6 +390,15 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
     return res;
 }
 
+//procedural checker texture for the plane
+vec3 planeTexture(vec3 pos) 
+{
+    if (pos.x < 0.0) pos.x -= 1.0f;
+    if (pos.z < 0.0) pos.z -= 1.0f;
+    if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.01, 0.01, 0.01);
+    return vec3(0.5, 0.5, 0.5);
+}
+
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
     //Approximate normal
@@ -402,12 +411,12 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
 
     // Object material
     float metallic =  (fd < Epsilon) ? 0.1 : matMetallic;
-    float roughness = (fd < Epsilon) ? 0.7 : matRoughness;
+    float roughness = (fd < Epsilon) ? 0.1 : matRoughness;
     vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
     // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
     // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
 
-    vec3 F0 = (fd < Epsilon) ? vec3(0.07f, 0.07f, 0.07f) : mix(matF0, albedo, metallic);
+    vec3 F0 = (fd < Epsilon) ? planeTexture(pos) : mix(matF0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
 
@@ -451,7 +460,6 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
    
     return color;
 }
-
 
 //RAY MARCHING ALGORITHM
 
