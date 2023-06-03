@@ -40,6 +40,15 @@ private:
     unsigned int mDistanceScaleLocation;
     unsigned int mOctreeMinBorderValueLocation;
     
+    //Options
+    unsigned int mUseAOLocation;
+    unsigned int mUseSoftShadowsLocation;
+    unsigned int mUsePerlinNoiseLocation;
+
+    bool mUseAO = false;
+    bool mUseSoftShadows = false;
+    bool mUsePerlinNoise = false;
+
     //Lighting
     unsigned int mLightPosLocation;
     unsigned int mLightColorLocation;

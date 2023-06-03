@@ -94,6 +94,11 @@ void RenderSdf::start()
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
 
+        //Options
+        mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
+        mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
+        mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
+
         //Lighting
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
@@ -200,6 +205,11 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
+    //Options
+    glUniform1i(mUseAOLocation, mUseAO);
+    glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
+    glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
+
     //Lighting
     glUniform3f(mLightPosLocation, mLightPosition.x, mLightPosition.y, mLightPosition.z);
     glUniform3f(mLightColorLocation, mLightColor.x, mLightColor.y, mLightColor.z);
@@ -223,11 +233,15 @@ void RenderSdf::draw(Camera* camera)
 
 void RenderSdf::drawGui()
 {
+    ImGui::Text("FPS: %f", ImGui::GetIO().Framerate);
     ImGui::Begin("Scene");
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Text("Scene");
+    ImGui::Text("Scene Settings");
     ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+    ImGui::Checkbox("AO", &mUseAO);
+    ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+    ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Lighting");
