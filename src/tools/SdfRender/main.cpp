@@ -20,22 +20,31 @@ public:
         Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
 
         // Create camera
-		{
-			auto camera = std::make_shared<NavigationCamera>();
-			camera->start();
-			setMainCamera(camera);
-			addSystem(camera);
-		}
+		
+        auto camera = std::make_shared<NavigationCamera>();
+        camera->start();
+        setMainCamera(camera);
+        addSystem(camera);
+		
+
+        BoundingBox sdfBB;
 
         // Load model
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
         std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
         
+        sdfBB = octreeSdf->getGridBoundingBox();
 
         mRenderSdf = std::make_shared<RenderSdf>(octreeSdf);
         mRenderSdf->start();
         addSystem(mRenderSdf);
+
+        // Move camera in the z-axis to be able to see the whole model
+		{
+			float zMovement = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
+			camera->setPosition(sdfBB.getCenter() + glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovement));
+		}
     }
 
     void update(float deltaTime) override
