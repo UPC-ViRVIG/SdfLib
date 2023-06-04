@@ -40,10 +40,11 @@ uniform bool useAO;
 uniform bool useSoftShadows;
 uniform bool usePerlinNoise;
 
-//Lighting 
-uniform vec3 lightPos;
-uniform float lightIntensity;
-uniform vec3 lightColor;
+//Lighting
+uniform int lightNumber;
+uniform vec3 lightPos[4];
+uniform float lightIntensity[4];
+uniform vec3 lightColor[4];
 
 //Material
 uniform float matMetallic;
@@ -420,14 +421,15 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
 
     vec3 Lo = vec3(0.0);
 
-    // Directional light
+    // Directional lights
+    for (int i = 0; i < lightNumber; i++) 
     {
         // Light position
-        float distToLight = length(lightPos - pos);
-        vec3 L = normalize(lightPos - pos);
+        float distToLight = length(lightPos[i] - pos);
+        vec3 L = normalize(lightPos[i] - pos);
         vec3 H = normalize(V + L);
 
-        vec3 sunColor = lightIntensity * lightColor;
+        vec3 sunColor = lightIntensity[i] * lightColor[i];
 
         float coneAngle = atan(0.0961538/distToLight);
         //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + Epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;

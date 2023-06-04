@@ -102,9 +102,11 @@ void RenderSdf::start()
         mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
         mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
         //Lighting
+        mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
         mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
+        
 
         //Material
         mMetallicLocation = glGetUniformLocation(mRenderProgramId, "matMetallic");
@@ -215,9 +217,11 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
     glUniform1f(mOverRelaxationLocation, mOverRelaxation);
     //Lighting
-    glUniform3f(mLightPosLocation, mLightPosition.x, mLightPosition.y, mLightPosition.z);
-    glUniform3f(mLightColorLocation, mLightColor.x, mLightColor.y, mLightColor.z);
-    glUniform1f(mLightIntensityLocation, mLightIntensity);
+    glUniform1i(mLightNumberLocation, mLightNumber);
+    glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
+    glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
+    glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
+    
 
     //Material
     glUniform1f(mMetallicLocation, mMetallic);
@@ -250,9 +254,13 @@ void RenderSdf::drawGui()
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Lighting");
-    ImGui::InputFloat3("Light position", reinterpret_cast<float*>(&mLightPosition));
-    ImGui::ColorEdit3("Light color", reinterpret_cast<float*>(&mLightColor));
-    ImGui::SliderFloat("Light intensity", &mLightIntensity, 0.0f, 20.0f);
+    ImGui::SliderInt("Light number", &mLightNumber, 1, 4);
+    for (int i = 0; i < mLightNumber; ++i) {
+        ImGui::Text("Light %d", i);
+        ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mLightPosition[i]));
+        ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&mLightColor[i]));
+        ImGui::SliderFloat("Intensity", &mLightIntensity[i], 0.0f, 20.0f);
+    }
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Material");

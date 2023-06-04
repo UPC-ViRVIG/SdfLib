@@ -55,13 +55,35 @@ private:
     float mOverRelaxation = 1.2f;
 
     //Lighting
+    unsigned int mLightNumberLocation;
     unsigned int mLightPosLocation;
     unsigned int mLightColorLocation;
     unsigned int mLightIntensityLocation;
 
-    glm::vec3 mLightPosition = glm::vec3(1.0f, 2.0f, 1.0f);
-    glm::vec3 mLightColor = glm::vec3(1.0f, 0.8f, 0.8f);
-    float mLightIntensity = 10.0f;
+    int mLightNumber = 1;
+    glm::vec3 mLightPosition[4] =
+    {
+        glm::vec3 (1.0f, 2.0f, 1.0f),
+        glm::vec3 (-1.0f, 2.0f, 1.0f),
+        glm::vec3 (1.0f, 2.0f, -1.0f),
+        glm::vec3 (-1.0f, 2.0f, -1.0f)
+    };
+
+    glm::vec3 mLightColor[4] =
+    {
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f),
+        glm::vec3(1.0f, 0.0f, 1.0f)
+    };
+
+    float mLightIntensity[4] = 
+    {
+        10.0f,
+        10.0f,
+        10.0f,
+        10.0f
+    };
 
     //Material
     unsigned int mMetallicLocation;
