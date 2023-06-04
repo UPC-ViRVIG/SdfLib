@@ -256,17 +256,16 @@ void RenderSdf::drawGui()
     ImGui::Text("Lighting");
     ImGui::SliderInt("Light number", &mLightNumber, 1, 4);
 
-    ImGui::Text("Light 1");
-    ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mLightPosition[0]));
-    ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&mLightColor[0]));
-    ImGui::SliderFloat("Intensity", &mLightIntensity[0], 0.0f, 20.0f);
-
-    /*for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
+    for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
         ImGui::Text("Light %d", i);
-        ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mLightPosition[i]));
-        ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&mLightColor[i]));
-        ImGui::SliderFloat("Intensity", &mLightIntensity[i], 0.0f, 20.0f);
-    }**/ 
+        std::string pos = "Position##"+std::to_string(i+48);
+        std::string col = "Color##"+std::to_string(i+48);
+        std::string intens = "Intensity##"+std::to_string(i+48);
+        ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
+        ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
+        ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+    }
+
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Material");
