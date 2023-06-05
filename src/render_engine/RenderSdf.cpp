@@ -260,6 +260,10 @@ void RenderSdf::drawGui()
             {
                mShowSceneGUI = !mShowSceneGUI;
             }
+            if (ImGui::MenuItem("Show sdf model controls")) 
+            {
+               mShowSdfModelGUI = !mShowSdfModelGUI;
+            }
             if (ImGui::MenuItem("Show algorithm controls")) 
             {
                mShowSceneGUI = !mShowSceneGUI;
@@ -295,6 +299,12 @@ void RenderSdf::drawGui()
             ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
         }
 
+        ImGui::End();
+    }
+
+    if (mShowSdfModelGUI)
+    {
+        ImGui::Begin("Sdf Model Settings");
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Text("Material");
