@@ -59,6 +59,11 @@ uniform vec3 matF0;
 
 uniform float time;
 
+//Geometric transformations
+uniform vec3 modelPos;
+uniform vec3 modelScale;
+uniform vec3 modelRot;
+
 //Utils
 float planeSDF(vec3 samplePoint, vec3 n, float h) {
     return dot(samplePoint,n) + h;
@@ -295,7 +300,7 @@ vec3 getGradient(vec3 point)
 //SDF of the scene
 float map(vec3 pos)
 {
-    float distToObj = distanceScale * getDistance(pos);
+    float distToObj = distanceScale * getDistance((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
 
     if (usePerlinNoise) 
     {

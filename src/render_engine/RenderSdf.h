@@ -57,7 +57,7 @@ private:
 
     int mMaxIterations = 1024;
     int mMaxColorIterations = 64;
-    int mMaxShadowIterations = 64;
+    int mMaxShadowIterations = 512;
 
 
     bool mUseAO = false;
@@ -109,6 +109,14 @@ private:
     glm::vec3 mAlbedo = glm::vec3(1.0f, 0.0f, 0.0f);
     glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
 
+    //Geometric transformations
+    unsigned int mPositionLocation;
+    unsigned int mRotationLocation;
+    unsigned int mScaleLocation;
+
+    glm::vec3 mPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 mRotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 mScale = glm::vec3(1.0f, 1.0f, 1.0f);
     //Plane
     unsigned int mPlanePosLocation;
     float mPlanePos = 0.0f;

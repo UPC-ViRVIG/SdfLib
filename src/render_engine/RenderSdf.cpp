@@ -118,6 +118,11 @@ void RenderSdf::start()
         mRoughnessLocation = glGetUniformLocation(mRenderProgramId, "matRoughness");
         mAlbedoLocation = glGetUniformLocation(mRenderProgramId, "matAlbedo");
         mF0Location = glGetUniformLocation(mRenderProgramId, "matF0");
+
+        //Geometric transform
+        mPositionLocation = glGetUniformLocation(mRenderProgramId, "modelPos");
+        mRotationLocation = glGetUniformLocation(mRenderProgramId, "modelRot");
+        mScaleLocation = glGetUniformLocation(mRenderProgramId, "modelScale");
         //Plane
         mPlanePosLocation = glGetUniformLocation(mRenderProgramId, "planePos");
 
@@ -240,6 +245,11 @@ void RenderSdf::draw(Camera* camera)
     glUniform3f(mAlbedoLocation, mAlbedo.x, mAlbedo.y, mAlbedo.z);
     glUniform3f(mF0Location, mF0.x, mF0.y, mF0.z);
 
+    //Geometric transform
+    glUniform3f(mPositionLocation, mPosition.x, mPosition.y, mPosition.z);
+    glUniform3f(mRotationLocation, mRotation.x, mRotation.y, mRotation.z);
+    glUniform3f(mScaleLocation, mScale.x, mScale.y, mScale.z);
+
     //Plane
     glUniform1f(mPlanePosLocation, mPlanePos);
 
@@ -266,7 +276,7 @@ void RenderSdf::drawGui()
             }
             if (ImGui::MenuItem("Show algorithm controls")) 
             {
-               mShowSceneGUI = !mShowSceneGUI;
+               mShowAlgorithmGUI = !mShowAlgorithmGUI;
             }
             ImGui::EndMenu();
         }
@@ -305,6 +315,10 @@ void RenderSdf::drawGui()
     if (mShowSdfModelGUI)
     {
         ImGui::Begin("Sdf Model Settings");
+        ImGui::Text("PRS");
+        ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
+        ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
+        ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Text("Material");
