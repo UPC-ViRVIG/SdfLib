@@ -101,6 +101,7 @@ void RenderSdf::start()
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
         mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
         mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
+        mUseItColorModeLocation = glGetUniformLocation(mRenderProgramId, "useItColorMode");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -216,6 +217,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
     glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
     glUniform1f(mOverRelaxationLocation, mOverRelaxation);
+    glUniform1i(mUseItColorModeLocation, mUseItColorMode);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
@@ -250,6 +252,7 @@ void RenderSdf::drawGui()
     ImGui::Checkbox("AO", &mUseAO);
     ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
     ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
+    ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
     ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
     ImGui::Spacing();
     ImGui::Separator();

@@ -1,6 +1,7 @@
 #version 460 core
 
 #define MAX_ITERATIONS 1024
+#define MAX_COLOR_ITERATIONS 40
 #define MAX_SHADOW_ITERATIONS 512
 
 
@@ -39,6 +40,7 @@ uniform float overRelaxation;
 uniform bool useAO;
 uniform bool useSoftShadows;
 uniform bool usePerlinNoise;
+uniform bool useItColorMode;
 
 //Lighting
 uniform int lightNumber;
@@ -369,24 +371,25 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
     float stepLength = 0.0;
     for( int i=0; i < MAX_SHADOW_ITERATIONS && t < far; i++ )
     {
-        vec3 p = ro + rd * t;
-        float h = map(p);
+        float h = map(ro + rd * t);
         bool fail = omega > 1.0f && (h + ph) < stepLength;
         if (fail)
         {
-            t -= omega * stepLength;
+            stepLength -= omega * stepLength;
             omega = 1.0f;
         }
         else
         {
             stepLength = h * omega;
-            t += stepLength;
         }
+
+        ph = h;
 
         if(!fail && h < Epsilon ) return 0.0;
 
-        res = min(res, h/t);
-        ph = h;
+        if (!fail) res = min(res, h/t);
+
+        t += stepLength;
     }
     return res;
 }
@@ -491,38 +494,50 @@ float rayMarchOR(vec3 o, vec3 d, float omega)
     float t = 0.0;
     float previousDist = 0.0;
     float stepLength = 0.0;
-    for (int i = 0; i < MAX_ITERATIONS; i++) 
+    //float functionSign = map(o) < 9 ? -1 : 1;
+    for (int i = 0; i < (useItColorMode ? MAX_COLOR_ITERATIONS : MAX_ITERATIONS); i++) 
     {
         //compute the distance in current point along the ray
-        vec3 p = o + d * t;
-        float dist = map(p);
+        //float signedDist = functionSign * map(o + d * t);
+        float dist = map(o + d * t);
 
         //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
         bool fail = omega > 1.0f && (dist + previousDist) < stepLength;
         if (fail)
         {
             //backtrack
-            t -= omega * stepLength;
+            stepLength -= omega * stepLength;
             omega = 1.0f;
         }
         else 
         {
             //advance using overrelaxation parameter
             stepLength = dist * omega;
-            t += stepLength;
         }
 
         //update previous distance
         previousDist = dist;
 
         //if we hit something, return the distance
-        if (!fail && dist < Epsilon) return t;
+        if (!fail && dist < Epsilon)
+        {
+            if (useItColorMode) return i;
+            return t;
+        }
+        
+        if ( !fail && t > nearAndFarPlane.y) 
+        {
+            if (useItColorMode) return MAX_ITERATIONS;
+            return nearAndFarPlane.y;
+        } 
+
+        t += stepLength; 
         
         //if we are too far away, return the far plane
-        if (t > nearAndFarPlane.y) return nearAndFarPlane.y;
     }
     
     //if we didn't hit anything, return the far plane
+    if (useItColorMode) return MAX_ITERATIONS;
     return nearAndFarPlane.y;
 }
 
@@ -538,6 +553,19 @@ const vec3 palette[5] = vec3[5](
 );
 */
 
+const vec3 black = vec3(0,0,0);
+const vec3 white = vec3(1,1,1);
+const vec3 blue  = vec3(0,0,1);
+const vec3 red   = vec3(1,0,0);
+
+vec3 gradientColor(float it)
+{   
+    float itColor = it / MAX_COLOR_ITERATIONS;
+
+    if (itColor < 0.25) return mix(black, blue, itColor * 4.0); 
+    if (itColor < 0.5) return mix(blue, red, (itColor - 0.25) * 4.0); 
+    return mix(red, white, (itColor - 0.5) * 4.0); 
+}
 
 //MAIN LOOP
 void main()
@@ -556,11 +584,19 @@ void main()
     
     //Call to raymarching algorithm
     //if(raycast(worldPos, worldDir, hitPoint))
-    float dist = rayMarchOR(worldPos, worldDir, overRelaxation);
-    if (dist < nearAndFarPlane.y-Epsilon)
+    if (useItColorMode) 
     {
-        vec3 hitPoint = worldPos + worldDir * dist;
-        outColor = mapColor(hitPoint, worldPos);
+        float it = rayMarchOR(worldPos, worldDir, overRelaxation);
+        outColor = gradientColor(it);
+    }
+    
+    else {
+        float dist = rayMarchOR(worldPos, worldDir, overRelaxation);
+        if (dist < nearAndFarPlane.y-Epsilon)
+        {
+            vec3 hitPoint = worldPos + worldDir * dist;
+            outColor = mapColor(hitPoint, worldPos);
+        }
     }
 
     //Store the rendered image to output texture to later display in a quad
