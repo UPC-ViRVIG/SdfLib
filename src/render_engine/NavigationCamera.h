@@ -27,6 +27,7 @@ private:
 
     float mRotationVelocity = 0.05f;
     bool mInRotationMode = false;
+    bool mShowGUI = false;
     glm::vec2 mLastMousePosition;
     glm::vec2 mEulerAngles;
 };

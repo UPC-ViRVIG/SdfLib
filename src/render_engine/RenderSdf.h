@@ -42,7 +42,6 @@ private:
     
     unsigned int mEpsilonLocation;
     float mEpsilon = 0.0001f;
-    float mPrevEpsilon = 0.0001f;
     
     //Options
     unsigned int mUseAOLocation;
@@ -113,6 +112,10 @@ private:
     //Plane
     unsigned int mPlanePosLocation;
     float mPlanePos = 0.0f;
+
+    //GUI
+    bool mShowSceneGUI = false;
+    bool mShowAlgorithmGUI = false;
 
 
     sdflib::Timer mTimer;

@@ -215,12 +215,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
     mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
-    if (mEpsilon != mPrevEpsilon )
-    {
-        mPrevEpsilon = mEpsilon;
-        std::cout << "New Epsilon: " << mEpsilon << std::endl;
-    }
-
+    
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
@@ -257,47 +252,67 @@ void RenderSdf::draw(Camera* camera)
 
 void RenderSdf::drawGui()
 {
-    ImGui::Text("FPS: %f", ImGui::GetIO().Framerate);
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Algorithm Settings");
-    ImGui::InputInt("Max Iterations", &mMaxIterations);
-    ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
-    ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
-    if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
-    ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
-
-
-    ImGui::Begin("Scene");
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Scene Settings");
-    ImGui::Checkbox("Draw Plane", &mDrawPlane);
-    if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
-    ImGui::Checkbox("AO", &mUseAO);
-    ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-    ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Lighting");
-    ImGui::SliderInt("Light number", &mLightNumber, 1, 4);
-
-    for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
-        ImGui::Text("Light %d", i);
-        std::string pos = "Position##"+std::to_string(i+48);
-        std::string col = "Color##"+std::to_string(i+48);
-        std::string intens = "Intensity##"+std::to_string(i+48);
-        ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
-        ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
-        ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+    if (ImGui::BeginMainMenuBar()) 
+    {
+        if (ImGui::BeginMenu("RenderSettings")) 
+        {
+            if (ImGui::MenuItem("Show scene controls")) 
+            {
+               mShowSceneGUI = !mShowSceneGUI;
+            }
+            if (ImGui::MenuItem("Show algorithm controls")) 
+            {
+               mShowSceneGUI = !mShowSceneGUI;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Material");
-    ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
-    ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
-    ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
-    ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
-    ImGui::End();
+    if (mShowSceneGUI) 
+    {
+        ImGui::Begin("Scene");
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("Scene Settings");
+        ImGui::Checkbox("Draw Plane", &mDrawPlane);
+        if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+        ImGui::Checkbox("AO", &mUseAO);
+        ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+        ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("Lighting");
+        ImGui::SliderInt("Light number", &mLightNumber, 1, 4);
+
+        for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
+            ImGui::Text("Light %d", i);
+            std::string pos = "Position##"+std::to_string(i+48);
+            std::string col = "Color##"+std::to_string(i+48);
+            std::string intens = "Intensity##"+std::to_string(i+48);
+            ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
+            ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
+            ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("Material");
+        ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
+        ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
+        ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
+        ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
+        ImGui::End();
+    }
+
+    if (mShowAlgorithmGUI) 
+    {
+        ImGui::Begin("Algorithm Settings");
+        ImGui::InputInt("Max Iterations", &mMaxIterations);
+        ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+        ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
+        if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
+        ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
+        ImGui::End();
+    }
 }
