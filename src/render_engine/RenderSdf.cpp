@@ -94,7 +94,7 @@ void RenderSdf::start()
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
 
-        mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "Epsilon");
+        mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "epsilon");
 
         //Options
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
@@ -102,6 +102,10 @@ void RenderSdf::start()
         mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
         mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
         mUseItColorModeLocation = glGetUniformLocation(mRenderProgramId, "useItColorMode");
+        mMaxColorIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxColorIterations");
+        mMaxIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxIterations");
+        mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
+        mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -211,6 +215,12 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
     mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
+    if (mEpsilon != mPrevEpsilon )
+    {
+        mPrevEpsilon = mEpsilon;
+        std::cout << "New Epsilon: " << mEpsilon << std::endl;
+    }
+
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
@@ -218,6 +228,10 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
     glUniform1f(mOverRelaxationLocation, mOverRelaxation);
     glUniform1i(mUseItColorModeLocation, mUseItColorMode);
+    glUniform1i(mMaxIterationsLocation, mMaxIterations);
+    glUniform1i(mMaxColorIterationsLocation, mMaxColorIterations);
+    glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
+    glUniform1i(mDrawPlaneLocation, mDrawPlane);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
@@ -244,16 +258,25 @@ void RenderSdf::draw(Camera* camera)
 void RenderSdf::drawGui()
 {
     ImGui::Text("FPS: %f", ImGui::GetIO().Framerate);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Algorithm Settings");
+    ImGui::InputInt("Max Iterations", &mMaxIterations);
+    ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+    ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
+    if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
+    ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
+
+
     ImGui::Begin("Scene");
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Scene Settings");
-    ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+    ImGui::Checkbox("Draw Plane", &mDrawPlane);
+    if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
     ImGui::Checkbox("AO", &mUseAO);
     ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
     ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
-    ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
-    ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Lighting");

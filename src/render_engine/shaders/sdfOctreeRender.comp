@@ -1,10 +1,6 @@
 #version 460 core
 
-#define MAX_ITERATIONS 1024
-#define MAX_COLOR_ITERATIONS 40
-#define MAX_SHADOW_ITERATIONS 512
-
-
+#define MAX_AO_ITERATIONS 8
 layout (local_size_x = 16, local_size_y = 16) in;
 
 layout(rgba32f, binding = 0) uniform image2D outputTexture;
@@ -33,11 +29,18 @@ uniform float minBorderValue;
 
 uniform float planePos; 
 
-uniform float Epsilon;
+uniform float epsilon;
 
 //Options
+uniform int maxIterations;
+uniform int maxColorIterations;
+uniform int maxShadowIterations;
+
+
 uniform float overRelaxation;
 uniform bool useAO;
+
+uniform bool drawPlane;
 uniform bool useSoftShadows;
 uniform bool usePerlinNoise;
 uniform bool useItColorMode;
@@ -292,8 +295,6 @@ vec3 getGradient(vec3 point)
 //SDF of the scene
 float map(vec3 pos)
 {
-    //float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
-    //float distToObj = opSmoothIntersection(distanceScale * getDistance(pos), noiseValue, 0.006);
     float distToObj = distanceScale * getDistance(pos);
 
     if (usePerlinNoise) 
@@ -303,8 +304,9 @@ float map(vec3 pos)
     }
 
     float plane = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
+    
+    if (!drawPlane) return distToObj;
     return min(distToObj, plane);
-    return distToObj;
 }
 
 //Gradient of the scene
@@ -313,16 +315,16 @@ vec3 mapGradient(vec3 pos)
     // Get the exact gradient
     // vec3 aPos = pos + planePosition;
     // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
-    // return (fd < Epsilon) 
+    // return (fd < epsilon) 
     //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
     //         : getGradient(pos);
 
     // Get an approximation of the gradient
     float dist = map(pos);
     return normalize(vec3(
-        map(pos + vec3(Epsilon, 0, 0)) - dist,
-        map(pos + vec3(0, Epsilon, 0)) - dist,
-        map(pos + vec3(0, 0, Epsilon)) - dist
+        map(pos + vec3(epsilon, 0, 0)) - dist,
+        map(pos + vec3(0, epsilon, 0)) - dist,
+        map(pos + vec3(0, 0, epsilon)) - dist
     ));
 }
 
@@ -331,7 +333,7 @@ float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
     float decay = 1.0;
-    for(int i=0; i < 8; i++)
+    for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
         float h = 0.002 + 0.1 * float(i)/8.0;
         float d = map(pos + n * h);
@@ -339,7 +341,7 @@ float getAO(vec3 pos, vec3 n)
         decay *= 0.8;
     }
 
-    return min(1.0 - 1.9 * occ, 1.0);
+    return min(1.0 - 1.5 * occ, 1.0);
 }
 
 
@@ -351,7 +353,7 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
     for( int i=0; i < 512 && t < far; i++ )
     {
         float h = map(ro + rd*t);
-        if( h < Epsilon ) return 0.0;
+        if( h < epsilon ) return 0.0;
         // float y = h * h / (2.0 * ph);
         // float d = sqrt(h * h - y * y);
         // res = min(res, d / max(0.0,t-y));
@@ -369,7 +371,7 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
     float ph = 0.0;
     float t = 0.005;
     float stepLength = 0.0;
-    for( int i=0; i < MAX_SHADOW_ITERATIONS && t < far; i++ )
+    for( int i=0; i < maxShadowIterations && t < far; i++ )
     {
         float h = map(ro + rd * t);
         bool fail = omega > 1.0f && (h + ph) < stepLength;
@@ -385,7 +387,7 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
 
         ph = h;
 
-        if(!fail && h < Epsilon ) return 0.0;
+        if(!fail && h < epsilon ) return 0.0;
 
         if (!fail) res = min(res, h/t);
 
@@ -414,14 +416,24 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     float fd = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
 
     // Object material
-    float metallic =  (fd < Epsilon) ? 0.1 : matMetallic;
-    float roughness = (fd < Epsilon) ? 0.1 : matRoughness;
-    vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
-    // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
-    // vec3 albedo = (fd < Epsilon) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
+    float metallic, roughness;
+    vec3 albedo, F0;
 
-    vec3 F0 = (fd < Epsilon) ? planeTexture(pos) : mix(matF0, albedo, metallic);
+    if (drawPlane) {
+        metallic =  (fd < epsilon) ? 0.1 : matMetallic;
+        roughness = (fd < epsilon) ? 0.1 : matRoughness;
+        albedo = (fd < epsilon) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
+        F0 = (fd < epsilon) ? planeTexture(pos) : mix(matF0, albedo, metallic);
+    }
 
+    else
+    {
+        metallic = matMetallic;
+        roughness = matRoughness;
+        albedo = matAlbedo;
+        F0 = mix(matF0, albedo, metallic);
+    } 
+ 
     vec3 Lo = vec3(0.0);
 
     // Directional lights
@@ -435,8 +447,8 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         vec3 sunColor = lightIntensity[i] * lightColor[i];
 
         float coneAngle = atan(0.0961538/distToLight);
-        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + Epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
-        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + Epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
+        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf
@@ -449,7 +461,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         kD *= 1.0 - metallic;	  
         
         vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + Epsilon;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
         vec3 specular = numerator / denominator;  
             
         // Add to outgoing radiance Lo
@@ -475,7 +487,7 @@ bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
     vec3 pos = startPos;
     float lastDistance = 1e8;
     uint it = 0;
-    while (lastDistance > Epsilon && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
+    while (lastDistance > epsilon && accDistance < nearAndFarPlane.y && it < maxIterations)
     {
         resultPos = pos;
         // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
@@ -485,17 +497,17 @@ bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
         pos += dir * dist;
         it += 1;
     }
-    return lastDistance < Epsilon;
+    return lastDistance < epsilon;
 }
 
 //Mine
-float rayMarchOR(vec3 o, vec3 d, float omega) 
+float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max) 
 {
-    float t = 0.0;
+    float t = t_min;
     float previousDist = 0.0;
     float stepLength = 0.0;
     //float functionSign = map(o) < 9 ? -1 : 1;
-    for (int i = 0; i < (useItColorMode ? MAX_COLOR_ITERATIONS : MAX_ITERATIONS); i++) 
+    for (int i = 0; i < (useItColorMode ? maxColorIterations : maxIterations); i++) 
     {
         //compute the distance in current point along the ray
         //float signedDist = functionSign * map(o + d * t);
@@ -519,15 +531,15 @@ float rayMarchOR(vec3 o, vec3 d, float omega)
         previousDist = dist;
 
         //if we hit something, return the distance
-        if (!fail && dist < Epsilon)
+        if (!fail && dist < epsilon)
         {
             if (useItColorMode) return i;
             return t;
         }
         
-        if ( !fail && t > nearAndFarPlane.y) 
+        if ( !fail && t > t_max) 
         {
-            if (useItColorMode) return MAX_ITERATIONS;
+            if (useItColorMode) return maxIterations;
             return nearAndFarPlane.y;
         } 
 
@@ -537,34 +549,22 @@ float rayMarchOR(vec3 o, vec3 d, float omega)
     }
     
     //if we didn't hit anything, return the far plane
-    if (useItColorMode) return MAX_ITERATIONS;
+    if (useItColorMode) return maxIterations;
     return nearAndFarPlane.y;
 }
 
-
-/*
-const int paletteNumColors = 5;
-const vec3 palette[5] = vec3[5](
-    vec3(1.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 0.0f, 0.0f)
-);
-*/
-
 const vec3 black = vec3(0,0,0);
 const vec3 white = vec3(1,1,1);
-const vec3 blue  = vec3(0,0,1);
+const vec3 magenta  = vec3(1,0,1);
 const vec3 red   = vec3(1,0,0);
 
 vec3 gradientColor(float it)
 {   
-    float itColor = it / MAX_COLOR_ITERATIONS;
+    float itColor = it / maxColorIterations;
 
-    if (itColor < 0.25) return mix(black, blue, itColor * 4.0); 
-    if (itColor < 0.5) return mix(blue, red, (itColor - 0.25) * 4.0); 
-    return mix(red, white, (itColor - 0.5) * 4.0); 
+    if (itColor < 0.25) return mix(black, red, itColor * 4.0); 
+    if (itColor < 0.5) return mix(red, magenta, (itColor - 0.25) * 4.0); 
+    return mix(magenta, white, (itColor - 0.5) * 4.0); 
 }
 
 //MAIN LOOP
@@ -586,13 +586,13 @@ void main()
     //if(raycast(worldPos, worldDir, hitPoint))
     if (useItColorMode) 
     {
-        float it = rayMarchOR(worldPos, worldDir, overRelaxation);
+        float it = rayMarchOR(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
         outColor = gradientColor(it);
     }
     
     else {
-        float dist = rayMarchOR(worldPos, worldDir, overRelaxation);
-        if (dist < nearAndFarPlane.y-Epsilon)
+        float dist = rayMarchOR(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
+        if (dist < nearAndFarPlane.y-epsilon)
         {
             vec3 hitPoint = worldPos + worldDir * dist;
             outColor = mapColor(hitPoint, worldPos);

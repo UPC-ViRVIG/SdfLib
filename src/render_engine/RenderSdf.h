@@ -42,6 +42,7 @@ private:
     
     unsigned int mEpsilonLocation;
     float mEpsilon = 0.0001f;
+    float mPrevEpsilon = 0.0001f;
     
     //Options
     unsigned int mUseAOLocation;
@@ -49,13 +50,23 @@ private:
     unsigned int mUsePerlinNoiseLocation;
     unsigned int mOverRelaxationLocation;
     unsigned int mUseItColorModeLocation;
+    unsigned int mDrawPlaneLocation;
+
+    unsigned int mMaxIterationsLocation;
+    unsigned int mMaxColorIterationsLocation;
+    unsigned int mMaxShadowIterationsLocation;
+
+    int mMaxIterations = 1024;
+    int mMaxColorIterations = 64;
+    int mMaxShadowIterations = 64;
 
 
     bool mUseAO = false;
     bool mUseSoftShadows = false;
     bool mUsePerlinNoise = false;
-    float mOverRelaxation = 1.2f;
+    float mOverRelaxation = 1.47f;
     bool mUseItColorMode = false;
+    bool mDrawPlane = true;
 
     //Lighting
     unsigned int mLightNumberLocation;

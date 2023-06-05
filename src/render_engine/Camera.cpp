@@ -16,9 +16,9 @@ void Camera::resize(glm::ivec2 windowSize)
 void Camera::drawGui()
 {
     bool change = false;
-    change |= ImGui::SliderFloat("Fov", &mFov, 10.0f, 170.0f);
-    change |= ImGui::InputFloat("zNear", &mZNear);
-    change |= ImGui::InputFloat("zFar", &mZFar);
+    change |= ImGui::SliderFloat("Fov", &mFov, 10.0f, 80.0f);
+    change |= ImGui::SliderFloat("zNear", &mZNear, 0.01f, 5.0f);
+    change |= ImGui::SliderFloat("zFar", &mZFar, 1.0f, 50.0f);
     if (change) recalculateProjectionMatrix();
 }
 
