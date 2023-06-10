@@ -81,15 +81,12 @@ void NavigationCamera::update(float deltaTime)
 
 void NavigationCamera::drawGui()
 {
-        if (ImGui::BeginMainMenuBar()) 
+    if (ImGui::BeginMainMenuBar()) 
     {
         if (ImGui::BeginMenu("Camera")) 
         {
-            if (ImGui::MenuItem("Show camera controls")) 
-            {
-               mShowGUI = !mShowGUI;
-            }
 
+            ImGui::MenuItem("Show camera settings", NULL, &mShowGUI);		
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -97,7 +94,7 @@ void NavigationCamera::drawGui()
 
     if (mShowGUI) 
     {
-        ImGui::Begin("Camera controls");
+        ImGui::Begin("Camera Control");
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Text("Camera");

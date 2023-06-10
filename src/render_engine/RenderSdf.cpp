@@ -20,6 +20,12 @@ RenderSdf::~RenderSdf()
     glDeleteProgram(mRenderProgramId);
 }
 
+void RenderSdf::restart()
+{
+    glDeleteProgram(mRenderProgramId);
+    start();
+}
+
 void RenderSdf::start()
 {
     auto checkForOpenGLErrors = []() -> GLenum
@@ -164,15 +170,19 @@ void RenderSdf::start()
         mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
     }
 
-    // Set plane render
-    std::shared_ptr<Mesh> planeMesh = PrimitivesFactory::getPlane();
-    planeMesh->applyTransform(glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
 
-    mRenderMesh.start();
-    mRenderMesh.setIndexData(planeMesh->getIndices());
-    mRenderMesh.setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
-										RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
-								}, planeMesh->getVertices().data(), planeMesh->getVertices().size());
+
+    if (mFirstLoad) {
+        // Set plane render
+        std::shared_ptr<Mesh> planeMesh = PrimitivesFactory::getPlane();
+        planeMesh->applyTransform(glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+        mRenderMesh.start();
+        mRenderMesh.setIndexData(planeMesh->getIndices());
+        mRenderMesh.setVertexData(std::vector<RenderMesh::VertexParameterLayout> {
+                                            RenderMesh::VertexParameterLayout(GL_FLOAT, 3)
+                                    }, planeMesh->getVertices().data(), planeMesh->getVertices().size());
+        mFirstLoad = false;
+    }
 
     screenPlaneShader.setInputTexture(mRenderTexture);
     mRenderMesh.setShader(&screenPlaneShader);
@@ -264,20 +274,13 @@ void RenderSdf::drawGui()
 {
     if (ImGui::BeginMainMenuBar()) 
     {
-        if (ImGui::BeginMenu("RenderSettings")) 
+        if (ImGui::BeginMenu("Scene")) 
         {
-            if (ImGui::MenuItem("Show scene controls")) 
-            {
-               mShowSceneGUI = !mShowSceneGUI;
-            }
-            if (ImGui::MenuItem("Show sdf model controls")) 
-            {
-               mShowSdfModelGUI = !mShowSdfModelGUI;
-            }
-            if (ImGui::MenuItem("Show algorithm controls")) 
-            {
-               mShowAlgorithmGUI = !mShowAlgorithmGUI;
-            }
+            ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
+            ImGui::MenuItem("Show lighting settings", NULL, &mShowLightingGUI);
+            ImGui::MenuItem("Show algorithm settings", NULL, &mShowAlgorithmGUI);	
+            ImGui::MenuItem("Show model settings", NULL, &mShowSdfModelGUI);	
+            
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -286,18 +289,20 @@ void RenderSdf::drawGui()
     if (mShowSceneGUI) 
     {
         ImGui::Begin("Scene");
-        ImGui::Spacing();
-        ImGui::Separator();
         ImGui::Text("Scene Settings");
         ImGui::Checkbox("Draw Plane", &mDrawPlane);
         if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
         ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
         ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Text("Lighting");
-        ImGui::SliderInt("Light number", &mLightNumber, 1, 4);
+
+        ImGui::End();
+    }
+
+    if (mShowLightingGUI)
+    {
+        ImGui::Begin("Lighting settings");
+        ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
         for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
             ImGui::Text("Light %d", i);
@@ -314,7 +319,7 @@ void RenderSdf::drawGui()
 
     if (mShowSdfModelGUI)
     {
-        ImGui::Begin("Sdf Model Settings");
+        ImGui::Begin("Model Settings");
         ImGui::Text("Transform");
         ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
         //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));

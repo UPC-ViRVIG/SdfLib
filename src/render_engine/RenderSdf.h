@@ -19,12 +19,23 @@ public:
     {
         mInputOctree = inputOctree;
     }
+
     ~RenderSdf();
+
+    void restart();
+
+    void setSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree)
+    {
+        mInputOctree = inputOctree;
+        restart();
+    }
+
     void start() override;
     void draw(Camera* camera) override;
     void drawGui() override;
 
 private:
+    bool mFirstLoad = true;
     RenderMesh mRenderMesh;
     ScreenPlaneShader screenPlaneShader;
     unsigned int mRenderProgramId;
@@ -124,6 +135,7 @@ private:
 
     //GUI
     bool mShowSceneGUI = false;
+    bool mShowLightingGUI = false;
     bool mShowAlgorithmGUI = false;
     bool mShowSdfModelGUI = false;
 

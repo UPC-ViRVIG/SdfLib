@@ -11,6 +11,8 @@ public:
 	void setFpsTarget(int fps) { mFpsTarget = fps; }
 private:
 	int mFpsTarget = 60;
+	void drawGui();
+	bool mShowGUI = false;
 };
 
 #endif

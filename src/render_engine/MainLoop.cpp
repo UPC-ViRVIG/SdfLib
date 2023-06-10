@@ -8,6 +8,28 @@
 #include <backends/imgui_impl_glfw.h>
 #include <ImGuizmo.h>
 
+
+void MainLoop::drawGui()
+{
+	if (ImGui::BeginMainMenuBar()) 
+    {
+        if (ImGui::BeginMenu("Performance")) 
+        {
+			ImGui::MenuItem("Show performance window", NULL, &mShowGUI);		
+        }
+        ImGui::EndMenuBar();
+		ImGui::EndMenu();
+    }
+
+	if (mShowGUI) {
+		ImGui::Begin("Performance");
+		ImGui::Text("FPS: %f", ImGui::GetIO().Framerate);
+		ImGui::End();
+	}
+
+	return;
+}
+
 void MainLoop::start(Scene& scene)
 {
     Window window;
@@ -52,6 +74,9 @@ void MainLoop::start(Scene& scene)
 		// Scene draw
 		scene.draw();
 		
+		// Imgui draw
+		drawGui();
+
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -62,6 +87,7 @@ void MainLoop::start(Scene& scene)
 		if (millisecondsPerFrame > aux) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(millisecondsPerFrame - aux));
 		}
+		
 	}
 
 	Window::setCurrentWindow(nullptr);

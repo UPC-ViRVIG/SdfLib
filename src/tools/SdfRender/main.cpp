@@ -7,6 +7,7 @@
 #include "render_engine/Window.h"
 #include <spdlog/spdlog.h>
 #include <args.hxx>
+#include <imgui.h>
 
 using namespace sdflib;
 
@@ -49,12 +50,52 @@ public:
 
     void update(float deltaTime) override
 	{
+        drawGui();
         Scene::update(deltaTime);
+    }
+
+    void drawGui() 
+    {
+        if (ImGui::BeginMainMenuBar()) 
+        {
+            if (ImGui::BeginMenu("File")) 
+            {
+                if (ImGui::MenuItem("Load Sdf")) 
+                {
+                    strncpy( buf, mSdfPath.c_str(), sizeof(buf)-1 );
+                    mShowLoadSdfWindow = true;
+                }	
+                
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
+
+        if (mShowLoadSdfWindow) {
+            ImGui::Begin("Load Sdf");
+            ImGui::InputText("Sdf Path", buf, sizeof(buf));
+            if (ImGui::Button("Load")) 
+            {   
+                mSdfPath = buf;
+                std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
+                std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
+                std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
+                mRenderSdf->setSdf(octreeSdf);
+                mShowLoadSdfWindow = false;
+            }
+            if (ImGui::Button("Cancel")) 
+            {       
+                mShowLoadSdfWindow = false;
+            }
+            ImGui::End();
+        }
     }
 
 private:
     std::string mSdfPath;
     std::shared_ptr<RenderSdf> mRenderSdf;
+    char buf[255]{};
+    bool mShowLoadSdfWindow = false;
 };
 
 int main(int argc, char** argv)
