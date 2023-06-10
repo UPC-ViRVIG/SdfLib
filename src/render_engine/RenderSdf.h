@@ -114,6 +114,7 @@ private:
     unsigned int mRotationLocation;
     unsigned int mScaleLocation;
 
+
     glm::vec3 mPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 mRotation = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 mScale = glm::vec3(1.0f, 1.0f, 1.0f);

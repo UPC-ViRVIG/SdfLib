@@ -80,6 +80,51 @@ float opSmoothIntersection( float d1, float d2, float k )
     return mix( d2, d1, h ) + k*h*(1.0-h); 
 }
 
+mat4 rotateX(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(1, 0, 0, 0),
+        vec4(0, c, -s, 0),
+        vec4(0, s, c, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+mat4 rotateY(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(c, 0, s, 0),
+        vec4(0, 1, 0, 0),
+        vec4(-s, 0, c, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+mat4 rotateZ(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(c, -s, 0, 0),
+        vec4(s, c, 0, 0),
+        vec4(0, 0, 1, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+vec3 rotate(vec3 p, vec3 rot) 
+{
+    mat4 rotX = inverse(rotateX(rot.x));
+    mat4 rotY = inverse(rotateY(rot.y));
+    mat4 rotZ = inverse(rotateZ(rot.z));
+
+    return (rotZ * rotY * rotX * vec4(p, 1)).xyz;
+}   
+
 // Perlin noise function
 const vec3 g[] = { vec3(1,1,0), vec3(-1,1,0), vec3(1,-1,0), vec3(-1,-1,0),   
                    vec3(1,0,1), vec3(-1,0,1), vec3(1,0,-1), vec3(-1,0,-1), 
@@ -301,7 +346,6 @@ vec3 getGradient(vec3 point)
 float map(vec3 pos)
 {
     float distToObj = distanceScale * getDistance((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
-
     if (usePerlinNoise) 
     {
         float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;

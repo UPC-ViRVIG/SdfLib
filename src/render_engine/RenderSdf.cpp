@@ -315,9 +315,9 @@ void RenderSdf::drawGui()
     if (mShowSdfModelGUI)
     {
         ImGui::Begin("Sdf Model Settings");
-        ImGui::Text("PRS");
+        ImGui::Text("Transform");
         ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
-        ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
+        //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
         ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
         ImGui::Spacing();
         ImGui::Separator();
