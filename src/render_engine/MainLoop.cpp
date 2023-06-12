@@ -15,10 +15,10 @@ void MainLoop::drawGui()
     {
         if (ImGui::BeginMenu("Performance")) 
         {
-			ImGui::MenuItem("Show performance window", NULL, &mShowGUI);		
+			ImGui::MenuItem("Show performance window", NULL, &mShowGUI);
+			ImGui::EndMenu();		
         }
         ImGui::EndMenuBar();
-		ImGui::EndMenu();
     }
 
 	if (mShowGUI) {

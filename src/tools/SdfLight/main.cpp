@@ -149,8 +149,17 @@ public:
                 
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("Mesh")) 
+            {
+                ImGui::MenuItem("Show model settings", NULL, &mShowModelMeshGUI);
+                ImGui::MenuItem("Show plane settings", NULL, &mShowPlaneMeshGUI);
+                ImGui::EndMenu();
+            }
             ImGui::EndMenuBar();
         }
+
+        mModelRenderer->setShowGui(mShowModelMeshGUI);
+        mPlaneRenderer->setShowGui(mShowPlaneMeshGUI);
 
         if (mShowSceneGUI) 
         {
@@ -255,7 +264,8 @@ private:
     bool mShowLightingGUI = false;
     bool mShowAlgorithmGUI = false;
     bool mShowSdfModelGUI = false;
-
+    bool mShowModelMeshGUI = false;
+    bool mShowPlaneMeshGUI = false;
 };
 
 int main(int argc, char** argv)
