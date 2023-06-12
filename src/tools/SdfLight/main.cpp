@@ -87,7 +87,7 @@ public:
 			mPlaneRenderer->setIndexData(plane->getIndices());
 			mPlaneRenderer->setTransform(glm::translate(glm::mat4(1.0f), glm::vec3(mesh.getBoundingBox().getCenter().x, mesh.getBoundingBox().min.y, mesh.getBoundingBox().getCenter().z)) * 
                                          glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
-                                        glm::scale(glm::mat4(1.0f), glm::vec3(12.0f)));
+                                        glm::scale(glm::mat4(1.0f), glm::vec3(64.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
             mPlaneRenderer->callDraw = false; // Disable the automatic call because we already call the function
             addSystem(mPlaneRenderer);
@@ -191,9 +191,6 @@ public:
         if (mShowSdfModelGUI)
         {
             ImGui::Begin("Model Settings");
-            ImGui::Text("Transform");
-            ImGui::Spacing();
-            ImGui::Separator();
             ImGui::Text("Material");
             ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
             ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
@@ -292,5 +289,5 @@ int main(int argc, char** argv)
 
     MyScene scene(args::get(modelPathArg), args::get(sdfPathArg));
     MainLoop loop;
-    loop.start(scene);
+    loop.start(scene, "SdfLight");
 }

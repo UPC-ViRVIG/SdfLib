@@ -23,16 +23,19 @@ void MainLoop::drawGui()
 
 	if (mShowGUI) {
 		ImGui::Begin("Performance");
-		ImGui::Text("FPS: %f", ImGui::GetIO().Framerate);
+		ImGui::Text("FPS: %f", 1.0f / ImGui::GetIO().DeltaTime);
+		ImGui::Text("Frame time (ms): %f", ImGui::GetIO().DeltaTime * 1000.0f);
+		ImGui::Text("Average FPS (Last 120 frames): %f", ImGui::GetIO().Framerate);
 		ImGui::End();
 	}
 
 	return;
 }
 
-void MainLoop::start(Scene& scene)
+void MainLoop::start(Scene& scene, std::string name)
 {
     Window window;
+	window.setWindowName(name);
     window.start();
 
     sdflib::Timer deltaTimer;

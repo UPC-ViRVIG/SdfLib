@@ -472,7 +472,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         metallic =  (fd < epsilon) ? 0.1 : matMetallic;
         roughness = (fd < epsilon) ? 0.1 : matRoughness;
         albedo = (fd < epsilon) ? planeTexture(pos) : matAlbedo;
-        F0 = (fd < epsilon) ? 0.07 : mix(matF0, albedo, metallic);
+        F0 = (fd < epsilon) ? vec3(0.07f) : mix(matF0, albedo, metallic);
     }
 
     else

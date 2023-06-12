@@ -121,5 +121,5 @@ int main(int argc, char** argv)
 
     MyScene scene(args::get(modelPathArg));
     MainLoop loop;
-    loop.start(scene);
+    loop.start(scene, "SdfRender");
 }

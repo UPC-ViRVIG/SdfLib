@@ -1123,7 +1123,7 @@ public:
 				}
 				ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
 			}
-			
+
 			ImGui::End();
 		}
 		
@@ -1279,7 +1279,7 @@ int main(int argc, char** argv)
 			(normalizeBBArg) ? true : false
 		);
 		MainLoop loop;
-		loop.start(scene);
+		loop.start(scene, "SdfViewer");
 	}
 	else if(sdfFormat == "grid")
 	{
@@ -1290,7 +1290,7 @@ int main(int argc, char** argv)
 				(cellSizeArg) ? args::get(cellSizeArg) : 0.1f
 			);
 			MainLoop loop;
-			loop.start(scene);
+			loop.start(scene, "SdfViewer");
 		}
 		else
 		{
@@ -1299,7 +1299,7 @@ int main(int argc, char** argv)
 				(depthArg) ? args::get(depthArg) : 5
 			);
 			MainLoop loop;
-			loop.start(scene);
+			loop.start(scene, "SdfViewer");
 		}
 	}
 	else if(sdfFormat == "octree")
@@ -1312,6 +1312,6 @@ int main(int argc, char** argv)
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;
-		loop.start(scene);
+		loop.start(scene, "SdfViewer");
 	}	
 }
