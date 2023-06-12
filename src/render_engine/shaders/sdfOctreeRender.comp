@@ -450,7 +450,7 @@ vec3 planeTexture(vec3 pos)
 {
     if (pos.x < 0.0) pos.x -= 1.0f;
     if (pos.z < 0.0) pos.z -= 1.0f;
-    if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.01, 0.01, 0.01);
+    if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.25, 0.25, 0.25);
     return vec3(0.5, 0.5, 0.5);
 }
 
@@ -471,8 +471,8 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     if (drawPlane) {
         metallic =  (fd < epsilon) ? 0.1 : matMetallic;
         roughness = (fd < epsilon) ? 0.1 : matRoughness;
-        albedo = (fd < epsilon) ? vec3(0.7, 0.7, 0.7) : matAlbedo;
-        F0 = (fd < epsilon) ? planeTexture(pos) : mix(matF0, albedo, metallic);
+        albedo = (fd < epsilon) ? planeTexture(pos) : matAlbedo;
+        F0 = (fd < epsilon) ? 0.07 : mix(matF0, albedo, metallic);
     }
 
     else
@@ -488,7 +488,6 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     // Directional lights
     for (int i = 0; i < lightNumber; i++) 
     {
-        // Light position
         float distToLight = length(lightPos[i] - pos);
         vec3 L = normalize(lightPos[i] - pos);
         vec3 H = normalize(V + L);

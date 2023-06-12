@@ -1,6 +1,6 @@
 #version 460 core
 
-#define MAX_ITERATIONS 1024
+#define MAX_AO_ITERATIONS 8
 
 uniform vec3 startGridSize;
 layout(std430, binding = 3) buffer octree
@@ -16,7 +16,29 @@ uint roundFloat(float a)
     return (a >= 0.5) ? 1 : 0;
 }
 
-uniform vec3 materialAlbedoColor;
+uniform float epsilon;
+
+//Options 
+uniform int maxIterations;
+uniform int maxShadowIterations;
+
+uniform float overRelaxation;
+uniform bool useAO;
+
+uniform bool useSoftShadows;
+
+//Lighting
+uniform int lightNumber;
+uniform vec3 lightPos[4];
+uniform float lightIntensity[4];
+uniform vec3 lightColor[4];
+
+//Material
+uniform float matMetallic;
+uniform float matRoughness;
+uniform vec3 matAlbedo;
+uniform vec3 matF0;
+
 uniform float minBorderValue;
 uniform float distanceScale;
 uniform float time;
@@ -153,6 +175,7 @@ float getDistance(vec3 point)
          + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
 }
 
+/*
 vec3 getGradient(vec3 point)
 {
     vec3 fracPart = point * startGridSize;
@@ -188,7 +211,9 @@ vec3 getGradient(vec3 point)
         + 3 * uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
     ));
 }
+*/
 
+//SCENE
 float map(vec3 pos)
 {
     // vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
@@ -196,19 +221,46 @@ float map(vec3 pos)
     return distanceScale * getDistance(pos);
 }
 
+/*
+vec3 mapGradient(vec3 pos)
+{
+    return getGradient(pos);
+}
+*/
+
+//Gradient of the scene
+vec3 mapGradient(vec3 pos)
+{
+    // Get the exact gradient
+    // vec3 aPos = pos + planePosition;
+    // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
+    // return (fd < epsilon) 
+    //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
+    //         : getGradient(pos);
+
+    // Get an approximation of the gradient
+    float dist = map(pos);
+    return normalize(vec3(
+        map(pos + vec3(epsilon, 0, 0)) - dist,
+        map(pos + vec3(0, epsilon, 0)) - dist,
+        map(pos + vec3(0, 0, epsilon)) - dist
+    ));
+}
+
+//LIGHTING
 float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
     float decay = 1.0;
-    for(int i=0; i < 8; i++)
+    for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
-        float h = 0.005 + 0.05 * float(i)/8.0;
-        float d = max(map(pos + n * h), 0.0);
+        float h = 0.002 + 0.1 * float(i)/8.0;
+        float d = map(pos + n * h);
         occ += max(h-d, 0.0);
-        decay *= 0.85;
+        decay *= 0.8;
     }
 
-    return max(1.0 - 1.7 * occ, 0.0);
+    return min(1.0 - 1.5 * occ, 1.0);
 }
 
 float softshadow(vec3 ro, vec3 rd)
@@ -249,73 +301,90 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
     return res;
 }
 
-vec3 mapGradient(vec3 pos)
+//Attempt to apply over relaxation to soft shadows too
+float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
 {
-    return getGradient(pos);
+    float res = 1.0;
+    float ph = 0.0;
+    float t = 0.005;
+    float stepLength = 0.0;
+    for( int i=0; i < maxShadowIterations && t < far; i++ )
+    {
+        float h = map(ro + rd * t);
+        bool fail = omega > 1.0f && (h + ph) < stepLength;
+        if (fail)
+        {
+            stepLength -= omega * stepLength;
+            omega = 1.0f;
+        }
+        else
+        {
+            stepLength = h * omega;
+        }
+
+        ph = h;
+
+        if(!fail && h < epsilon ) return 0.0;
+
+        if (!fail) res = min(res, h/t);
+
+        t += stepLength;
+    }
+    return res;
 }
+
+
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
-    float metallic = 0.1;
-    float roughness = 0.7;
-
+    //Normal
     vec3 N = normalize(gridNormal);
+    //View vector
     vec3 V = normalize(cameraPos - pos);
 
+    //Plane vs model
     vec3 aPos = pos + vec3(-0.5, -0.1, -0.5);
     float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
 
-    // Object color
-    // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.72, 0.45, 0.20);
-    // vec3 albedo = (pos.y < 0.163) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
-    // vec3 albedo = vec3(0.867, 0.831, 0.773);
-    // vec3 albedo = vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
-    // vec3 albedo = (pos.y < 0.315) ? vec3(0.7, 0.7, 0.7) : vec3(0.4707, 0.173, 0.554);
 
     // Fresnel parameter
-    vec3 F0 = vec3(0.17, 0.17, 0.17);
-    F0 = mix(F0, materialAlbedoColor, metallic);
+    vec3 F0 = mix(matF0, matAlbedo, matMetallic);
 
     vec3 Lo = vec3(0.0);
-    // Directional light
-    {
-        // Light position
-        vec3 lightPos = vec3(0.873572, 1.42857, 1.09321);
-        // vec3 lightPos = vec3(0.609615, 0.517692, 0.501346);
-        // float t = 0.5 * sin(time) + 0.5;
-        // vec3 lightPos = vec3(0.56, 0.501346, 0.496346) * (1.0-t) + vec3(0.44, 0.501346, 0.496346) * t;
 
-        float distToLight = length(lightPos - pos);
-        vec3 L = normalize(lightPos - pos);
+    // Directional lights
+    for (int i = 0; i < lightNumber; i++) 
+    {
+        float distToLight = length(lightPos[i] - pos);
+        vec3 L = normalize(lightPos[i] - pos);
         vec3 H = normalize(V + L);
-        vec3 sunColor = 20.0 * vec3(1.0, 0.8, 0.6); // Mix light color and intensity
-        // float intensity = min(softshadowToPoint(pos + 0.0001 * N, L, distToLight)/0.0999, 1.0);
-        // float intensity = min(softshadow(pos + 0.0001 * N, L)/0.0999, 1.0);
-        float sphereLightRadius = 0.0961538;
-        float coneAngle = atan(sphereLightRadius/distToLight); // Compute the cone angle if the light was totally visible
-        float intensity = min(atan(softshadowToPoint(pos + 0.0003 * N, L, distToLight))/coneAngle, 1.0);
-        // float intensity = 1.0;
+
+        vec3 sunColor = lightIntensity[i] * lightColor[i];
+
+        float coneAngle = atan(0.0961538/distToLight);
+        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf
-        float NDF = DistributionGGX(N, H, roughness);        
-        float G = GeometrySmith(N, V, L, roughness);      
+        float NDF = DistributionGGX(N, H, matRoughness);        
+        float G = GeometrySmith(N, V, L, matRoughness);      
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
         
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;	  
+        kD *= 1.0 - matMetallic;	  
         
         vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
         vec3 specular = numerator / denominator;  
             
-        // Add to outgoing radiance to Lo
+        // Add to outgoing radiance Lo
         float NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * materialAlbedoColor / PI + specular) * radiance * NdotL;
+        Lo += (kD * matAlbedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.5) * materialAlbedoColor * getAO(pos, N); // Ambient light estimation
+    vec3 ambient = useAO ? vec3(0.5) * matAlbedo * getAO(pos, N) : vec3(0.5) * matAlbedo; // Ambient light estimation
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));
@@ -323,44 +392,6 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
    
     return color;
 }
-
-// bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos, out float distToGrid, out float nodeRelativeLength, out float depth)
-// bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
-// {
-//     float accDistance = 0.0;
-//     vec3 pos = startPos;
-//     float lastDistance = 1e8;
-//     uint it = 0;
-//     while (lastDistance > 1e-5 && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
-//     {
-//         resultPos = pos;
-//         // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
-//         lastDistance = map(pos);
-//         float dist = max(lastDistance, 0.0);
-//         accDistance += dist;
-//         pos += dir * dist;
-//         it += 1;
-//     }
-//     return lastDistance < 1e-5;
-// }
-
-// std::array<glm::vec3, 5> colorsPalette = 
-// {
-//     glm::vec3(1.0f, 0.0f, 1.0f), 
-//     glm::vec3(0.0f, 0.0f, 1.0f), 
-//     glm::vec3(0.0f, 1.0f, 0.0f), 
-//     glm::vec3(1.0f, 1.0f, 0.0f), 
-//     glm::vec3(1.0f, 0.0f, 0.0f),
-// };
-
-const int paletteNumColors = 5;
-const vec3 palette[5] = vec3[5](
-    vec3(1.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 0.0f, 0.0f)
-);
 
 void main()
 {
