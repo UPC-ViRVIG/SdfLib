@@ -61,6 +61,7 @@ private:
     unsigned int mOverRelaxationLocation;
     unsigned int mUseItColorModeLocation;
     unsigned int mDrawPlaneLocation;
+    unsigned int mDrawLightsLocation;
 
     unsigned int mMaxIterationsLocation;
     unsigned int mMaxColorIterationsLocation;
@@ -77,12 +78,14 @@ private:
     float mOverRelaxation = 1.47f;
     bool mUseItColorMode = false;
     bool mDrawPlane = true;
+    bool mDrawLights = false;
 
     //Lighting
     unsigned int mLightNumberLocation;
     unsigned int mLightPosLocation;
     unsigned int mLightColorLocation;
     unsigned int mLightIntensityLocation;
+    unsigned int mLightRadiusLocation;
 
     int mLightNumber = 1;
     glm::vec3 mLightPosition[4] =
@@ -107,6 +110,14 @@ private:
         10.0f,
         10.0f,
         10.0f
+    };
+
+    float mLightRadius[4] =
+    {
+        0.1f,
+        0.1f,
+        0.1f,
+        0.1f
     };
 
     //Material

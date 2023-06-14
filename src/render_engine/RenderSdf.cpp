@@ -112,12 +112,13 @@ void RenderSdf::start()
         mMaxIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxIterations");
         mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
         mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
+        mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
         mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
-        
+        mLightRadiusLocation = glGetUniformLocation(mRenderProgramId, "lightRadius");
 
         //Material
         mMetallicLocation = glGetUniformLocation(mRenderProgramId, "matMetallic");
@@ -242,12 +243,13 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mMaxColorIterationsLocation, mMaxColorIterations);
     glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
     glUniform1i(mDrawPlaneLocation, mDrawPlane);
+    glUniform1i(mDrawLightsLocation, mDrawLights);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
     glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
     glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
-    
+    glUniform1fv(mLightRadiusLocation, 4, &mLightRadius[0]);
 
     //Material
     glUniform1f(mMetallicLocation, mMetallic);
@@ -302,6 +304,7 @@ void RenderSdf::drawGui()
     if (mShowLightingGUI)
     {
         ImGui::Begin("Lighting settings");
+        ImGui::Checkbox("Draw Lights", &mDrawLights);
         ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
         for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
@@ -309,9 +312,11 @@ void RenderSdf::drawGui()
             std::string pos = "Position##"+std::to_string(i+48);
             std::string col = "Color##"+std::to_string(i+48);
             std::string intens = "Intensity##"+std::to_string(i+48);
+            std::string radius = "Radius##"+std::to_string(i+48);
             ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
             ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
             ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+            ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
         }
 
         ImGui::End();

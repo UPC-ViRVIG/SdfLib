@@ -41,6 +41,7 @@ uniform float overRelaxation;
 uniform bool useAO;
 
 uniform bool drawPlane;
+uniform bool drawLights;
 uniform bool useSoftShadows;
 uniform bool usePerlinNoise;
 uniform bool useItColorMode;
@@ -50,6 +51,7 @@ uniform int lightNumber;
 uniform vec3 lightPos[4];
 uniform float lightIntensity[4];
 uniform vec3 lightColor[4];
+uniform float lightRadius[4];
 
 //Material
 uniform float matMetallic;
@@ -302,7 +304,7 @@ float getDistance(vec3 point)
          + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
 }
 
-/*
+
 vec3 getGradient(vec3 point)
 {
     vec3 fracPart = point * startGridSize;
@@ -338,7 +340,7 @@ vec3 getGradient(vec3 point)
         + 3 * uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
     ));
 }
-*/
+
 
 
 //SCENE
@@ -356,6 +358,16 @@ float map(vec3 pos)
     
     if (!drawPlane) return distToObj;
     return min(distToObj, plane);
+}
+
+float mapLights(vec3 pos)
+{
+    float dist = distanceScale * sphereSDF(pos-lightPos[0], lightRadius[0]);
+    for (int i = 1; i < lightNumber; i++)
+    {
+        dist = min(dist, distanceScale * sphereSDF(pos-lightPos[i], lightRadius[i]));
+    }
+    return dist;
 }
 
 //Gradient of the scene
@@ -414,7 +426,7 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
 }
 
 //Attempt to apply over relaxation to soft shadows too
-float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
+float softshadowOR(vec3 ro, vec3 rd, float far, float omega, float w)
 {
     float res = 1.0;
     float ph = 0.0;
@@ -433,16 +445,32 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
         {
             stepLength = h * omega;
         }
+        if(!fail && h < epsilon ) return 0.0;
+        if (!fail) 
+        {
+            res = min(res, w*h/t);
+        } 
 
         ph = h;
-
-        if(!fail && h < epsilon ) return 0.0;
-
-        if (!fail) res = min(res, h/t);
-
         t += stepLength;
     }
     return res;
+}
+
+//Inigo Quilez improved soft shadow
+float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+{
+    float res = 1.0;
+    float t = mint;
+    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+    {
+        float h = map(ro + t*rd);
+        res = min( res, h/(w*t) );
+        t += clamp(h, 0.005, 0.50);
+        if( res<-1.0 || t>maxt ) break;
+    }
+    res = max(res,-1.0);
+    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
 }
 
 //procedural checker texture for the plane
@@ -494,9 +522,11 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
 
         vec3 sunColor = lightIntensity[i] * lightColor[i];
 
-        float coneAngle = atan(0.0961538/distToLight);
+        float coneAngle = atan(lightRadius[i]/distToLight);
+        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
         //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
-        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
+        //float intensity = useSoftShadows ? clamp(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation, 1.0/solidAngle), 0.0, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? softshadow(pos + epsilon * N, L, 0.005, distToLight, solidAngle) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf
@@ -601,6 +631,55 @@ float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max)
     return nearAndFarPlane.y;
 }
 
+float rayMarchLights(vec3 o, vec3 d, float omega, float t_min, float t_max) 
+{
+    float t = t_min;
+    float previousDist = 0.0;
+    float stepLength = 0.0;
+    //float functionSign = map(o) < 9 ? -1 : 1;
+    for (int i = 0; i <  maxIterations; i++) 
+    {
+        //compute the distance in current point along the ray
+        //float signedDist = functionSign * map(o + d * t);
+        float dist = mapLights(o + d * t);
+
+        //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
+        bool fail = omega > 1.0f && (dist + previousDist) < stepLength;
+        if (fail)
+        {
+            //backtrack
+            stepLength -= omega * stepLength;
+            omega = 1.0f;
+        }
+        else 
+        {
+            //advance using overrelaxation parameter
+            stepLength = dist * omega;
+        }
+
+        //update previous distance
+        previousDist = dist;
+
+        //if we hit something, return the distance
+        if (!fail && dist < epsilon)
+        {
+            return t;
+        }
+        
+        if ( !fail && t > t_max) 
+        {
+            return nearAndFarPlane.y;
+        } 
+
+        t += stepLength; 
+        
+        //if we are too far away, return the far plane
+    }
+    
+    //if we didn't hit anything, return the far plane
+    return nearAndFarPlane.y;
+}
+
 const vec3 black = vec3(0,0,0);
 const vec3 white = vec3(1,1,1);
 const vec3 magenta  = vec3(1,0,1);
@@ -639,13 +718,36 @@ void main()
     }
     
     else {
-        float dist = rayMarchOR(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
-        if (dist < nearAndFarPlane.y-epsilon)
+        if (drawLights) 
         {
-            vec3 hitPoint = worldPos + worldDir * dist;
-            outColor = mapColor(hitPoint, worldPos);
+            float dist = rayMarchLights(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
+            if (dist < nearAndFarPlane.y-epsilon)
+            {
+                outColor = vec3(1.0);
+            }
+            else {
+                float dist = rayMarchOR(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
+                if (dist < nearAndFarPlane.y-epsilon)
+                {
+                    vec3 hitPoint = worldPos + worldDir * dist;
+                    outColor = mapColor(hitPoint, worldPos);
+                }
+            }
+        }
+        else 
+        {
+            float dist = rayMarchOR(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
+            if (dist < nearAndFarPlane.y-epsilon)
+            {
+                vec3 hitPoint = worldPos + worldDir * dist;
+                outColor = mapColor(hitPoint, worldPos);
+            }
         }
     }
+
+
+
+
 
     //Store the rendered image to output texture to later display in a quad
     imageStore(outputTexture, ivec2(pCoord), vec4(outColor, 1.0));

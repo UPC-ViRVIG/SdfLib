@@ -32,6 +32,7 @@ uniform int lightNumber;
 uniform vec3 lightPos[4];
 uniform float lightIntensity[4];
 uniform vec3 lightColor[4];
+uniform float lightRadius[4];
 
 //Material
 uniform float matMetallic;
@@ -333,6 +334,21 @@ float softshadowOR(vec3 ro, vec3 rd, float far, float omega)
     return res;
 }
 
+//Inigo Quilez improved soft shadow
+float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+{
+    float res = 1.0;
+    float t = mint;
+    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+    {
+        float h = map(ro + t*rd);
+        res = min( res, h/(w*t) );
+        t += clamp(h, 0.005, 0.50);
+        if( res<-1.0 || t>maxt ) break;
+    }
+    res = max(res,-1.0);
+    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
+}
 
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
@@ -361,9 +377,11 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
 
         vec3 sunColor = lightIntensity[i] * lightColor[i];
 
-        float coneAngle = atan(0.0961538/distToLight);
+        float coneAngle = atan(lightRadius[i]/distToLight);
+        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
         //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
-        float intensity = useSoftShadows ? min(atan(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
+        //float intensity = useSoftShadows ? min(atan(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation)) / coneAngle, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? softshadow(pos + epsilon * N, L, 0.005, distToLight, solidAngle) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf

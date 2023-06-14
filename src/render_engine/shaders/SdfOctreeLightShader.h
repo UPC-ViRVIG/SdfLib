@@ -46,6 +46,7 @@ public:
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
         mLightColorLocation = glGetUniformLocation(mRenderProgramId, "lightColor");
         mLightIntensityLocation = glGetUniformLocation(mRenderProgramId, "lightIntensity");
+        mLightRadiusLocation = glGetUniformLocation(mRenderProgramId, "lightRadius");
         
         //Material
         mMetallicLocation = glGetUniformLocation(mRenderProgramId, "matMetallic");
@@ -99,11 +100,12 @@ public:
     {
         mLightNumber = lightNumber;
     }
-    void setLightInfo(int i, glm::vec3 lightPosition, glm::vec3 lightColor, float lightIntensity)
+    void setLightInfo(int i, glm::vec3 lightPosition, glm::vec3 lightColor, float lightIntensity, float lightRadius)
     {
         mLightPosition[i] = lightPosition;
         mLightColor[i] = lightColor;
         mLightIntensity[i] = lightIntensity;
+        mLightRadius[i] = lightRadius;
     }
 
   
@@ -131,6 +133,7 @@ public:
         glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
         glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
         glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
+        glUniform1fv(mLightRadiusLocation, 4, &mLightRadius[0]);
 
         //Material
         glUniform1f(mMetallicLocation, mMetallic);
@@ -181,6 +184,7 @@ private:
     unsigned int mLightPosLocation;
     unsigned int mLightColorLocation;
     unsigned int mLightIntensityLocation;
+    unsigned int mLightRadiusLocation;
 
     int mLightNumber = 1;
     glm::vec3 mLightPosition[4] =
@@ -205,6 +209,14 @@ private:
         10.0f,
         10.0f,
         10.0f
+    };
+
+    float mLightRadius[4] =
+    {
+        0.1f,
+        0.1f,
+        0.1f,
+        0.1f
     };
 
     //Material

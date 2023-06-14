@@ -119,7 +119,7 @@ public:
         mOctreeLightShader->setLightNumber(mLightNumber);
         for (int i = 0; i < mLightNumber; i++)
         {
-            mOctreeLightShader->setLightInfo(i, mLightPosition[i], mLightColor[i], mLightIntensity[i]);
+            mOctreeLightShader->setLightInfo(i, mLightPosition[i], mLightColor[i], mLightIntensity[i], mLightRadius[i]);
         }
         mOctreeLightShader->setUseAO(mUseAO);
         mOctreeLightShader->setUseSoftShadows(mUseSoftShadows);
@@ -180,9 +180,11 @@ public:
                 std::string pos = "Position##"+std::to_string(i+48);
                 std::string col = "Color##"+std::to_string(i+48);
                 std::string intens = "Intensity##"+std::to_string(i+48);
+                std::string radius = "Radius##"+std::to_string(i+48);
                 ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
                 ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
                 ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+                ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
             }
 
             ImGui::End();
@@ -248,6 +250,14 @@ private:
         10.0f,
         10.0f,
         10.0f
+    };
+
+    float mLightRadius[4] =
+    {
+        0.1f,
+        0.1f,
+        0.1f,
+        0.1f
     };
 
     //Material
