@@ -85,12 +85,14 @@ void MainLoop::start(Scene& scene, std::string name)
 
 		window.swapBuffers();
 
+		/*
 		int millisecondsPerFrame = 1000 / mFpsTarget;
 		int aux = fpsTimer.getElapsedMilliseconds();
 		if (millisecondsPerFrame > aux) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(millisecondsPerFrame - aux));
 		}
-		
+		*/
+		window.disableVerticalSync();
 	}
 
 	Window::setCurrentWindow(nullptr);
