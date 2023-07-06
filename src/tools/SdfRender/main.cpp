@@ -36,6 +36,10 @@ public:
         std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
         
         sdfBB = octreeSdf->getGridBoundingBox();
+        glm::vec3 center = sdfBB.getSize();
+
+        SPDLOG_INFO("GridBoundingBox size is {}, {}, {}", center.x, center.y, center.z);
+
 
         mRenderSdf = std::make_shared<RenderSdf>(octreeSdf);
         mRenderSdf->start();

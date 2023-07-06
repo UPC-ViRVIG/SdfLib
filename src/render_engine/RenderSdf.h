@@ -140,6 +140,15 @@ private:
     glm::vec3 mPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 mRotation = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 mScale = glm::vec3(1.0f, 1.0f, 1.0f);
+
+    //BoundingBox
+    
+    unsigned int mBBminLocation;
+    unsigned int mBBmaxLocation;
+
+    glm::vec3 mBBMin; 
+    glm::vec3 mBBMax;
+
     //Plane
     unsigned int mPlanePosLocation;
     float mPlanePos = 0.0f;

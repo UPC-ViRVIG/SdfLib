@@ -66,6 +66,10 @@ uniform vec3 modelPos;
 uniform vec3 modelScale;
 uniform vec3 modelRot;
 
+//BoundingBox
+uniform vec3 bbmin;
+uniform vec3 bbmax;
+
 //Utils
 float planeSDF(vec3 samplePoint, vec3 n, float h) {
     return dot(samplePoint,n) + h;
@@ -125,7 +129,42 @@ vec3 rotate(vec3 p, vec3 rot)
     mat4 rotZ = inverse(rotateZ(rot.z));
 
     return (rotZ * rotY * rotX * vec4(p, 1)).xyz;
-}   
+}  
+
+const float pos_infinity = uintBitsToFloat(0x7F800000);
+const float neg_infinity = uintBitsToFloat(0xFF800000);
+
+//Ray slab intersection
+bool intersection(vec3 bbmin, vec3 bbmax, vec3 o, vec3 d_inv ) {
+    
+    float tmin = neg_infinity;
+    float tmax = pos_infinity;
+
+
+    //x
+    float tx1 = (bbmin.x - o.x) * d_inv.x;
+    float tx2 = (bbmax.x - o.x) * d_inv.x;
+
+    tmin = max(tmin, min(tx1, tx2));
+    tmax = min(tmax, max(tx1, tx2));
+
+
+    //y
+    float ty1 = (bbmin.y - o.y) * d_inv.y;
+    float ty2 = (bbmax.y - o.y) * d_inv.y;
+
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+
+    //z
+    float tz1 = (bbmin.z - o.z) * d_inv.z;
+    float tz2 = (bbmax.z - o.z) * d_inv.z;
+
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+
+    return tmax >= tmin;
+}
 
 // Perlin noise function
 const vec3 g[] = { vec3(1,1,0), vec3(-1,1,0), vec3(1,-1,0), vec3(-1,-1,0),   
@@ -273,7 +312,7 @@ float getDistance(vec3 point)
        arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
     {
             vec3 q = abs(point - vec3(0.5)) - 0.5;
-            point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
+            //point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
             return length(max(q, vec3(0.0)))/distanceScale + minBorderValue;
             //return length(max(q, vec3(0.0)))/distanceScale + getDistance(clampCoord);
     }
@@ -585,12 +624,18 @@ float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max)
     float previousDist = 0.0;
     float stepLength = 0.0;
     //float functionSign = map(o) < 9 ? -1 : 1;
+    vec3 dir = d + t_max;
+    vec3 dir_inv = 1.0 / dir;
+    bool intersectBB = intersection(bbmin, bbmax, o, dir_inv);
     for (int i = 0; i < (useItColorMode ? maxColorIterations : maxIterations); i++) 
     {
         //compute the distance in current point along the ray
         //float signedDist = functionSign * map(o + d * t);
-        float dist = map(o + d * t);
-
+        float dist;
+        //if (intersectBB) dist = map(o + d * t);
+        //else if (drawPlane) dist = distanceScale * planeSDF(o + d * t, vec3(0.0f, 1.0f, 0.0f), planePos);
+        //else return t_max;
+        dist = map(o + d * t);  
         //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
         bool fail = omega > 1.0f && (dist + previousDist) < stepLength;
         if (fail)
@@ -618,7 +663,7 @@ float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max)
         if ( !fail && t > t_max) 
         {
             if (useItColorMode) return maxIterations;
-            return nearAndFarPlane.y;
+            return t_max;
         } 
 
         t += stepLength; 
@@ -628,7 +673,7 @@ float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max)
     
     //if we didn't hit anything, return the far plane
     if (useItColorMode) return maxIterations;
-    return nearAndFarPlane.y;
+    return t_max;
 }
 
 float rayMarchLights(vec3 o, vec3 d, float omega, float t_min, float t_max) 

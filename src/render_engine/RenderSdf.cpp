@@ -102,6 +102,10 @@ void RenderSdf::start()
 
         mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "epsilon");
 
+        mBBmaxLocation = glGetUniformLocation(mRenderProgramId, "bbmax");
+        mBBminLocation = glGetUniformLocation(mRenderProgramId, "bbmin");
+
+
         //Options
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
@@ -169,6 +173,8 @@ void RenderSdf::start()
         mOctreeMatrix = glm::scale(glm::mat4(1.0f), 1.0f / mInputOctree->getGridBoundingBox().getSize()) * glm::translate(glm::mat4(1.0f), -mInputOctree->getGridBoundingBox().min);
         mOctreeDistanceScale = 1.0f / mInputOctree->getGridBoundingBox().getSize().x;
         mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
+        mBBMax = mInputOctree->getGridBoundingBox().max;
+        mBBMin = mInputOctree->getGridBoundingBox().min;
     }
 
 
@@ -261,6 +267,10 @@ void RenderSdf::draw(Camera* camera)
     glUniform3f(mPositionLocation, mPosition.x, mPosition.y, mPosition.z);
     glUniform3f(mRotationLocation, mRotation.x, mRotation.y, mRotation.z);
     glUniform3f(mScaleLocation, mScale.x, mScale.y, mScale.z);
+
+    //BB
+    glUniform3f(mBBmaxLocation, mBBMax.x, mBBMax.y, mBBMax.z);
+    glUniform3f(mBBminLocation, mBBMin.x, mBBMin.y, mBBMin.z);
 
     //Plane
     glUniform1f(mPlanePosLocation, mPlanePos);
