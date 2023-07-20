@@ -340,17 +340,21 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             // float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             // generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
                             value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            generateTerminalNodes = value < sqTerminationThreshold;
                             }
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            generateTerminalNodes = value < sqTerminationThreshold;
+                            break;
+                        case TerminationRule::ISOSURFACE:
+                            value = isIsosurfaceInside<InterpolationMethod>(node.midPointsValues, node.size)
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues)
+                                        : 0;
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;
                             break;
                     }
+                    generateTerminalNodes = value < sqTerminationThreshold;
                 }
 
                 node.isTerminalNode = generateTerminalNodes;

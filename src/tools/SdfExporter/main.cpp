@@ -32,6 +32,7 @@ int main(int argc, char** argv)
     args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {'c', "cell_size"});
     args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {'d', "depth"});
     args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
+    args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "The heuristic used to decide if one node has to be subdivided. It supports: trapezoidal_rule, isosurface", {"termination_rule"});
 	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
 	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree, grid, exact_octree", {"sdf_format"});
     args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: uniform, no_continuity, continuity", {"algorithm"});
@@ -95,6 +96,8 @@ int main(int argc, char** argv)
             return 0;
         }
 
+        std::optional<OctreeSdf::TerminationRule> terminationRule = OctreeSdf::stringToTerminationRule((terminationRuleArg) ? args::get(terminationRuleArg) : "trapezoidal_rule");
+        
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
@@ -102,7 +105,8 @@ int main(int argc, char** argv)
             (startDepthArg) ? args::get(startDepthArg) : 1,
             (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
             initAlgorithm,
-            (numThreadsArg) ? args::get(numThreadsArg) : 1
+            (numThreadsArg) ? args::get(numThreadsArg) : 1,
+            terminationRule.has_value() ? terminationRule.value() : OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE
         ));
     }
     else if(sdfFormat == "exact_octree")

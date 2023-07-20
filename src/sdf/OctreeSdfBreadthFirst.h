@@ -306,6 +306,12 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
                             break;
+                        case TerminationRule::ISOSURFACE:
+                            bool inside = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size);
+                            value = (inside) 
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues)
+                                        : 0;
+                            break;
                         case TerminationRule::NONE:
                             value = INFINITY;
                             break;

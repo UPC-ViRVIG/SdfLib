@@ -40,6 +40,11 @@ struct NoneInterpolation
 
     inline static void interpolateVertexValues(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart, float nodeSize, std::array<float, VALUES_PER_VERTEX>& outValues)
     {}
+
+    inline static bool isIsosurfaceInside(const std::array<float, NUM_COEFFICIENTS>& values)
+    {
+        return true;
+    }
 };
 
 struct TriLinearInterpolation
@@ -136,6 +141,19 @@ struct TriLinearInterpolation
     inline static void interpolateVertexValues(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart, float nodeSize, std::array<float, VALUES_PER_VERTEX>& outValues)
     {
         outValues[0] = interpolateValue(values, fracPart);
+    }
+
+    inline static bool isIsosurfaceInside(const std::array<float, NUM_COEFFICIENTS>& values)
+    {
+        bool hasPositiveValue = false;
+        bool hasNegativeValue = false;
+        for(uint32_t i=0; i < NUM_COEFFICIENTS; i++)
+        {
+            hasPositiveValue = hasPositiveValue || values[i] > 0.0;
+            hasNegativeValue = hasNegativeValue || values[i] < 0.0;
+        }
+
+        return hasPositiveValue && hasNegativeValue;
     }
 };
 
@@ -489,6 +507,11 @@ struct TriCubicInterpolation
         outValues[7] = (1 * values[21] + 2 * values[22] * fracPart[0] + 3 * values[23] * fracPart[0] * fracPart[0] + 2 * values[25] * fracPart[1] + 4 * values[26] * fracPart[0] * fracPart[1] + 6 * values[27] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * values[29] * fracPart[1] * fracPart[1] + 6 * values[30] * fracPart[0] * fracPart[1] * fracPart[1] + 9 * values[31] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
          + 2 * values[37] * fracPart[2] + 4 * values[38] * fracPart[0] * fracPart[2] + 6 * values[39] * fracPart[0] * fracPart[0] * fracPart[2] + 4 * values[41] * fracPart[1] * fracPart[2] + 8 * values[42] * fracPart[0] * fracPart[1] * fracPart[2] + 12 * values[43] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 6 * values[45] * fracPart[1] * fracPart[1] * fracPart[2] + 12 * values[46] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 18 * values[47] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
          + 3 * values[53] * fracPart[2] * fracPart[2] + 6 * values[54] * fracPart[0] * fracPart[2] * fracPart[2] + 9 * values[55] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 6 * values[57] * fracPart[1] * fracPart[2] * fracPart[2] + 12 * values[58] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 18 * values[59] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 9 * values[61] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 18 * values[62] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 27 * values[63] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]) / (sqNodeSize * nodeSize);
+    }
+
+    inline static bool isIsosurfaceInside(const std::array<float, NUM_COEFFICIENTS>& values)
+    {
+        return true;
     }
 };
 }

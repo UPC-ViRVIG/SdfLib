@@ -101,7 +101,8 @@ public:
     {
         NONE, // Subdivide always
         TRAPEZOIDAL_RULE, // Estimate error integral by the trapezoidal rule
-        SIMPSONS_RULE // Estimate error integral by the simpson rule
+        SIMPSONS_RULE, // Estimate error integral by the simpson rule
+        ISOSURFACE // Subdivide only at parts containing the isosurface
     };
 
     static std::optional<TerminationRule> stringToTerminationRule(std::string text)
@@ -118,6 +119,10 @@ public:
         {
             return std::optional<TerminationRule>(TerminationRule::SIMPSONS_RULE);
         }
+        else if(text == "isosurface" || text == "ISOSURFACE")
+        {
+            return std::optional<TerminationRule>(TerminationRule::ISOSURFACE);
+        }
 
         return std::optional<TerminationRule>();
     }
@@ -129,15 +134,17 @@ public:
      * @param box The area that the structure must cover.
      * @param maxDepth The maximum octree depth.
      * @param startDepth The start depth of the octree.
-     * @param minTrianglesPerNode The minimum error expected in a node.
-     *                            All the leaves before the maximum depth must have an error less than 
-     *                            this minimum.
+     * @param minimumError The minimum error expected in a node.
+     *                     All the leaves before the maximum depth must have an error less than 
+     *                     this minimum.
      * @param initAlgorithm The building algorithm.
+     * @param terminationRule The heuristic used to decide if one node has to be subdivided
      **/
     OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
               float minimumError = 1e-3,
               InitAlgorithm initAlgorithm = InitAlgorithm::NO_CONTINUITY,
-              uint32_t numThreads = 1);
+              uint32_t numThreads = 1,
+              TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE);
 
     /**
      * @return Returns the maximum distance in absulute value contained by the octree
@@ -250,6 +257,9 @@ private:
                          float terminationThreshold, TerminationRule terminationRule);
 
     void computeMinBorderValue();
+
+    // Function reduces leafs that do not contain the isosurface
+    void reduceTree();
 };
 }
 
