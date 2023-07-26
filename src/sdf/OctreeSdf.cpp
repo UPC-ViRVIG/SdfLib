@@ -248,6 +248,7 @@ void OctreeSdf::reduceTree()
             if(InterpolationMethod::isIsosurfaceInside(values))
             {
                 mOctreeData[nodeIndex].setValues(true, currentIndex);
+                mOctreeData[nodeIndex].markNode();
                 for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
                 {
                     mOctreeData[currentIndex++].value = values[i];
