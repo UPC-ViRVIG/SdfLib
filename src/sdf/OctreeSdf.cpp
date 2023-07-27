@@ -98,6 +98,8 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
         fracPart = glm::fract(2.0f * fracPart);
     }
 
+    if(currentNode->getChildrenIndex() >= mOctreeData.size()) return 10.0;
+
     auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
 
     return InterpolationMethod::interpolateValue(values, fracPart);
