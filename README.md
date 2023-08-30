@@ -171,12 +171,16 @@ Notice that in both calls, we use the argument ``-n``. This option normalizes th
 
 SdfError is a console application that computes the error of the approximated method regarding the exact one.
 
+## License
+
+SdfLib is licensed under MIT License. Please, see the [license](https://github.com/UPC-ViRVIG/SdfLib/LICENSE) for further details.
+
 ## Citations
 
 If you are using the exact method algorithm for a publication, please cite the paper:
 
 ```
-@inproceedings{triangleInfluence,
+@article{triangleInfluence,
   title={Triangle influence supersets for fast distance computation},
   author={Eduard Pujol and Antonio Chica},
   booktitle={},
@@ -190,7 +194,7 @@ If you are using the approximated method algorithm for a publication, please cit
 
 ```
 @inproceedings{appoxSDF,
-  title={{A}liceVision {M}eshroom: An open-source {3D} reconstruction pipeline},
+  title={Adaptive approximation of signed distance fields through piecewise continuous interpolation},
   author={Eduard Pujol and Antonio Chica},
   booktitle={},
   doi = {},

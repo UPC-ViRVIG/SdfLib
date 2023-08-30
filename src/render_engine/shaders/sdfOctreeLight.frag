@@ -16,6 +16,7 @@ uint roundFloat(float a)
     return (a >= 0.5) ? 1 : 0;
 }
 
+uniform vec3 materialAlbedoColor;
 uniform float minBorderValue;
 uniform float distanceScale;
 uniform float time;
@@ -269,11 +270,11 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     // vec3 albedo = (pos.y < 0.163) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
     // vec3 albedo = vec3(0.867, 0.831, 0.773);
     // vec3 albedo = vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
-    vec3 albedo = (pos.y < 0.315) ? vec3(0.7, 0.7, 0.7) : vec3(0.4707, 0.173, 0.554);
+    // vec3 albedo = (pos.y < 0.315) ? vec3(0.7, 0.7, 0.7) : vec3(0.4707, 0.173, 0.554);
 
     // Fresnel parameter
     vec3 F0 = vec3(0.17, 0.17, 0.17);
-    F0 = mix(F0, albedo, metallic);
+    F0 = mix(F0, materialAlbedoColor, metallic);
 
     vec3 Lo = vec3(0.0);
     // Directional light
@@ -311,10 +312,10 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
             
         // Add to outgoing radiance to Lo
         float NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        Lo += (kD * materialAlbedoColor / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.5) * albedo * getAO(pos, N); // Ambient light estimation
+    vec3 ambient = vec3(0.5) * materialAlbedoColor * getAO(pos, N); // Ambient light estimation
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));
