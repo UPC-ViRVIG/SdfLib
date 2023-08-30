@@ -384,7 +384,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     };
 
     const uint32_t voxlesPerAxis = 1 << startDepth;
-#ifdef OPENMP_AVAILABE
+#ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
 #else
     {
@@ -408,7 +408,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         mValueRange = mainThread.valueRange;
     }
 #endif
-#ifdef OPENMP_AVAILABE
+#ifdef OPENMP_AVAILABLE
     else 
     {
         std::vector<ThreadContext> threadsContext(numThreads, mainThread);
