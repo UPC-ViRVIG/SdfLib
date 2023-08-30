@@ -94,10 +94,7 @@ else()
     if(OpenMP_CXX_FOUND)
     	message("OpenMP version ${OpenMP_CXX_VERSION}")
         target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
-        set(OpenMP_AVAILABLE True)
-    else()
-        set(OpenMP_AVAILABLE False)
-    endif()
+        set(OPENMP_AVAILABLE True)
 endif()                   
 
 # Add executable
