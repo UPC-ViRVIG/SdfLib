@@ -95,6 +95,7 @@ else()
     	message("OpenMP version ${OpenMP_CXX_VERSION}")
         target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
         set(OPENMP_AVAILABLE True)
+    endif()
 endif()                   
 
 # Add executable
