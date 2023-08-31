@@ -94,7 +94,7 @@ else()
     if(OpenMP_CXX_FOUND)
     	message("OpenMP version ${OpenMP_CXX_VERSION}")
         target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
-        set(OPENMP_AVAILABLE True)
+        target_compile_definitions(${PROJECT_NAME} PUBLIC -DOPENMP_AVAILABLE)
     endif()
 endif()                   
 
