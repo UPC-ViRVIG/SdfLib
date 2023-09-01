@@ -91,17 +91,19 @@ if(SDFLIB_USE_ENOKI)
  endif()
 
 # eigen
-FetchContent_Declare(eigen_lib
-GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
-)
-
-FetchContent_GetProperties(eigen_lib)
-if(NOT eigen_lib_POPULATED)
-	FetchContent_Populate(eigen_lib)
-	add_library(eigen INTERFACE)
-	target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
-endif()
+if(SDFLIB_BUILD_DEBUG_APPS)
+	FetchContent_Declare(eigen_lib
+	GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+	GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
+	)
+	
+	FetchContent_GetProperties(eigen_lib)
+	if(NOT eigen_lib_POPULATED)
+		FetchContent_Populate(eigen_lib)
+		add_library(eigen INTERFACE)
+		target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
+	endif()
+ endif()
 
 # FCPW
 FetchContent_Declare(fcpw_lib
