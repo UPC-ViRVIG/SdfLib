@@ -1008,6 +1008,7 @@ struct VHQueries
     }
 };
 
+#ifdef ENOKI_AVAILABLE
 template<typename T>
 struct FCPWQueries
 {
@@ -1118,6 +1119,8 @@ struct FCPWQueries
     {
     }
 };
+#endif
+
 }
 
 #endif

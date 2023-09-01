@@ -72,6 +72,7 @@ add_subdirectory(libs)
 
 if(SDFLIB_USE_ENOKI)
     target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
+    target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
     target_compile_definitions(${PROJECT_NAME} PUBLIC -DENOKI_AVAILABLE)
 endif()
 
@@ -80,7 +81,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
-target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
 target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
 target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
