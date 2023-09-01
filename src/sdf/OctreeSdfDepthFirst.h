@@ -7,7 +7,10 @@
 #include "SdfLib/OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
 #include <omp.h>
+#endif    
+
 
 namespace sdflib
 {
@@ -381,7 +384,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     };
 
     const uint32_t voxlesPerAxis = 1 << startDepth;
+#ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
+#else
     {
         // Create the grid
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
@@ -402,7 +407,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
         mValueRange = mainThread.valueRange;
     }
-    else
+#endif
+#ifdef OPENMP_AVAILABLE
+    else 
     {
         std::vector<ThreadContext> threadsContext(numThreads, mainThread);
 
@@ -511,6 +518,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
             }
         #endif
     }
+#endif
 	
 #ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);

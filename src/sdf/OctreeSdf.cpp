@@ -6,7 +6,9 @@
 #include "SdfLib/InterpolationMethods.h"
 #include "sdf/OctreeSdfDepthFirst.h"
 #include "sdf/OctreeSdfBreadthFirst.h"
+#ifdef OPENMP_AVAILABLE
 #include "sdf/OctreeSdfBreadthFirstNoDelay.h"
+#endif
 #include <array>
 #include <stack>
 
@@ -46,8 +48,11 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             break;
         case OctreeSdf::InitAlgorithm::CONTINUITY:
             //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
-            // initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+#ifdef OPENMP_AVAILABLE
             initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+#else
+            initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+#endif            
             break;
         // case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
         //     Timer time;
