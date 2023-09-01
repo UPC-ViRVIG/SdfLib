@@ -1,7 +1,10 @@
 #ifndef TRIANGLES_INFLUENCE_H
 #define TRIANGLES_INFLUENCE_H
 
+#ifdef ENOKI_AVAILABLE
 #include <fcpw/fcpw.h>
+#endif
+
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
