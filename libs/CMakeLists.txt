@@ -76,17 +76,19 @@ if(NOT cereal_lib_POPULATED)
 endif()
 
 # Enoki
-FetchContent_Declare(enoki_lib
-	GIT_REPOSITORY https://github.com/mitsuba-renderer/enoki.git
-	GIT_TAG 2a18afa
-)
-FetchContent_GetProperties(enoki_lib)
-if(NOT enoki_lib_POPULATED)
-	FetchContent_Populate(enoki_lib)
-	add_library(enoki INTERFACE)
-	add_subdirectory(${enoki_lib_SOURCE_DIR} ${enoki_lib_BINARY_DIR})
-	target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
-endif()
+if(SDFLIB_USE_ENOKI)
+	FetchContent_Declare(enoki_lib
+		GIT_REPOSITORY https://github.com/mitsuba-renderer/enoki.git
+		GIT_TAG 2a18afa
+	)
+	FetchContent_GetProperties(enoki_lib)
+	if(NOT enoki_lib_POPULATED)
+		FetchContent_Populate(enoki_lib)
+		add_library(enoki INTERFACE)
+		add_subdirectory(${enoki_lib_SOURCE_DIR} ${enoki_lib_BINARY_DIR})
+		target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
+	endif()
+ endif()
 
 # eigen
 FetchContent_Declare(eigen_lib
