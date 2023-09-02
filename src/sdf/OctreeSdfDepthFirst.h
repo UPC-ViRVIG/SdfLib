@@ -386,7 +386,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     const uint32_t voxlesPerAxis = 1 << startDepth;
 #ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
-#else
+#endif
     {
         // Create the grid
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
@@ -407,7 +407,6 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
         mValueRange = mainThread.valueRange;
     }
-#endif
 #ifdef OPENMP_AVAILABLE
     else 
     {
