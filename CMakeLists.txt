@@ -70,14 +70,17 @@ add_custom_target(copyShaders ALL SOURCES ${SHADER_FILES})
 # Add dependencies
 add_subdirectory(libs)
 
+if(SDFLIB_USE_ENOKI)
+    target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
+    target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC -DENOKI_AVAILABLE)
+endif()
+
 target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
-target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
-target_link_libraries(${PROJECT_NAME} PUBLIC eigen)
-target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
 target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
 target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
@@ -160,6 +163,7 @@ if(SDFLIB_BUILD_DEBUG_APPS)
     add_executable(GJKtest src/tools/GJKtest/main.cpp)
     target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
 
+    target_link_libraries(${PROJECT_NAME} PUBLIC eigen)
     add_executable(CalculateInterpolationParameters src/tools/CalculateInterpolationParameters/main.cpp)
     target_link_libraries(CalculateInterpolationParameters PUBLIC ${PROJECT_NAME})
 

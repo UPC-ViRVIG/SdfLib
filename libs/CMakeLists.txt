@@ -76,43 +76,47 @@ if(NOT cereal_lib_POPULATED)
 endif()
 
 # Enoki
-FetchContent_Declare(enoki_lib
-	GIT_REPOSITORY https://github.com/mitsuba-renderer/enoki.git
-	GIT_TAG 2a18afa
-)
-FetchContent_GetProperties(enoki_lib)
-if(NOT enoki_lib_POPULATED)
-	FetchContent_Populate(enoki_lib)
-	add_library(enoki INTERFACE)
-	add_subdirectory(${enoki_lib_SOURCE_DIR} ${enoki_lib_BINARY_DIR})
-	target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
+if(SDFLIB_USE_ENOKI)
+	FetchContent_Declare(enoki_lib
+		GIT_REPOSITORY https://github.com/mitsuba-renderer/enoki.git
+		GIT_TAG 2a18afa
+	)
+	FetchContent_GetProperties(enoki_lib)
+	if(NOT enoki_lib_POPULATED)
+		FetchContent_Populate(enoki_lib)
+		add_library(enoki INTERFACE)
+		add_subdirectory(${enoki_lib_SOURCE_DIR} ${enoki_lib_BINARY_DIR})
+		target_include_directories(enoki INTERFACE ${enoki_lib_SOURCE_DIR}/include)
+	endif()
+
+ 	# FCPW
+	FetchContent_Declare(fcpw_lib
+		GIT_REPOSITORY https://github.com/rohan-sawhney/fcpw.git
+		GIT_TAG dd65ec2
+	)
+	
+	FetchContent_GetProperties(fcpw_lib)
+	if(NOT fcpw_lib_POPULATED)
+		FetchContent_Populate(fcpw_lib)
+		add_subdirectory(${fcpw_lib_SOURCE_DIR} ${fcpw_lib_BINARY_DIR})
+		target_include_directories(fcpw INTERFACE ${fcpw_lib_SOURCE_DIR})
+	endif()
 endif()
 
 # eigen
-FetchContent_Declare(eigen_lib
-GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
-)
-
-FetchContent_GetProperties(eigen_lib)
-if(NOT eigen_lib_POPULATED)
-	FetchContent_Populate(eigen_lib)
-	add_library(eigen INTERFACE)
-	target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
-endif()
-
-# FCPW
-FetchContent_Declare(fcpw_lib
-	GIT_REPOSITORY https://github.com/rohan-sawhney/fcpw.git
-	GIT_TAG dd65ec2
-)
-
-FetchContent_GetProperties(fcpw_lib)
-if(NOT fcpw_lib_POPULATED)
-	FetchContent_Populate(fcpw_lib)
-	add_subdirectory(${fcpw_lib_SOURCE_DIR} ${fcpw_lib_BINARY_DIR})
-	target_include_directories(fcpw INTERFACE ${fcpw_lib_SOURCE_DIR})
-endif()
+if(SDFLIB_BUILD_DEBUG_APPS)
+	FetchContent_Declare(eigen_lib
+	GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+	GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
+	)
+	
+	FetchContent_GetProperties(eigen_lib)
+	if(NOT eigen_lib_POPULATED)
+		FetchContent_Populate(eigen_lib)
+		add_library(eigen INTERFACE)
+		target_include_directories(eigen INTERFACE ${eigen_lib_SOURCE_DIR})
+	endif()
+ endif()
 
 # stb
 add_library(stb_image INTERFACE)
