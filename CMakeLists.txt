@@ -76,8 +76,12 @@ if(SDFLIB_USE_ENOKI)
     target_compile_definitions(${PROJECT_NAME} PUBLIC -DENOKI_AVAILABLE)
 endif()
 
+if(SDFLIB_USE_ASSIMP)
+    target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC -DASSIMP_AVAILABLE)
+endif()
+    
 target_link_libraries(${PROJECT_NAME} PUBLIC glm)
-target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)

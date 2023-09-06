@@ -14,23 +14,25 @@ if(NOT glm_lib_POPULATED)
 endif()
 
 # assimp
-FetchContent_Declare(assimp_lib
-  GIT_REPOSITORY https://github.com/assimp/assimp.git
-  GIT_TAG 9519a62dd20799c5493c638d1ef5a6f484e5faf1 # 5.2.5
-)
-
-if(NOT assimp_lib)
-	FetchContent_Populate(assimp_lib)
+if(SDF_USE_ASSIMP)
+	FetchContent_Declare(assimp_lib
+	  GIT_REPOSITORY https://github.com/assimp/assimp.git
+	  GIT_TAG 9519a62dd20799c5493c638d1ef5a6f484e5faf1 # 5.2.5
+	)
 	
-	set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-	set(BUILD_SHARED_LIBS OFF)
-	set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
-	set(ASSIMP_BUILD_TESTS OFF)
-	set(ASSIMP_INSTALL OFF)
-	set(ASSIMP_INJECT_DEBUG_POSTFIX OFF)
-	set(ASSIMP_BUILD_ASSIMP_VIEW OFF)
-	
-	add_subdirectory(${assimp_lib_SOURCE_DIR} ${assimp_lib_BINARY_DIR})
+	if(NOT assimp_lib)
+		FetchContent_Populate(assimp_lib)
+		
+		set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+		set(BUILD_SHARED_LIBS OFF)
+		set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
+		set(ASSIMP_BUILD_TESTS OFF)
+		set(ASSIMP_INSTALL OFF)
+		set(ASSIMP_INJECT_DEBUG_POSTFIX OFF)
+		set(ASSIMP_BUILD_ASSIMP_VIEW OFF)
+		
+		add_subdirectory(${assimp_lib_SOURCE_DIR} ${assimp_lib_BINARY_DIR})
+	endif()
 endif()
 
 # args
