@@ -2,6 +2,7 @@
 #define TRIANGLE_UTILS_H
 
 #include <glm/glm.hpp>
+#include <algorithm>
 #include <vector>
 #include <array>
 #include <map>
