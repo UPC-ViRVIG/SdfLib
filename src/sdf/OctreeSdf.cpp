@@ -83,7 +83,7 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
        startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
        startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
     {
-        return mBox.getDistance(sample) + glm::sqrt(3.0f) * mBox.getSize().x;
+        return mBox.getDistance(sample) + mMinBorderValue;
     }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
@@ -113,7 +113,7 @@ float OctreeSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
        startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
        startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
     {
-        return mBox.getDistance(sample) + mMinBorderValue;
+        return mBox.getDistance(sample, outGradient) + mMinBorderValue;
     }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
