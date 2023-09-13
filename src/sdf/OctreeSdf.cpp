@@ -12,8 +12,8 @@
 
 namespace sdflib
 {
-typedef TriLinearInterpolation InterpolationMethod;
-// typedef TriCubicInterpolation InterpolationMethod;
+// typedef TriLinearInterpolation InterpolationMethod;
+typedef TriCubicInterpolation InterpolationMethod;
 
 OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, 
                      uint32_t depth, uint32_t startDepth,
