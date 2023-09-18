@@ -36,17 +36,19 @@ if(SDF_USE_ASSIMP)
 endif()
 
 # args
-FetchContent_Declare(args_lib
-  GIT_REPOSITORY https://github.com/Taywee/args.git
-  GIT_TAG a48e1f880813b367d2354963a58dedbf2b708584 # 6.3.0
-)
-
-FetchContent_GetProperties(args_lib)
-if(NOT args_lib_POPULATED)
-	FetchContent_Populate(args_lib)
-	add_library(args INTERFACE)
-	target_include_directories(args INTERFACE ${args_lib_SOURCE_DIR})
-endif()
+if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
+	FetchContent_Declare(args_lib
+	  GIT_REPOSITORY https://github.com/Taywee/args.git
+	  GIT_TAG a48e1f880813b367d2354963a58dedbf2b708584 # 6.3.0
+	)
+	
+	FetchContent_GetProperties(args_lib)
+	if(NOT args_lib_POPULATED)
+		FetchContent_Populate(args_lib)
+		add_library(args INTERFACE)
+		target_include_directories(args INTERFACE ${args_lib_SOURCE_DIR})
+	endif()
+ endif()
 
 # spdlog
 FetchContent_Declare(spdlog_lib
@@ -121,8 +123,10 @@ if(SDFLIB_BUILD_DEBUG_APPS)
  endif()
 
 # stb
-add_library(stb_image INTERFACE)
-target_include_directories(stb_image INTERFACE stb)
+if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
+	add_library(stb_image INTERFACE)
+	target_include_directories(stb_image INTERFACE stb)
+ endif()
 
 # icg
 add_library(icg INTERFACE)

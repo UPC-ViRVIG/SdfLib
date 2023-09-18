@@ -80,13 +80,16 @@ if(SDFLIB_USE_ASSIMP)
     target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
     target_compile_definitions(${PROJECT_NAME} PUBLIC -DASSIMP_AVAILABLE)
 endif()
+
+if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
+    target_link_libraries(${PROJECT_NAME} PUBLIC args)
+    target_link_libraries(${PROJECT_NAME} PUBLIC icg)
+endif()
     
 target_link_libraries(${PROJECT_NAME} PUBLIC glm)
-target_link_libraries(${PROJECT_NAME} PUBLIC args)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
 target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
-target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
     target_link_libraries(${PROJECT_NAME} PUBLIC -lstdc++fs)
