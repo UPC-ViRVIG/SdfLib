@@ -83,13 +83,13 @@ endif()
 
 if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
     target_link_libraries(${PROJECT_NAME} PUBLIC args)
-    target_link_libraries(${PROJECT_NAME} PUBLIC icg)
+    target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
 endif()
     
 target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
-target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
+target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
     target_link_libraries(${PROJECT_NAME} PUBLIC -lstdc++fs)
