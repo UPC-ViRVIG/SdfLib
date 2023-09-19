@@ -6,7 +6,9 @@
 #include "SdfLib/InterpolationMethods.h"
 #include "sdf/OctreeSdfDepthFirst.h"
 #include "sdf/OctreeSdfBreadthFirst.h"
+#ifdef OPENMP_AVAILABLE
 #include "sdf/OctreeSdfBreadthFirstNoDelay.h"
+#endif
 #include <array>
 #include <stack>
 
@@ -46,8 +48,11 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             break;
         case OctreeSdf::InitAlgorithm::CONTINUITY:
             //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
-            // initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+#ifdef OPENMP_AVAILABLE
             initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+#else
+            initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+#endif            
             break;
         // case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
         //     Timer time;
@@ -78,7 +83,7 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
        startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
        startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
     {
-        return mBox.getDistance(sample) + glm::sqrt(3.0f) * mBox.getSize().x;
+        return mBox.getDistance(sample) + mMinBorderValue;
     }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];
@@ -108,7 +113,7 @@ float OctreeSdf::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
        startArrayPos.y < 0 || startArrayPos.y >= mStartGridSize ||
        startArrayPos.z < 0 || startArrayPos.z >= mStartGridSize)
     {
-        return mBox.getDistance(sample) + mMinBorderValue;
+        return mBox.getDistance(sample, outGradient) + mMinBorderValue;
     }
 
     const OctreeNode* currentNode = &mOctreeData[startArrayPos.z * mStartGridXY + startArrayPos.y * mStartGridSize + startArrayPos.x];

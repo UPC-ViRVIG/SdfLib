@@ -5,6 +5,7 @@
 
 namespace sdflib
 {
+#ifdef ASSIMP_AVAILABLE
 Mesh::Mesh(std::string filePath)
 {
     Assimp::Importer import;
@@ -28,6 +29,7 @@ Mesh::Mesh(const aiMesh* mesh)
 {
     initMesh(mesh);
 }
+#endif
 
 Mesh::Mesh(glm::vec3* vertices, uint32_t numVertices,
          uint32_t* indices, uint32_t numIndices)
@@ -39,7 +41,7 @@ Mesh::Mesh(glm::vec3* vertices, uint32_t numVertices,
     std::memcpy(mIndices.data(), indices, sizeof(uint32_t) * numIndices);
 }
 
-
+#ifdef ASSIMP_AVAILABLE
 void Mesh::initMesh(const aiMesh* mesh)
 {
     if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE))
@@ -83,6 +85,7 @@ void Mesh::initMesh(const aiMesh* mesh)
 		computeNormals();
 	}
 }
+#endif
 
 void Mesh::computeBoundingBox()
 {
