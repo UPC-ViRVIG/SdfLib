@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
-#ifdef ASSIMP_AVAILABLE
+#ifdef SDFLIB_ASSIMP_AVAILABLE
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>      
 #include <assimp/postprocess.h>
@@ -73,7 +73,7 @@ class Mesh
 {
 public:
     Mesh() {}
-#ifdef ASSIMP_AVAILABLE
+#ifdef SDFLIB_ASSIMP_AVAILABLE
     Mesh(std::string filePath);
     Mesh(const aiMesh* mesh);
 #endif
@@ -95,7 +95,7 @@ public:
     void computeNormals();
     void applyTransform(glm::mat4 trans);
 private:
-#ifdef ASSIMP_AVAILABLE
+#ifdef SDFLIB_ASSIMP_AVAILABLE
     void initMesh(const aiMesh* mesh);
 #endif
 

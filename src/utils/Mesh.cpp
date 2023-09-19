@@ -5,7 +5,7 @@
 
 namespace sdflib
 {
-#ifdef ASSIMP_AVAILABLE
+#ifdef SDFLIB_ASSIMP_AVAILABLE
 Mesh::Mesh(std::string filePath)
 {
     Assimp::Importer import;
@@ -41,7 +41,7 @@ Mesh::Mesh(glm::vec3* vertices, uint32_t numVertices,
     std::memcpy(mIndices.data(), indices, sizeof(uint32_t) * numIndices);
 }
 
-#ifdef ASSIMP_AVAILABLE
+#ifdef SDFLIB_ASSIMP_AVAILABLE
 void Mesh::initMesh(const aiMesh* mesh)
 {
     if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE))

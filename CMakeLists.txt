@@ -83,7 +83,7 @@ endif()
 
 if(SDFLIB_USE_ASSIMP)
     target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC -DSDFLIB_ASSIMP_AVAILABLE)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC -DSDFLIB_SDFLIB_ASSIMP_AVAILABLE)
 endif()
 
 if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
