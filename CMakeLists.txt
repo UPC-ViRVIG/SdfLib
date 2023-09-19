@@ -21,7 +21,7 @@ option(SDFLIB_BUILD_DEBUG_APPS "Build executables for debugging purposes" OFF)
 # Libraries options
 option(SDFLIB_USE_ASSIMP "Use assimp library for importing models" ON)
 option(SDFLIB_USE_OPENMP "Use OpenMP for accelerate the structures construction" ON)
-option(SDFLIB_USE_ENOKI "Use Enoki for some optimizations" OFF)
+option(SDFLIB_USE_ENOKI "Use Enoki for some optimizations" ON)
 
 
 if(SDFLIB_DEBUG_INFO)
@@ -83,7 +83,7 @@ endif()
 
 if(SDFLIB_USE_ASSIMP)
     target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC -DSDFLIB_SDFLIB_ASSIMP_AVAILABLE)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC -DSDFLIB_ASSIMP_AVAILABLE)
 endif()
 
 if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)

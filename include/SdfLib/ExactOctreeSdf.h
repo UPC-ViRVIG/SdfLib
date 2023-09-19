@@ -214,8 +214,6 @@ private:
 };
 }
 
-#ifdef OPENMP_AVAILABLE
 #include "ExactOctreeSdfDepthFirst.h"
-#endif
 
 #endif

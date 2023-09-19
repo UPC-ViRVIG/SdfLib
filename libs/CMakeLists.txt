@@ -14,7 +14,7 @@ if(NOT glm_lib_POPULATED)
 endif()
 
 # assimp
-if(SDF_USE_ASSIMP)
+if(SDFLIB_USE_ASSIMP)
 	FetchContent_Declare(assimp_lib
 	  GIT_REPOSITORY https://github.com/assimp/assimp.git
 	  GIT_TAG 9519a62dd20799c5493c638d1ef5a6f484e5faf1 # 5.2.5
