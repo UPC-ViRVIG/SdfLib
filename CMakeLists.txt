@@ -18,6 +18,11 @@ option(SDFLIB_DEBUG_INFO "Print debug information" OFF)
 option(SDFLIB_BUILD_APPS "Build executables for using the library" OFF)
 option(SDFLIB_BUILD_DEBUG_APPS "Build executables for debugging purposes" OFF)
 
+# Libraries options
+option(SDFLIB_USE_ASSIMP "Use assimp library for importing models" ON)
+option(SDFLIB_USE_OPENMP "Use OpenMP for accelerate the structures construction" ON)
+option(SDFLIB_USE_ENOKI "Use Enoki for some optimizations" OFF)
+
 
 if(SDFLIB_DEBUG_INFO)
     add_compile_definitions(SDFLIB_PRINT_STATISTICS)
