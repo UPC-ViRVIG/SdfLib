@@ -23,6 +23,11 @@ option(SDFLIB_USE_ASSIMP "Use assimp library for importing models" ON)
 option(SDFLIB_USE_OPENMP "Use OpenMP for accelerate the structures construction" ON)
 option(SDFLIB_USE_ENOKI "Use Enoki for some optimizations" ON)
 
+option(SDFLIB_USE_SYSTEM_GLM "Use glm library via find_package instead of downloading it" OFF)
+option(SDFLIB_USE_SYSTEM_SPDLOG "Use spdlog library via find_package instead of downloading it" OFF)
+option(SDFLIB_USE_SYSTEM_CEREAL "Use cereal library via find_package instead of downloading it" OFF)
+option(SDFLIB_USE_SYSTEM_ASSIMP "Use assimp library via find_package instead of downloading it" OFF)
+
 
 if(SDFLIB_DEBUG_INFO)
     add_compile_definitions(SDFLIB_PRINT_STATISTICS)
@@ -73,6 +78,19 @@ endforeach()
 add_custom_target(copyShaders ALL SOURCES ${SHADER_FILES})
 
 # Add dependencies
+if(SDFLIB_USE_SYSTEM_ASSIMP)
+    find_package(assimp REQUIRED)
+endif()
+if(SDFLIB_USE_SYSTEM_SPDLOG)
+    find_package(spdlog REQUIRED)
+endif()
+if(SDFLIB_USE_SYSTEM_CEREAL)
+    find_package(cereal REQUIRED)
+endif()
+if(SDFLIB_USE_SYSTEM_GLM)
+    find_package(glm REQUIRED)
+    set(SDFLIB_GLM_TARGET glm::glm)
+endif()
 add_subdirectory(libs)
 
 if(SDFLIB_USE_ENOKI)
@@ -82,7 +100,7 @@ if(SDFLIB_USE_ENOKI)
 endif()
 
 if(SDFLIB_USE_ASSIMP)
-    target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
+    target_link_libraries(${PROJECT_NAME} PUBLIC assimp::assimp)
     target_compile_definitions(${PROJECT_NAME} PUBLIC -DSDFLIB_ASSIMP_AVAILABLE)
 endif()
 
@@ -91,9 +109,9 @@ if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
     target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
 endif()
     
-target_link_libraries(${PROJECT_NAME} PUBLIC glm)
-target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
-target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${SDFLIB_GLM_TARGET})
+target_link_libraries(${PROJECT_NAME} PUBLIC spdlog::spdlog)
+target_link_libraries(${PROJECT_NAME} PUBLIC cereal::cereal)
 target_link_libraries(${PROJECT_NAME} PUBLIC icg)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
