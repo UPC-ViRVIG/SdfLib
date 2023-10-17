@@ -21,6 +21,8 @@ public:
         NONE
     };
 
+    virtual ~SdfFunction() = default;
+
     /**
      * @return The signed distance to the mesh at the point
      **/
