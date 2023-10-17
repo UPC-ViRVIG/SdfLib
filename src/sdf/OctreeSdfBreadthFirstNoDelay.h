@@ -7,7 +7,9 @@
 #include "SdfLib/OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
 #include <omp.h>
+#endif
 
 namespace sdflib
 {
@@ -240,8 +242,12 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     float afterSubdivisionTime = 0.0f;
     uint32_t numNodesSubdividedAfterDecision = 0;
 
+    #ifdef OPENMP_AVAILABLE
     omp_set_dynamic(0);
     omp_set_num_threads(numThreads);
+    #else
+    numThreads = 1;
+    #endif
 
     std::vector<TrianglesInfluenceStrategy> threadTrianglesInfluence(numThreads, trianglesInfluence);
 
@@ -251,14 +257,18 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         timer.start();
         if(currentDepth < maxDepth)
         {
-            //for(NodeInfo& node : nodesBuffer[currentBuffer])
-            // const auto nodesBufferSize = nodesBuffer[currentBuffer].size();
             const auto nodesBufferSize = nodesBuffer[currentDepth].size();
+            #ifdef OPENMP_AVAILABLE
             #pragma omp parallel for default(shared) schedule(dynamic, 16)
+            #endif
             for(uint32_t nId=0; nId < nodesBufferSize; nId++)
             {
+                #ifdef OPENMP_AVAILABLE
                 const uint32_t tId = omp_get_thread_num();
-                // std::cout << "enter" << std::endl;
+                #else
+                const uint32_t tId = 0;
+                #endif
+
                 NodeInfo& node = nodesBuffer[currentDepth][nId];
                 if(node.ignoreNode) continue;
 

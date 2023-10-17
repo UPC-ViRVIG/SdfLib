@@ -1,7 +1,10 @@
 #ifndef TRIANGLES_INFLUENCE_H
 #define TRIANGLES_INFLUENCE_H
 
+#ifdef ENOKI_AVAILABLE
 #include <fcpw/fcpw.h>
+#endif
+
 #include "utils/Mesh.h"
 #include "utils/TriangleUtils.h"
 #include "OctreeSdfUtils.h"
@@ -1008,6 +1011,7 @@ struct VHQueries
     }
 };
 
+#ifdef ENOKI_AVAILABLE
 template<typename T>
 struct FCPWQueries
 {
@@ -1118,6 +1122,8 @@ struct FCPWQueries
     {
     }
 };
+#endif
+
 }
 
 #endif

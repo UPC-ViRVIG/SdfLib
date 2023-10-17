@@ -173,7 +173,7 @@ SdfError is a console application that computes the error of the approximated me
 
 ## License
 
-SdfLib is licensed under CC BY-SA 4.0. Please, see the [license](https://github.com/UPC-ViRVIG/SdfLib/LICENSE) for further details.
+SdfLib is licensed under MIT License. Please, see the [license](https://github.com/UPC-ViRVIG/SdfLib/LICENSE) for further details.
 
 ## Citations
 

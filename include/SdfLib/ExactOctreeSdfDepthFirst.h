@@ -2,8 +2,10 @@
 #define EXACT_OCTREE_SDF_DEPTH_FIRST_H
 
 #include <string>
-#include <omp.h>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
+#include <omp.h>
+#endif
 
 namespace sdflib
 {
@@ -488,7 +490,9 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     };
 
     const uint32_t voxlesPerAxis = 1 << startDepth;
+    #ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
+    #endif
     {
         // Create the grid
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
@@ -509,6 +513,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         mMaxTrianglesInLeafs = mainThread.maxTrianglesInLeafs;
         mMaxTrianglesEncodedInLeafs = mainThread.maxTrianglesEncodedInLeafs;
     }
+    #ifdef OPENMP_AVAILABLE
     else
     {
         std::vector<ThreadContext> threadsContext(numThreads, mainThread);
@@ -643,6 +648,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             }
         #endif
     }
+    #endif
 	
 #ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);
