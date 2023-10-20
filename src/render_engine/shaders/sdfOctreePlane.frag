@@ -49,7 +49,8 @@ const vec3 palette[7] = vec3[7](
 // );
 
 const uint isLeafMask = 1 << 31;
-const uint childrenIndexMask = ~(1 << 31);
+const uint isMarkedMask = 1 << 30;
+const uint childrenIndexMask = ~(isLeafMask | isMarkedMask);
 
 uint roundFloat(float a)
 {
