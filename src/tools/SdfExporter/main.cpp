@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 
     Mesh mesh(modelPath);
     BoundingBox box = mesh.getBoundingBox();
-    if(true || normalizeBBArg) {
+    if(normalizeBBArg) {
         // Normalize model units
         const glm::vec3 boxSize = box.getSize();
         const float maxSize = glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z);
