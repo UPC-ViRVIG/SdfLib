@@ -77,8 +77,8 @@ private:
     bool mUsePerlinNoise = false;
     float mOverRelaxation = 1.47f;
     bool mUseItColorMode = false;
-    bool mDrawPlane = true;
-    bool mDrawLights = false;
+    bool mDrawPlane = false;
+    bool mDrawLights = true;
 
     //Lighting
     unsigned int mLightNumberLocation;

@@ -236,8 +236,8 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
-    mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
-    
+    //mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
+    mEpsilon = 0.0001f;
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);

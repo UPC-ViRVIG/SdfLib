@@ -123,7 +123,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    MyScene scene(args::get(modelPathArg));
+    //MyScene scene(args::get(modelPathArg));
+    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreePlane.bin");
     MainLoop loop;
     loop.start(scene, "SdfRender");
 }
