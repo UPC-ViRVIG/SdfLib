@@ -184,6 +184,9 @@ public:
 
     float getDistance(glm::vec3 sample) const override;
     float getDistance(glm::vec3 sample, glm::vec3& outGradient) const override;
+
+    OctreeNode getGridNode(glm::vec3 sample, glm::vec3& leafPos, float& leafSize) const;
+    OctreeNode getLeaf(glm::vec3 sample, glm::vec3& leafPos, float& leafSize) const;
 	SdfFunction::SdfFormat getFormat() const override { return SdfFunction::SdfFormat::OCTREE; }
 
     // Load and save function for storing the structure on disk
