@@ -117,6 +117,7 @@ void RenderSdf::start()
         mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
         mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
         mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
+        mUseV3Location = glGetUniformLocation(mRenderProgramId, "useV3");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -163,7 +164,7 @@ void RenderSdf::start()
 
     // Set octree data
     {
-        // Set octree data
+        // Set octree trilinear data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
@@ -175,6 +176,16 @@ void RenderSdf::start()
         mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
         mBBMax = mInputOctree->getGridBoundingBox().max;
         mBBMin = mInputOctree->getGridBoundingBox().min;
+    }
+
+    // Set octree tricubic data
+    {
+        // Set octree data
+        glGenBuffers(1, &mOctreeTricubicSSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeTricubicSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mOctreeTricubicSSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
 
 
@@ -195,8 +206,10 @@ void RenderSdf::start()
     mRenderMesh.setShader(&screenPlaneShader);
 
     mOctreeStartGridSize = mInputOctree->getStartGridSize();
-
+    float minNodeSize = mInputOctree->getSampleArea().getSize().x / float(1 << mInputOctree->getOctreeMaxDepth());
+    mEpsilon = minNodeSize / 1024.0f;
     mInputOctree = nullptr; // We do not need the octree in the CPU any more
+    mInputTricubicOctree = nullptr;
 }
 
 void RenderSdf::draw(Camera* camera)
@@ -237,7 +250,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
     //mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
-    mEpsilon = 0.0001f;
+    //mEpsilon = 0.0001f;
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
@@ -250,6 +263,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
     glUniform1i(mDrawPlaneLocation, mDrawPlane);
     glUniform1i(mDrawLightsLocation, mDrawLights);
+    glUniform1i(mUseV3Location, mUseV3);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
@@ -304,6 +318,7 @@ void RenderSdf::drawGui()
         ImGui::Text("Scene Settings");
         ImGui::Checkbox("Draw Plane", &mDrawPlane);
         if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+        ImGui::Checkbox("V3", &mUseV3);
         ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
         ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);

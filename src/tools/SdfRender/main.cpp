@@ -14,7 +14,7 @@ using namespace sdflib;
 class MyScene : public Scene
 {
 public:
-    MyScene(std::string sdfPath) : mSdfPath(sdfPath){}
+    MyScene(std::string sdfPath, std::string sdfTricubicPath) : mSdfPath(sdfPath), mSdfTricubicPath(sdfTricubicPath) {}
 
     void start() override
 	{
@@ -30,10 +30,15 @@ public:
 
         BoundingBox sdfBB;
 
-        // Load model
+        // Load linear model
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
         std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
+
+        // Load tricubic model
+        std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath);
+        std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
+        std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
         
         sdfBB = octreeSdf->getGridBoundingBox();
         glm::vec3 center = sdfBB.getSize();
@@ -41,7 +46,7 @@ public:
         SPDLOG_INFO("GridBoundingBox size is {}, {}, {}", center.x, center.y, center.z);
 
 
-        mRenderSdf = std::make_shared<RenderSdf>(octreeSdf);
+        mRenderSdf = std::make_shared<RenderSdf>(octreeSdf, octreeTriSdf);
         mRenderSdf->start();
         addSystem(mRenderSdf);
 
@@ -77,14 +82,20 @@ public:
 
         if (mShowLoadSdfWindow) {
             ImGui::Begin("Load Sdf");
-            ImGui::InputText("Sdf Path", buf, sizeof(buf));
+            ImGui::InputText("Sdf Linear Path", buf, sizeof(buf));
+            ImGui::InputText("Sdf Tricubic Path", bufTri, sizeof(bufTri));
             if (ImGui::Button("Load")) 
             {   
                 mSdfPath = buf;
+                mSdfTricubicPath = bufTri;
                 std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
                 std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
                 std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
-                mRenderSdf->setSdf(octreeSdf);
+                std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath);
+                std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
+                std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
+
+                mRenderSdf->setSdf(octreeSdf, octreeTriSdf);
                 mShowLoadSdfWindow = false;
             }
             if (ImGui::Button("Cancel")) 
@@ -97,8 +108,10 @@ public:
 
 private:
     std::string mSdfPath;
+    std::string mSdfTricubicPath;
     std::shared_ptr<RenderSdf> mRenderSdf;
     char buf[255]{};
+    char bufTri[255]{};
     bool mShowLoadSdfWindow = false;
 };
 
@@ -124,7 +137,7 @@ int main(int argc, char** argv)
     }
 
     //MyScene scene(args::get(modelPathArg));
-    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreePlane.bin");
+    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunny.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyTri.bin");
     MainLoop loop;
     loop.start(scene, "SdfRender");
 }

@@ -15,18 +15,20 @@
 class RenderSdf : public System
 {
 public:
-    RenderSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree) 
+    RenderSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
+        mInputTricubicOctree = inputTricubicOctree;
     }
 
     ~RenderSdf();
 
     void restart();
 
-    void setSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree)
+    void setSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
+        mInputTricubicOctree = inputTricubicOctree;
         restart();
     }
 
@@ -42,6 +44,7 @@ private:
     unsigned int mRenderTexture;
     glm::ivec2 mRenderTextureSize;
     unsigned int mOctreeSSBO;
+    unsigned int mOctreeTricubicSSBO;
 
     unsigned int mPixelToViewLocation;
     unsigned int mNearPlaneHalfSizeLocation;
@@ -62,7 +65,7 @@ private:
     unsigned int mUseItColorModeLocation;
     unsigned int mDrawPlaneLocation;
     unsigned int mDrawLightsLocation;
-
+    unsigned int mUseV3Location;
     unsigned int mMaxIterationsLocation;
     unsigned int mMaxColorIterationsLocation;
     unsigned int mMaxShadowIterationsLocation;
@@ -79,6 +82,7 @@ private:
     bool mUseItColorMode = false;
     bool mDrawPlane = false;
     bool mDrawLights = true;
+    bool mUseV3 = true;
 
     //Lighting
     unsigned int mLightNumberLocation;
@@ -167,6 +171,7 @@ private:
     float mOctreeDistanceScale;
     float mOctreeMinBorderValue;
     std::shared_ptr<sdflib::OctreeSdf> mInputOctree;
+    std::shared_ptr<sdflib::OctreeSdf> mInputTricubicOctree;
 
 };
 
