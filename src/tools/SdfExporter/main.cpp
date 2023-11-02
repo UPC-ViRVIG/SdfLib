@@ -44,10 +44,27 @@ int main(int argc, char** argv)
     {
         parser.ParseCLI(argc, argv);
     }
-    catch(args::Help)
+    catch (const args::Completion& e)
+    {
+        std::cout << e.what();
+        return 0;
+    }
+    catch(const args::Help&)
     {
         std::cerr << parser;
         return 0;
+    }catch (const args::ParseError& e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+
+    if(!modelPathArg)
+    {
+        std::cerr << "Error: No model_path specified" << std::endl;
+        std::cerr << parser;
+        return 1;
     }
 
     std::string sdfFormat = (sdfFormatArg) ? args::get(sdfFormatArg) : "octree";

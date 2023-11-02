@@ -95,6 +95,7 @@ add_subdirectory(libs)
 
 if(SDFLIB_USE_ENOKI)
     target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
+    target_link_libraries(${PROJECT_NAME} PUBLIC eigen) # FCPW requirement
     target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
     target_compile_definitions(${PROJECT_NAME} PUBLIC -DENOKI_AVAILABLE)
 endif()

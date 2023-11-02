@@ -117,7 +117,7 @@ if(SDFLIB_USE_ENOKI)
 endif()
 
 # eigen
-if(SDFLIB_BUILD_DEBUG_APPS)
+if(SDFLIB_BUILD_DEBUG_APPS OR SDFLIB_USE_ENOKI)
 	FetchContent_Declare(eigen_lib
 	GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
 	GIT_TAG 46126273552afe13692929523d34006f54c19719 # 3.4
