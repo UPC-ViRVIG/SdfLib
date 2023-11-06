@@ -65,7 +65,7 @@ private:
     unsigned int mUseItColorModeLocation;
     unsigned int mDrawPlaneLocation;
     unsigned int mDrawLightsLocation;
-    unsigned int mUseV3Location;
+    unsigned int mRaymarchVersionLocation;
     unsigned int mMaxIterationsLocation;
     unsigned int mMaxColorIterationsLocation;
     unsigned int mMaxShadowIterationsLocation;
@@ -81,8 +81,8 @@ private:
     float mOverRelaxation = 1.47f;
     bool mUseItColorMode = false;
     bool mDrawPlane = false;
-    bool mDrawLights = true;
-    bool mUseV3 = true;
+    bool mDrawLights = false;
+    int mRaymarchVersion = 3;
 
     //Lighting
     unsigned int mLightNumberLocation;
@@ -170,6 +170,7 @@ private:
     glm::mat4x4 mOctreeMatrix;
     float mOctreeDistanceScale;
     float mOctreeMinBorderValue;
+
     std::shared_ptr<sdflib::OctreeSdf> mInputOctree;
     std::shared_ptr<sdflib::OctreeSdf> mInputTricubicOctree;
 

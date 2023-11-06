@@ -100,6 +100,7 @@ void RenderSdf::start()
         mDistanceScaleLocation = glGetUniformLocation(mRenderProgramId, "distanceScale");
         mOctreeMinBorderValueLocation = glGetUniformLocation(mRenderProgramId, "minBorderValue");
 
+
         mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "epsilon");
 
         mBBmaxLocation = glGetUniformLocation(mRenderProgramId, "bbmax");
@@ -117,7 +118,7 @@ void RenderSdf::start()
         mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
         mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
         mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
-        mUseV3Location = glGetUniformLocation(mRenderProgramId, "useV3");
+        mRaymarchVersionLocation = glGetUniformLocation(mRenderProgramId, "raymarchVersion");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -207,7 +208,7 @@ void RenderSdf::start()
 
     mOctreeStartGridSize = mInputOctree->getStartGridSize();
     float minNodeSize = mInputOctree->getSampleArea().getSize().x / float(1 << mInputOctree->getOctreeMaxDepth());
-    mEpsilon = minNodeSize / 1024.0f;
+    mEpsilon = minNodeSize / 128.0f;
     mInputOctree = nullptr; // We do not need the octree in the CPU any more
     mInputTricubicOctree = nullptr;
 }
@@ -263,7 +264,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
     glUniform1i(mDrawPlaneLocation, mDrawPlane);
     glUniform1i(mDrawLightsLocation, mDrawLights);
-    glUniform1i(mUseV3Location, mUseV3);
+    glUniform1i(mRaymarchVersionLocation, mRaymarchVersion);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
@@ -316,9 +317,8 @@ void RenderSdf::drawGui()
     {
         ImGui::Begin("Scene");
         ImGui::Text("Scene Settings");
-        ImGui::Checkbox("Draw Plane", &mDrawPlane);
-        if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
-        ImGui::Checkbox("V3", &mUseV3);
+        //ImGui::Checkbox("Draw Plane", &mDrawPlane);
+        //if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
         ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
         ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
@@ -350,12 +350,12 @@ void RenderSdf::drawGui()
     if (mShowSdfModelGUI)
     {
         ImGui::Begin("Model Settings");
-        ImGui::Text("Transform");
-        ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
+        //ImGui::Text("Transform");
+        //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
         //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
-        ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
-        ImGui::Spacing();
-        ImGui::Separator();
+        //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
+       // ImGui::Spacing();
+        //ImGui::Separator();
         ImGui::Text("Material");
         ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
         ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
@@ -367,6 +367,7 @@ void RenderSdf::drawGui()
     if (mShowAlgorithmGUI) 
     {
         ImGui::Begin("Algorithm Settings");
+        ImGui::SliderInt("Version", &mRaymarchVersion, 1, 3);
         ImGui::InputInt("Max Iterations", &mMaxIterations);
         ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
         ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);

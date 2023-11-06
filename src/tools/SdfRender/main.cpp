@@ -72,6 +72,7 @@ public:
                 if (ImGui::MenuItem("Load Sdf")) 
                 {
                     strncpy( buf, mSdfPath.c_str(), sizeof(buf)-1 );
+                    strncpy(bufTri, mSdfTricubicPath.c_str(), sizeof(bufTri) - 1);
                     mShowLoadSdfWindow = true;
                 }	
                 
@@ -137,7 +138,7 @@ int main(int argc, char** argv)
     }
 
     //MyScene scene(args::get(modelPathArg));
-    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunny.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyTri.bin");
+    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyIsoLin.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin");
     MainLoop loop;
     loop.start(scene, "SdfRender");
 }
