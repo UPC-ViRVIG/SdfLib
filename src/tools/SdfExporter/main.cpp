@@ -29,16 +29,23 @@ int main(int argc, char** argv)
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
     args::Positional<std::string> outputPathArg(parser, "output_path", "Output path");
+
     args::ValueFlag<float> cellSizeArg(parser, "cell_size", "The voxel size of the voxelization", {'c', "cell_size"});
+
     args::ValueFlag<uint32_t> depthArg(parser, "depth", "The octree subdivision depth", {'d', "depth"});
     args::ValueFlag<uint32_t> startDepthArg(parser, "start_depth", "The octree start depth", {"start_depth"});
+    
+    args::ValueFlag<std::string> terminationRuleArg(parser, "termination_rule", "The heuristic used to decide if one node has to be subdivided. It supports: trapezoidal_rule, by_distance_rule", {"termination_rule"});
 	args::ValueFlag<float> terminationThresholdArg(parser, "termination_threshold", "Octree generation termination threshold", {"termination_threshold"});
+    args::ValueFlag<float> terminationThresholdByDistanceArg(parser, "termination_threshold_by_distance", "Octree generation termination threshold by distance. Only supported when the termination rule is by_distance_rule", {"termination_threshold_by_distance"});
+    args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
+
 	args::ValueFlag<std::string> sdfFormatArg(parser, "sdf_format", "It supports two formats: octree, grid, exact_octree", {"sdf_format"});
     args::ValueFlag<std::string> octreeAlgorithmArg(parser, "algorithm", "Select the algoirthm to generate the octree. It supports: uniform, no_continuity, continuity", {"algorithm"});
-    args::ValueFlag<uint32_t> minTrianglesPerNode(parser, "min_triangles_per_node", "The minimum acceptable number of triangles per leaf in the octree", {"min_triangles_per_node"});
     args::Flag normalizeBBArg(parser, "normalize_model", "Normalize the model coordinates", {'n', "normalize"});
-    args::ValueFlag<uint32_t> numThreadsArg(parser, "num_threads", "Set the application maximum number of threads", {"num_threads"});
     args::ValueFlag<float> bbMarginArg(parser, "bb_margin", "Percentage of margin added between the structure BB and the model BB", {"bb_margin"});
+
+    args::ValueFlag<uint32_t> numThreadsArg(parser, "num_threads", "Set the application maximum number of threads", {"num_threads"});
 
     try
     {
@@ -112,12 +119,32 @@ int main(int argc, char** argv)
             return 0;
         }
 
+        std::optional<OctreeSdf::TerminationRule> terminationRuleOpt = OctreeSdf::stringToTerminationRule((terminationRuleArg) ? args::get(terminationRuleArg) : "trapezoidal_rule");
+        if(terminationRuleArg && !terminationRuleOpt)
+        {
+            std::cerr << initAlgorithmStr << " is not a valid supported octree generation algorithm" << std::endl;
+            return 0;
+        }
+
+        OctreeSdf::TerminationRule terminationRule = terminationRuleOpt.value();
+        OctreeSdf::TerminationRuleParams terminationRuleParams = OctreeSdf::TerminationRuleParams::setNoneRuleParams();
+        if(terminationRule == OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE || terminationRule == OctreeSdf::TerminationRule::SIMPSONS_RULE)
+        {
+            terminationRuleParams = OctreeSdf::TerminationRuleParams::setTrapezoidalRuleParams((terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f);
+        }
+        else if(terminationRule == OctreeSdf::TerminationRule::BY_DISTANCE_RULE)
+        {
+            terminationRuleParams = OctreeSdf::TerminationRuleParams::setByDistanceRuleParams(
+                    (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
+                    (terminationThresholdByDistanceArg) ? args::get(terminationThresholdByDistanceArg) : 0.0f);
+        }
+
         timer.start();
         sdfFunc = std::unique_ptr<OctreeSdf>(new OctreeSdf(
             mesh, box, 
             (depthArg) ? args::get(depthArg) : 8,
             (startDepthArg) ? args::get(startDepthArg) : 1,
-            (terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3f,
+            terminationRule, terminationRuleParams,
             initAlgorithm,
             (numThreadsArg) ? args::get(numThreadsArg) : 1
         ));

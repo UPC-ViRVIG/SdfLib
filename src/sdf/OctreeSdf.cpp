@@ -21,7 +21,23 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
                      OctreeSdf::InitAlgorithm initAlgorithm,
                      uint32_t numThreads)
 {
-    const OctreeSdf::TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE;
+    buildOctree(mesh, box, depth, startDepth, 
+                OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE, 
+                TerminationRuleParams::setTrapezoidalRuleParams(terminationThreshold),
+                initAlgorithm, numThreads);
+}
+
+OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+                     TerminationRule terminationRule, TerminationRuleParams params,
+                     InitAlgorithm initAlgorithm, uint32_t numThreads)
+{
+    buildOctree(mesh, box, depth, startDepth, terminationRule, params, initAlgorithm, numThreads);
+}
+
+void OctreeSdf::buildOctree(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+                            TerminationRule terminationRule, TerminationRuleParams params,
+                            InitAlgorithm initAlgorithm, uint32_t numThreads)
+{
     mMaxDepth = depth;
 
     const glm::vec3 bbSize = box.getSize();
@@ -41,18 +57,18 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             break;
         case OctreeSdf::InitAlgorithm::NO_CONTINUITY:
             // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
-            initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+            initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationRule, params, numThreads);
             //initOctree<FCPWQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
         case OctreeSdf::InitAlgorithm::CONTINUITY:
             //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             if(DELAY_NODE_TERMINATION)
             {
-                initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
+                initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth,terminationRule, params);
             }
             else
             {
-                initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
+                initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationRule, params, numThreads);
             }
             break;
         // case OctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:

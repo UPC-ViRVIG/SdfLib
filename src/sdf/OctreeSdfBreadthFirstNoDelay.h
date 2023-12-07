@@ -82,16 +82,17 @@ struct BreadthFirstNoDelayNodeInfo
 
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
-                              uint32_t numThreads)
+                                                OctreeSdf::TerminationRule terminationRule,
+                                                OctreeSdf::TerminationRuleParams terminationRuleParams,
+                                                uint32_t numThreads)
 {
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef BreadthFirstNoDelayNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
 
-    // terminationThreshold = terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
-    // const float sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
-    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
+
+    // Line for using the error regadring the voxel diagonal
+    // sqTerminationThreshold *= glm::length(mesh.getBoundingBox().getSize()) * glm::length(mesh.getBoundingBox().getSize());
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -345,16 +346,15 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     switch(terminationRule)
                     {
                         case TerminationRule::TRAPEZOIDAL_RULE:
-                            {
-                            // float value1 = estimateFaceErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            // float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            // generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
                             value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             generateTerminalNodes = value < sqTerminationThreshold;
-                            }
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            generateTerminalNodes = value < sqTerminationThreshold;
+                            break;
+                        case TerminationRule::BY_DISTANCE_RULE:
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues, terminationRuleParams[1]);
                             generateTerminalNodes = value < sqTerminationThreshold;
                             break;
                         case TerminationRule::NONE:

@@ -90,12 +90,13 @@ inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 cur
 
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
+                                         OctreeSdf::TerminationRule terminationRule,
+                                         TerminationRuleParams terminationRuleParams)
 {
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef BreadthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    const float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -305,6 +306,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
+                            break;
+                        case TerminationRule::BY_DISTANCE_RULE:
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, terminationRuleParams[1]);
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;

@@ -85,6 +85,59 @@ inline float estimateErrorFunctionIntegralByTrapezoidRule(const std::array<float
 }
 
 template<typename Inter>
+inline float estimateDecayErrorFunctionIntegralByTrapezoidRule(const std::array<float, Inter::NUM_COEFFICIENTS>& interpolationCoeff,
+                                                               const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints,
+                                                               float errorDecayByDistance)
+{
+    float error = 0.0f;
+    float value;
+
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[0][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[1][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.0f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[2][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[3][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[4][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.0f, 0.5f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[5][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 0.5f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[6][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.0f, 0.5f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[7][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 0.5f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[8][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 0.5f));
+    error += 8.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[9][0] - value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 0.5f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[10][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 1.0f, 0.5f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[11][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 0.5f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[12][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 1.0f, 0.5f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[13][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.0f, 1.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[14][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.0f, 0.5f, 1.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[15][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 0.5f, 1.0f));
+    error += 4.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[16][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(1.0f, 0.5f, 1.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[17][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+    value = Inter::interpolateValue(interpolationCoeff, glm::vec3(0.5f, 1.0f, 1.0f));
+    error += 2.0f / 64.0f * pow2(glm::max(glm::abs(middlePoints[18][0] -value) - errorDecayByDistance * glm::abs(value), 0.0f));
+
+    return error;
+
+}
+
+template<typename Inter>
 inline float estimateFaceErrorFunctionIntegralByTrapezoidRule(const std::array<float, Inter::NUM_COEFFICIENTS>& interpolationCoeff,
                                                           const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints)
 {
