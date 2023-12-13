@@ -229,7 +229,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<uint32_t> nodesToSubdivide;
     std::map<uint32_t, std::pair<uint32_t, uint32_t>> leavesData;
@@ -1172,7 +1172,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     node.isTerminalNode = true;
                     node.ignoreNode = true;
                     nodesBuffer[depth].push_back(node);
-                    leavesData.insert(std::make_pair(node.parentChildrenIndex + (node.childIndices & 0b0111), std::make_pair(depth, nodesBuffer[depth].size()-1)));
+                    leavesData.insert(std::make_pair(node.parentChildrenIndex + static_cast<uint32_t>(node.childIndices & 0b0111), 
+                                      std::make_pair(depth, static_cast<uint32_t>(nodesBuffer[depth].size()-1))));
                 }
 
                 firstIteration = false;

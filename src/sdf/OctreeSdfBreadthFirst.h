@@ -232,7 +232,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
