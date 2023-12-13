@@ -20,6 +20,8 @@ public:
     void update(float deltaTime) override;
     void drawGui() override;
 private:
+    static constexpr bool DISABLE_MOUSE_IN_ROTATION_MODE = false;
+
     float mBaseVelocity = 0.07f;
     float mMaxVelocity = 0.8f;
     float mCurrentVelocity = mBaseVelocity;

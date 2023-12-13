@@ -56,7 +56,7 @@ void NavigationCamera::update(float deltaTime)
     // Set camera rotation
     if (Window::getCurrentWindow().isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) 
     {
-        if(!mInRotationMode) Window::getCurrentWindow().disableMouse();
+        if(!DISABLE_MOUSE_IN_ROTATION_MODE && !mInRotationMode) Window::getCurrentWindow().disableMouse();
         glm::vec2 mousePos = Window::getCurrentWindow().getMousePosition();
         if(mInRotationMode)
         {
@@ -74,7 +74,7 @@ void NavigationCamera::update(float deltaTime)
     }
     else
     {
-        if(mInRotationMode) Window::getCurrentWindow().enableMouse();
+        if(!DISABLE_MOUSE_IN_ROTATION_MODE && mInRotationMode) Window::getCurrentWindow().enableMouse();
         mInRotationMode = false;
     }
 }
