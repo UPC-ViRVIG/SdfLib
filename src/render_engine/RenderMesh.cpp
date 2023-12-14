@@ -84,11 +84,14 @@ void RenderMesh::draw(Camera* camera)
 
 void RenderMesh::drawGui()
 {
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text((systemName == "") ? "RenderMesh" : systemName.c_str());
-    ImGui::Checkbox("Draw Wireframe", &mPrintWireframe);
-	ImGui::Checkbox("Draw Surface", &mPrintSurface);
+	if (mShowMeshGUI) 
+	{
+		std::string name = systemName == "" ? "Default" : systemName.c_str();
+		name += " Settings";
+		ImGui::Begin(name.c_str());
+		ImGui::Checkbox("Draw Wireframe", &mPrintWireframe);
+		ImGui::Checkbox("Draw Surface", &mPrintSurface);
+	}
 }
 
 int getSize(GLenum type) {

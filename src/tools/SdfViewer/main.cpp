@@ -426,14 +426,6 @@ public:
 
 	void update(float deltaTime) override
 	{
-		Scene::update(deltaTime);
-
-		ImGui::Spacing();
-		ImGui::Separator();
-		ImGui::Text("Scene Options");
-
-		bool drawGrid;
-		bool drawIsolines;
 		switch(mSdfFormat)
 		{
 			case SdfFormat::GRID:
@@ -446,9 +438,10 @@ public:
 				break;
 		}
 
-		ImGui::Checkbox("Print grid", &drawGrid);
+		drawGui();
+		Scene::update(deltaTime);
 
-		ImGui::Checkbox("Print Isolines", &drawIsolines);
+
 
 		ImGuiIO& io = ImGui::GetIO();
     	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
@@ -519,44 +512,8 @@ public:
 		if(mMesh.has_value())
 		{
 			bool lastSelectZone = mSelectZone;
-			#ifdef SDFLIB_PRINT_STATISTICS
-				ImGui::Checkbox("Visualize zone", &mSelectZone);
-			#endif
 			if(mSelectZone) 
 			{
-				const char* selectionAlgorithms[] = {
-					"Basic",
-					"Precise",
-					"Per vertex",
-					"Per node region"
-				};
-
-				if(ImGui::BeginCombo("Selection Algorithm", mSelectionAlgorithm))
-				{
-					for (int n = 0; n < IM_ARRAYSIZE(selectionAlgorithms); n++)
-					{
-						bool is_selected = mSelectionAlgorithm == selectionAlgorithms[n];
-						if (ImGui::Selectable(selectionAlgorithms[n], is_selected))
-							std::strcpy(mSelectionAlgorithm, selectionAlgorithms[n]);
-						if (is_selected)
-							ImGui::SetItemDefaultFocus();
-					}
-
-					ImGui::EndCombo();
-				}
-
-				ImGui::Checkbox("Draw influence zone", &mDrawInfluenceZone);
-				ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
-				ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
-				ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
-				ImGui::Checkbox("Print node error", &mPrintNodeError);
-				//ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
-				if(mPrintTrianglesInfluence)
-				{
-					ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
-					ImGui::Checkbox("Print if it has some influence", &mPrintIfSomeInfluence);
-				}
-				ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
 				if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
 				{
 					// Get selected point and selected region
@@ -1107,8 +1064,73 @@ public:
 		}
 
 
-		// Print shortcuts information
+
+	}
+
+	void drawGui() 
+	{
+		if (ImGui::BeginMainMenuBar()) 
 		{
+			if (ImGui::BeginMenu("Options")) 
+			{
+				ImGui::MenuItem("Show options window", NULL, &mShowOptionsGUI);
+				ImGui::EndMenu();		
+			}
+			if (ImGui::BeginMenu("Help")) 
+			{
+				ImGui::MenuItem("Show help window", NULL, &mShowHelpGUI);	
+				ImGui::EndMenu();	
+			}
+			
+			ImGui::EndMenuBar();
+		}
+
+		if (mShowOptionsGUI)
+		{
+			ImGui::Begin("Options");
+			ImGui::Checkbox("Print grid", &drawGrid);
+			ImGui::Checkbox("Print Isolines", &drawIsolines);
+
+			#ifdef SDFLIB_PRINT_STATISTICS
+			ImGui::Checkbox("Visualize zone", &mSelectZone);
+			#endif
+			
+			if(mSelectZone) {
+				if(ImGui::BeginCombo("Selection Algorithm", mSelectionAlgorithm))
+				{
+					for (int n = 0; n < IM_ARRAYSIZE(selectionAlgorithms); n++)
+					{
+						bool is_selected = mSelectionAlgorithm == selectionAlgorithms[n];
+						if (ImGui::Selectable(selectionAlgorithms[n], is_selected))
+							std::strcpy(mSelectionAlgorithm, selectionAlgorithms[n]);
+						if (is_selected)
+							ImGui::SetItemDefaultFocus();
+					}
+
+					ImGui::EndCombo();
+				}
+
+				ImGui::Checkbox("Draw influence zone", &mDrawInfluenceZone);
+				ImGui::Checkbox("Draw optimal influence zone", &mDrawOptimalZone);
+				ImGui::InputInt("Draw influence subdivisions", reinterpret_cast<int*>(&mInfluenceZoneSubdivisions));
+				ImGui::Checkbox("Print triangles influence", &mPrintTrianglesInfluence);
+				ImGui::Checkbox("Print node error", &mPrintNodeError);
+				//ImGui::InputInt("Selected triangle", reinterpret_cast<int*>(&mSelectedTriangle));
+				if(mPrintTrianglesInfluence)
+				{
+					ImGui::InputInt("Num samples for influence computation", reinterpret_cast<int*>(&mInfluenceNumSamples));
+					ImGui::Checkbox("Print if it has some influence", &mPrintIfSomeInfluence);
+				}
+				ImGui::InputInt("Select depth: ", reinterpret_cast<int*>(&mSelectedDepth));
+			}
+
+			ImGui::End();
+		}
+		
+		// Print shortcuts information
+		if (mShowHelpGUI)
+		{
+			ImGui::Begin("Help");
 			ImGui::Spacing();
 			ImGui::Separator();
 			ImGui::Text("-> Shortcuts:");
@@ -1127,8 +1149,11 @@ public:
 			ImGui::Text("Key 4: Align plane normal to -Z axis");
 			ImGui::Text("Key 5: Align plane normal to -Y axis");
 			ImGui::Text("Key 6: Align plane normal to -X axis");
+			ImGui::End();
 		}
 	}
+
+	
 private:
 	std::unique_ptr<SdfPlaneShader> mGridPlaneShader;
 	std::unique_ptr<SdfOctreePlaneShader> mOctreePlaneShader;
@@ -1179,6 +1204,19 @@ private:
 	std::optional<float> mTerminationThreshold;
 	std::optional<OctreeSdf::TerminationRule> mTerminationRule;
 	bool mNormalizeModel;
+
+	bool drawGrid = true;
+	bool drawIsolines = true;
+
+	//GUI
+	bool mShowOptionsGUI = false;
+	bool mShowHelpGUI = false;
+	const char* selectionAlgorithms[4] = {
+		"Basic",
+		"Precise",
+		"Per vertex",
+		"Per node region"
+	};
 };
 
 int main(int argc, char** argv)
@@ -1241,7 +1279,7 @@ int main(int argc, char** argv)
 			(normalizeBBArg) ? true : false
 		);
 		MainLoop loop;
-		loop.start(scene);
+		loop.start(scene, "SdfViewer");
 	}
 	else if(sdfFormat == "grid")
 	{
@@ -1252,7 +1290,7 @@ int main(int argc, char** argv)
 				(cellSizeArg) ? args::get(cellSizeArg) : 0.1f
 			);
 			MainLoop loop;
-			loop.start(scene);
+			loop.start(scene, "SdfViewer");
 		}
 		else
 		{
@@ -1261,7 +1299,7 @@ int main(int argc, char** argv)
 				(depthArg) ? args::get(depthArg) : 5
 			);
 			MainLoop loop;
-			loop.start(scene);
+			loop.start(scene, "SdfViewer");
 		}
 	}
 	else if(sdfFormat == "octree")
@@ -1274,6 +1312,6 @@ int main(int argc, char** argv)
 			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;
-		loop.start(scene);
+		loop.start(scene, "SdfViewer");
 	}	
 }

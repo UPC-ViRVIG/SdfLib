@@ -34,6 +34,7 @@ public:
 	bool isDrawingWireframe() { return mPrintWireframe; }
 	void drawSurface(bool b) { mPrintSurface = b; }
 	bool isDrawingSurface() { return mPrintSurface; }
+    void setShowGui(bool b) { mShowMeshGUI = b; }
 
     const glm::mat4x4& getTransform() const { return mTransform; }
     void setTransform(glm::mat4x4 transfrom) { mTransform = transfrom; }
@@ -46,6 +47,8 @@ private:
         unsigned int VBO;
         size_t elementsSize;
     };
+
+    bool mShowMeshGUI = false;
 
     bool mMeshAllocated = false;
     unsigned int mVAO;        

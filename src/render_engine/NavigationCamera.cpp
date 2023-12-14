@@ -81,19 +81,35 @@ void NavigationCamera::update(float deltaTime)
 
 void NavigationCamera::drawGui()
 {
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Camera");
-    Camera::drawGui();
-    ImGui::InputFloat("Base velocity", &mBaseVelocity);
-    ImGui::InputFloat("Max velocity", &mMaxVelocity);
-    ImGui::InputFloat("Acceleration", &mAcceleration);
-    ImGui::InputFloat("Rotation velocity", &mRotationVelocity);
+    if (ImGui::BeginMainMenuBar()) 
+    {
+        if (ImGui::BeginMenu("Camera")) 
+        {
 
-    ImGui::InputFloat3("Camera position", reinterpret_cast<float*>(&mPosition));
-    ImGui::InputFloat2("Camera rotation", reinterpret_cast<float*>(&mEulerAngles));
-    setOrientation(
-        glm::angleAxis(mEulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f)) *
-        glm::angleAxis(mEulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f))
-    );
+            ImGui::MenuItem("Show camera settings", NULL, &mShowGUI);		
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    if (mShowGUI) 
+    {
+        ImGui::Begin("Camera Control");
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("Camera");
+        Camera::drawGui();
+        ImGui::InputFloat("Base velocity", &mBaseVelocity);
+        ImGui::InputFloat("Max velocity", &mMaxVelocity);
+        ImGui::InputFloat("Acceleration", &mAcceleration);
+        ImGui::InputFloat("Rotation velocity", &mRotationVelocity);
+
+        ImGui::InputFloat3("Camera position", reinterpret_cast<float*>(&mPosition));
+        ImGui::InputFloat2("Camera rotation", reinterpret_cast<float*>(&mEulerAngles));
+        setOrientation(
+            glm::angleAxis(mEulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f)) *
+            glm::angleAxis(mEulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f))
+        );
+        ImGui::End();
+    }
 }

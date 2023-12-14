@@ -8,10 +8,10 @@ class NavigationCamera : public Camera
 public:
     NavigationCamera() : 
         mBaseVelocity(0.07f),
-        mMaxVelocity(0.8f),
+        mMaxVelocity(4.0f),
         mCurrentVelocity(mBaseVelocity),
-        mAcceleration(0.35f),
-        mRotationVelocity(0.05f),
+        mAcceleration(1.0f),
+        mRotationVelocity(2.0f),
         mInRotationMode(false),
         mLastMousePosition(0.0f),
         mEulerAngles(0.0f)
@@ -21,12 +21,13 @@ public:
     void drawGui() override;
 private:
     float mBaseVelocity = 0.07f;
-    float mMaxVelocity = 0.8f;
+    float mMaxVelocity = 4.0f;
     float mCurrentVelocity = mBaseVelocity;
-    float mAcceleration = 0.35f;
+    float mAcceleration = 1.0f;
 
-    float mRotationVelocity = 0.05f;
+    float mRotationVelocity = 2.0f;
     bool mInRotationMode = false;
+    bool mShowGUI = false;
     glm::vec2 mLastMousePosition;
     glm::vec2 mEulerAngles;
 };

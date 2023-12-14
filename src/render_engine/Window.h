@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <assert.h>
 #include <vector>
+#include <string>
 
 #ifndef NDEBUG
 #define USE_VALIDATION_LAYERS
@@ -23,6 +24,7 @@ public:
         assert(mCurrentWindow != nullptr);
         return *mCurrentWindow;
     }
+	void setWindowName(std::string name) {mWindowName = name;};
 
     bool start();
 	bool shouldClose();
@@ -44,6 +46,7 @@ private:
     GLFWwindow* mGlfwWindow;
 	glm::vec4 mBackgroundColor;
 	glm::ivec2 mWindowSize;
+	std::string mWindowName = "DefaultWindow";
 };
 
 #endif

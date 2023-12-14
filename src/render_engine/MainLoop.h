@@ -7,10 +7,12 @@ class MainLoop {
 public:
 	MainLoop() {}
     MainLoop(int fpsTarget) : mFpsTarget(fpsTarget) {}
-	void start(Scene& scene);
+	void start(Scene& scene, std::string name);
 	void setFpsTarget(int fps) { mFpsTarget = fps; }
 private:
-	int mFpsTarget = 60;
+	int mFpsTarget = 240;
+	void drawGui();
+	bool mShowGUI = false;
 };
 
 #endif

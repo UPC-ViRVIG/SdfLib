@@ -1,19 +1,29 @@
 #version 460 core
 
-#define MAX_ITERATIONS 1024
+#define MAX_AO_ITERATIONS 8
+#define NEWTON_ITER 1
+#define HALLEY_ITER 1
+#define M_PI 3.14159265358979323846
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
 layout(rgba32f, binding = 0) uniform image2D outputTexture;
 
 uniform vec3 startGridSize;
+
 layout(std430, binding = 3) buffer octree
 {
     uint octreeData[];
 };
 
+layout(std430, binding = 2) buffer octreeTricubic
+{
+    uint octreeTricubicData[];
+};
+
 const uint isLeafMask = 1 << 31;
 const uint childrenIndexMask = ~(1 << 31);
+const uint isMarkedMask = 1 << 30;
 
 uint roundFloat(float a)
 {
@@ -27,7 +37,154 @@ uniform mat4 invViewModelMatrix;
 uniform float distanceScale;
 uniform float minBorderValue;
 
+
+uniform float planePos; 
+
+uniform float epsilon;
+
+//Options
+uniform int maxIterations;
+uniform int maxColorIterations;
+uniform int maxShadowIterations;
+
+
+uniform float overRelaxation;
+uniform bool useAO;
+
+uniform bool drawPlane;
+uniform bool drawLights;
+uniform bool useSoftShadows;
+uniform bool usePerlinNoise;
+uniform bool useItColorMode;
+uniform int raymarchVersion;
+//Lighting
+uniform int lightNumber;
+uniform vec3 lightPos[4];
+uniform float lightIntensity[4];
+uniform vec3 lightColor[4];
+uniform float lightRadius[4];
+
+//Material
+uniform float matMetallic;
+uniform float matRoughness;
+uniform vec3 matAlbedo;
+uniform vec3 matF0;
+
 uniform float time;
+
+//Geometric transformations
+uniform vec3 modelPos;
+uniform vec3 modelScale;
+uniform vec3 modelRot;
+
+//BoundingBox
+uniform vec3 bbmin;
+uniform vec3 bbmax;
+
+//Utils
+float planeSDF(vec3 samplePoint, vec3 n, float h) {
+    return dot(samplePoint,n) + h;
+}
+
+
+float sphereSDF(vec3 samplePoint, float radius) {
+    return length(samplePoint) - radius;
+}
+
+float opSmoothIntersection( float d1, float d2, float k ) 
+{
+    float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) + k*h*(1.0-h); 
+}
+
+mat4 rotateX(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(1, 0, 0, 0),
+        vec4(0, c, -s, 0),
+        vec4(0, s, c, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+mat4 rotateY(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(c, 0, s, 0),
+        vec4(0, 1, 0, 0),
+        vec4(-s, 0, c, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+mat4 rotateZ(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+
+    return mat4(
+        vec4(c, -s, 0, 0),
+        vec4(s, c, 0, 0),
+        vec4(0, 0, 1, 0),
+        vec4(0, 0, 0, 1)
+    );
+}
+
+vec3 rotate(vec3 p, vec3 rot) 
+{
+    mat4 rotX = inverse(rotateX(rot.x));
+    mat4 rotY = inverse(rotateY(rot.y));
+    mat4 rotZ = inverse(rotateZ(rot.z));
+
+    return (rotZ * rotY * rotX * vec4(p, 1)).xyz;
+}  
+
+const float pos_infinity = uintBitsToFloat(0x7F800000);
+const float neg_infinity = uintBitsToFloat(0xFF800000);
+
+//Ray slab intersection
+bool raySlabIntersection(vec3 bbmin, vec3 bbmax, vec3 o, vec3 d_inv, out float tmin, out float tmax) {
+    
+    tmin = neg_infinity;
+    tmax = pos_infinity;
+
+    //x
+    float tx1 = (bbmin.x - o.x) * d_inv.x;
+    float tx2 = (bbmax.x - o.x) * d_inv.x;
+
+    tmin = max(tmin, min(tx1, tx2));
+    tmax = min(tmax, max(tx1, tx2));
+
+    //y
+    float ty1 = (bbmin.y - o.y) * d_inv.y;
+    float ty2 = (bbmax.y - o.y) * d_inv.y;
+
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+
+    //z
+    float tz1 = (bbmin.z - o.z) * d_inv.z;
+    float tz2 = (bbmax.z - o.z) * d_inv.z;
+
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+
+    return tmax >= tmin;
+}
+
+float rayLeafIntersection(vec3 bbmax, vec3 bbmin, vec3 o, vec3 d_inv) {
+    float tx = (((d_inv.x > 0) ? bbmax.x : bbmin.x) - o.x) * d_inv.x;
+    float ty = (((d_inv.y > 0) ? bbmax.y : bbmin.y) - o.y) * d_inv.y;
+    float tz = (((d_inv.z > 0) ? bbmax.z : bbmin.z) - o.z) * d_inv.z;
+
+    if (tx < 0) tx = 1e8;
+    if (ty < 0) ty = 1e8;
+    if (tz < 0) tz = 1e8;
+    return min(tx, min(ty, tz));
+}
 
 // Perlin noise function
 const vec3 g[] = { vec3(1,1,0), vec3(-1,1,0), vec3(1,-1,0), vec3(-1,-1,0),   
@@ -78,7 +235,7 @@ float inoise(vec3 p, int seed)
 }
 
 
-// Light functions
+// Light utils functions
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
@@ -120,49 +277,60 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-// float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength, out float depth)
-// {
-//     vec3 fracPart = point * startGridSize;
-//     ivec3 arrayPos = ivec3(floor(fracPart));
-//     fracPart = fract(fracPart);
+//Access to the sdfOctree
 
-//     if(arrayPos.x < 0 || arrayPos.y < 0 || arrayPos.z < 0 ||
-//        arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
-//     {
-//         vec3 q = abs(point - vec3(0.5)) - 0.5;
-//         return length(max(q, vec3(0.0))) + minBorderValue;
-//     }
+//Access to the sdfOctree
+bool isOutsideGrid(vec3 point) 
+{
+    vec3 fracPart = point * startGridSize;
+    ivec3 arrayPos = ivec3(floor(fracPart));
 
-//     int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
-//                 arrayPos.y * int(startGridSize.x) +
-//                 arrayPos.x;
-//     uint currentNode = octreeData[index];
-//     nodeRelativeLength = 1.0;
-//     depth = 0.0;
+    return arrayPos.x < 0 || arrayPos.y < 0 || arrayPos.z < 0 ||
+       arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z;
+}
 
-//     while(!bool(currentNode & isLeafMask))
-//     {
-//         uint childIdx = (roundFloat(fracPart.z) << 2) + 
-//                         (roundFloat(fracPart.y) << 1) + 
-//                          roundFloat(fracPart.x);
+uint getLeaf(vec3 point, out vec3 leafPos, out float leafSize) 
+{
+    vec3 fracPart = point * startGridSize;
+    ivec3 arrayPos = ivec3(floor(fracPart));
+    fracPart = fract(fracPart);
 
-//         currentNode = octreeData[(currentNode & childrenIndexMask) + childIdx];
-//         fracPart = fract(2.0 * fracPart);
-//         nodeRelativeLength *= 0.5;
-//         depth += 1.0;
-//     }
+    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
+                arrayPos.y * int(startGridSize.x) +
+                arrayPos.x;
+    uint currentNode = octreeData[index];
 
-//     vec3 distToGridAxis = vec3(0.5) - abs(fracPart - vec3(0.5));
-//     distToGrid = min(min(distToGridAxis.x, distToGridAxis.y), distToGridAxis.z);
+    leafSize = 1.0/startGridSize.x;
+    leafPos = vec3(arrayPos)/startGridSize;
+    while(!bool(currentNode & isLeafMask))
+    {
+        uvec3 childPos = uvec3(roundFloat(fracPart.x), roundFloat(fracPart.y), roundFloat(fracPart.z));
+        uint childIdx = (childPos.z << 2) +
+                        (childPos.y << 1) +
+                         childPos.x;
 
-//     uint vIndex = currentNode & childrenIndexMask;
+        currentNode = octreeData[(currentNode & childrenIndexMask) + childIdx];
+        fracPart = fract(2.0 * fracPart);
+        leafSize *= 0.5;
+        leafPos = leafPos + vec3(childPos) * leafSize;
+    }
 
-//     return 0.0f
-//          + uintBitsToFloat(octreeData[vIndex + 0]) + uintBitsToFloat(octreeData[vIndex + 1]) * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 2]) * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 3]) * fracPart[0] * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 4]) * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 8]) * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 12]) * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-//          + uintBitsToFloat(octreeData[vIndex + 16]) * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-//          + uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-//          + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
-// }
+    return currentNode;
+}
+
+void getPolynomial(uint currentNode, out float array[8]) 
+{
+    uint vIndex = currentNode & childrenIndexMask;
+    array[0] = uintBitsToFloat(octreeData[vIndex]);
+    array[1] = uintBitsToFloat(octreeData[vIndex + 1]);
+    array[2] = uintBitsToFloat(octreeData[vIndex + 2]);
+    array[3] = uintBitsToFloat(octreeData[vIndex + 3]);
+    array[4] = uintBitsToFloat(octreeData[vIndex + 4]);
+    array[5] = uintBitsToFloat(octreeData[vIndex + 5]);
+    array[6] = uintBitsToFloat(octreeData[vIndex + 6]);
+    array[7] = uintBitsToFloat(octreeData[vIndex + 7]);
+    return;
+}
 
 float getDistance(vec3 point)
 {
@@ -175,7 +343,6 @@ float getDistance(vec3 point)
             vec3 q = abs(point - vec3(0.5)) - 0.5;
             point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
             return length(max(q, vec3(0.0)))/distanceScale + minBorderValue;
-            //return length(max(q, vec3(0.0)))/distanceScale + getDistance(clampCoord);
     }
 
     fracPart = fract(fracPart);
@@ -197,11 +364,19 @@ float getDistance(vec3 point)
 
     uint vIndex = currentNode & childrenIndexMask;
 
-    return 0.0
-         + uintBitsToFloat(octreeData[vIndex + 0]) + uintBitsToFloat(octreeData[vIndex + 1]) * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 2]) * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 3]) * fracPart[0] * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 4]) * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 8]) * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 12]) * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-         + uintBitsToFloat(octreeData[vIndex + 16]) * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-         + uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-         + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
+    float d00 = uintBitsToFloat(octreeData[vIndex]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
+    float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
+    float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
+    float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
+
+    float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+    float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+
+    return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
 }
 
 vec3 getGradient(vec3 point)
@@ -226,40 +401,199 @@ vec3 getGradient(vec3 point)
 
     uint vIndex = currentNode & childrenIndexMask;
 
-    return normalize(vec3((1 * uintBitsToFloat(octreeData[vIndex + 1]) + 2 * uintBitsToFloat(octreeData[vIndex + 2]) * fracPart[0] + 3 * uintBitsToFloat(octreeData[vIndex + 3]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[1] * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
-        (1 * uintBitsToFloat(octreeData[vIndex + 4]) + 1 * uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] + 2 * uintBitsToFloat(octreeData[vIndex + 8]) * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 12]) * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
-        (1 * uintBitsToFloat(octreeData[vIndex + 16]) + 1 * uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-        + 2 * uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 3 * uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
+    float gx = 0.0;
+    {
+        float d00 = uintBitsToFloat(octreeData[vIndex + 0]) * (1.0f - fracPart.y) +
+                    uintBitsToFloat(octreeData[vIndex + 2]) * fracPart.y;
+        float d01 = uintBitsToFloat(octreeData[vIndex + 1]) * (1.0f - fracPart.y) +
+                    uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.y;
+        float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.y) +
+                    uintBitsToFloat(octreeData[vIndex + 6]) * fracPart.y;
+        float d11 = uintBitsToFloat(octreeData[vIndex + 5]) * (1.0f - fracPart.y) +
+                    uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.y;
+
+        float d0 = d00 * (1.0f - fracPart.z) + d10 * fracPart.z;
+        float d1 = d01 * (1.0f - fracPart.z) + d11 * fracPart.z;
+
+        gx = d1 - d0;
+    }
+
+    float gy = 0.0;
+    float gz = 0.0;
+    {
+        float d00 = uintBitsToFloat(octreeData[vIndex + 0]) * (1.0f - fracPart.x) +
+                    uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
+        float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
+                    uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
+        float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
+                    uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
+        float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
+                    uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
+
+        {
+            float d0 = d00 * (1.0f - fracPart.z) + d10 * fracPart.z;
+            float d1 = d01 * (1.0f - fracPart.z) + d11 * fracPart.z;
+
+            gy = d1 - d0;
+        }
+
+        {
+            float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+            float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+
+            gz = d1 - d0;
+        }
+    }
+
+    return normalize(vec3(gx, gy, gz));
+}
+
+float getDistanceTricubic(vec3 point) //tricubic interpolation
+{
+    vec3 fracPart = point * startGridSize;
+    ivec3 arrayPos = ivec3(floor(fracPart));
+
+    if(arrayPos.x < 0 || arrayPos.y < 0 || arrayPos.z < 0 ||
+       arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
+    {
+            vec3 q = abs(point - vec3(0.5)) - 0.5;
+            //point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
+            return length(max(q, vec3(0.0)))/distanceScale + minBorderValue;
+            //return length(max(q, vec3(0.0)))/distanceScale + getDistance(clampCoord);
+    }
+
+    fracPart = fract(fracPart);
+
+    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
+                arrayPos.y * int(startGridSize.x) +
+                arrayPos.x;
+    uint currentNode = octreeTricubicData[index];
+
+    while(!bool(currentNode & isLeafMask))
+    {
+        uint childIdx = (roundFloat(fracPart.z) << 2) + 
+                        (roundFloat(fracPart.y) << 1) + 
+                         roundFloat(fracPart.x);
+
+        currentNode = octreeTricubicData[(currentNode & childrenIndexMask) + childIdx];
+        fracPart = fract(2.0 * fracPart);
+    }
+
+    uint vIndex = currentNode & childrenIndexMask;
+
+    return 0.0
+         + uintBitsToFloat(octreeTricubicData[vIndex + 0]) + uintBitsToFloat(octreeTricubicData[vIndex + 1]) * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 2]) * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 3]) * fracPart[0] * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 4]) * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 8]) * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 12]) * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+         + uintBitsToFloat(octreeTricubicData[vIndex + 16]) * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+         + uintBitsToFloat(octreeTricubicData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+         + uintBitsToFloat(octreeTricubicData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
+}
+
+
+vec3 getGradientTricubic(vec3 point) //tricubic interpolation
+{
+    vec3 fracPart = point * startGridSize;
+    ivec3 arrayPos = ivec3(floor(fracPart));
+    fracPart = fract(fracPart);
+    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
+                arrayPos.y * int(startGridSize.x) +
+                arrayPos.x;
+    uint currentNode = octreeTricubicData[index];
+
+    while(!bool(currentNode & isLeafMask))
+    {
+        uint childIdx = (roundFloat(fracPart.z) << 2) + 
+                        (roundFloat(fracPart.y) << 1) + 
+                         roundFloat(fracPart.x);
+
+        currentNode = octreeTricubicData[(currentNode & childrenIndexMask) + childIdx];
+        fracPart = fract(2.0 * fracPart);
+    }
+
+    uint vIndex = currentNode & childrenIndexMask;
+
+    return normalize(vec3((1 * uintBitsToFloat(octreeTricubicData[vIndex + 1]) + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 2]) * fracPart[0] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 3]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[1] * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
+        (1 * uintBitsToFloat(octreeTricubicData[vIndex + 4]) + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 8]) * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 12]) * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
+        (1 * uintBitsToFloat(octreeTricubicData[vIndex + 16]) + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+        + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 32]) * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+        + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
     ));
 }
 
-const vec3 planePosition = vec3(-0.5, -0.255, -0.5);
 
-float opSmoothIntersection( float d1, float d2, float k ) {
-    float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
-    return mix( d2, d1, h ) + k*h*(1.0-h); }
 
+//SCENE
+//SDF of the scene
 float map(vec3 pos)
 {
-    vec3 aPos = pos + planePosition;
-    float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
-    float distToObj = opSmoothIntersection(distanceScale * getDistance(pos), noiseValue, 0.006);
-    // float distToObj = distanceScale * getDistance(pos);
-    return min(distToObj, max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07)) * 0.6;
+    float distToObj = distanceScale * getDistance((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
+    if (usePerlinNoise) 
+    {
+        float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
+        distToObj = opSmoothIntersection(distToObj, noiseValue, 0.006);
+    }
+
+    float plane = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
+    
+    if (!drawPlane) return distToObj;
+    return min(distToObj, plane);
 }
 
+float mapTri(vec3 pos)
+{
+    float distToObj = distanceScale * getDistanceTricubic((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
+    if (usePerlinNoise) 
+    {
+        float noiseValue = (inoise(35.0 * (pos + vec3(0, 0.01 * time, 0)), 22222) - 0.025)/35.0;
+        distToObj = opSmoothIntersection(distToObj, noiseValue, 0.006);
+    }
+
+    float plane = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
+    
+    if (!drawPlane) return distToObj;
+    return min(distToObj, plane);
+}
+
+float mapLights(vec3 pos)
+{
+    float dist = distanceScale * sphereSDF(pos-lightPos[0], lightRadius[0]);
+    for (int i = 1; i < lightNumber; i++)
+    {
+        dist = min(dist, distanceScale * sphereSDF(pos-lightPos[i], lightRadius[i]));
+    }
+    return dist;
+}
+
+//Gradient of the scene
+vec3 mapGradient(vec3 pos)
+{
+    // Get the exact gradient
+    // vec3 aPos = pos + planePosition;
+    // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
+    // return (fd < epsilon) 
+    //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
+    //         : getGradient(pos);
+
+    // Get an approximation of the gradient
+    float dist = mapTri(pos);
+    return normalize(vec3(
+        mapTri(pos + vec3(epsilon, 0, 0)) - dist,
+        mapTri(pos + vec3(0, epsilon, 0)) - dist,
+        mapTri(pos + vec3(0, 0, epsilon)) - dist
+    ));
+}
+
+//LIGHTING
 float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
     float decay = 1.0;
-    for(int i=0; i < 8; i++)
+    for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
         float h = 0.002 + 0.1 * float(i)/8.0;
         float d = map(pos + n * h);
@@ -267,27 +601,9 @@ float getAO(vec3 pos, vec3 n)
         decay *= 0.8;
     }
 
-    return min(1.0 - 1.9 * occ, 1.0);
+    return min(1.0 - 1.5 * occ, 1.0);
 }
 
-float softshadow(vec3 ro, vec3 rd)
-{
-    float res = 1.0;
-    float ph = 1e20;
-    float t = 0.005;
-    for( int i=0; i < 256 && t < 5.0; i++ )
-    {
-        float h = map(ro + rd*t);
-        if( h < 1e-3 ) return 0.0;
-        // float y = h * h / (2.0 * ph);
-        // float d = sqrt(h * h - y * y);
-        // res = min(res, d / max(0.0,t-y));
-        res = min(res, h/t);
-        ph = h;
-        t += h;
-    }
-    return res;
-}
 
 float softshadowToPoint(vec3 ro, vec3 rd, float far)
 {
@@ -297,7 +613,7 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
     for( int i=0; i < 512 && t < far; i++ )
     {
         float h = map(ro + rd*t);
-        if( h < 1e-3 ) return 0.0;
+        if( h < epsilon ) return 0.0;
         // float y = h * h / (2.0 * ph);
         // float d = sqrt(h * h - y * y);
         // res = min(res, d / max(0.0,t-y));
@@ -308,57 +624,109 @@ float softshadowToPoint(vec3 ro, vec3 rd, float far)
     return res;
 }
 
-vec3 mapGradient(vec3 pos)
+//Attempt to apply over relaxation to soft shadows too
+float softshadowOR(vec3 ro, vec3 rd, float far, float omega, float w)
 {
-    // Get the exact gradient
-    // vec3 aPos = pos + planePosition;
-    // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
-    // return (fd < 1e-4) 
-    //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
-    //         : getGradient(pos);
+    float res = 1.0;
+    float ph = 0.0;
+    float t = 0.005;
+    float stepLength = 0.0;
+    for( int i=0; i < maxShadowIterations && t < far; i++ )
+    {
+        float h = map(ro + rd * t);
+        bool fail = omega > 1.0f && (h + ph) < stepLength;
+        if (fail)
+        {
+            stepLength -= omega * stepLength;
+            omega = 1.0f;
+        }
+        else
+        {
+            stepLength = h * omega;
+        }
+        if(!fail && h < epsilon ) return 0.0;
+        if (!fail) 
+        {
+            res = min(res, w*h/t);
+        } 
 
-    // Get an approximation of the gradient
-    float dist = map(pos);
-    return normalize(vec3(
-        map(pos + vec3(1e-4, 0, 0)) - dist,
-        map(pos + vec3(0, 1e-4, 0)) - dist,
-        map(pos + vec3(0, 0, 1e-4)) - dist
-    ));
+        ph = h;
+        t += stepLength;
+    }
+    return res;
+}
+
+//Inigo Quilez improved soft shadow
+float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+{
+    float res = 1.0;
+    float t = mint;
+    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+    {
+        float h = mapTri(ro + t*rd);
+        res = min( res, h/(w*t) );
+        t += clamp(h, 0.005, 0.50);
+        if( res<-1.0 || t>maxt ) break;
+    }
+    res = max(res,-1.0);
+    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
+}
+
+//procedural checker texture for the plane
+vec3 planeTexture(vec3 pos) 
+{
+    if (pos.x < 0.0) pos.x -= 1.0f;
+    if (pos.z < 0.0) pos.z -= 1.0f;
+    if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.25, 0.25, 0.25);
+    return vec3(0.5, 0.5, 0.5);
 }
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)
 {
-    float metallic = 0.1;
-    float roughness = 0.7;
-
-    vec3 N = mapGradient(pos);
+    //Approximate normal
+    vec3 N = getGradientTricubic(pos);
+    //View vector
     vec3 V = normalize(cameraPos - pos);
 
-    vec3 aPos = pos + planePosition;
-    float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
+    //Plane vs model
+    float planeDist = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
+    float objDist = distanceScale * getDistanceTricubic((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
 
-    // Object color
-    vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(26.0 / 255.0, 1.0, 102.0 / 255.0);
-    // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : vec3(0.9, 0.15, 0.15);
-    // vec3 albedo = (fd < 1e-4) ? vec3(0.7, 0.7, 0.7) : abs(normalize(N));
+    // Object material
+    float metallic, roughness;
+    vec3 albedo, F0;
 
-    vec3 F0 = vec3(0.07, 0.07, 0.07); 
-    F0 = mix(F0, albedo, metallic);
+    if (drawPlane) {
+        metallic =  (planeDist < objDist) ? 0.1 : matMetallic;
+        roughness = (planeDist < objDist) ? 0.1 : matRoughness;
+        albedo = (planeDist < objDist) ? planeTexture(pos) : matAlbedo;
+        F0 = (planeDist < objDist) ? mix(vec3(0.07f), albedo, metallic): mix(matF0, albedo, metallic);
+    }
 
-    vec3 Lo = vec3(0.0);
-    // Directional light
+    else
     {
-        // Light position
-        vec3 lightPos = vec3(0.873572, 1.42857, 1.09321);
-        float distToLight = length(lightPos - pos);
+        metallic = matMetallic;
+        roughness = matRoughness;
+        albedo = matAlbedo;
+        F0 = mix(matF0, albedo, metallic);
+    } 
+ 
+    vec3 Lo = vec3(0.0);
 
-        vec3 L = normalize(lightPos - pos);
+    // Directional lights
+    for (int i = 0; i < lightNumber; i++) 
+    {
+        float distToLight = length(lightPos[i] - pos);
+        vec3 L = normalize(lightPos[i] - pos);
         vec3 H = normalize(V + L);
-        vec3 sunColor = 10.0 * vec3(1.0, 0.8, 0.6); // Mix light color and intensity
-        // float intensity = min(softshadow(pos + 0.001 * N, L)/0.363, 1.0);
-        float coneAngle = atan(0.0961538/distToLight);
-        float intensity = min(atan(softshadowToPoint(pos + 0.0001 * N, L, distToLight)) / coneAngle, 1.0);
-        // float intensity = 1.0;
+
+        vec3 sunColor = lightIntensity[i] * lightColor[i];
+
+        float coneAngle = atan(lightRadius[i]/distToLight);
+        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
+        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
+        //float intensity = useSoftShadows ? clamp(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation, 1.0/solidAngle), 0.0, 1.0) : 1.0f;
+        float intensity = useSoftShadows ? softshadow(pos + epsilon * N, L, 0.005, distToLight, solidAngle) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
         // Cook-torrance brdf
@@ -371,7 +739,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         kD *= 1.0 - metallic;	  
         
         vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
         vec3 specular = numerator / denominator;  
             
         // Add to outgoing radiance Lo
@@ -379,7 +747,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.5) * albedo * getAO(pos, N); // Ambient light estimation
+    vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));
@@ -388,60 +756,528 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     return color;
 }
 
-// bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos, out float distToGrid, out float nodeRelativeLength, out float depth)
+//RAY MARCHING ALGORITHM
+
+//Original
 bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
 {
     float accDistance = 0.0;
     vec3 pos = startPos;
     float lastDistance = 1e8;
     uint it = 0;
-    while (lastDistance > 1e-5 && accDistance < nearAndFarPlane.y && it < MAX_ITERATIONS)
+    while (lastDistance > epsilon && accDistance < nearAndFarPlane.y && it < maxIterations)
     {
         resultPos = pos;
         // lastDistance = distanceScale * getDistance(pos, distToGrid, nodeRelativeLength, depth);
-        lastDistance = map(pos);
+        lastDistance = distanceScale * getDistanceTricubic(pos);
         float dist = max(lastDistance, 0.0);
         accDistance += dist;
         pos += dir * dist;
         it += 1;
     }
-    return lastDistance < 1e-5;
+    return lastDistance < epsilon;
 }
 
-// std::array<glm::vec3, 5> colorsPalette = 
-// {
-//     glm::vec3(1.0f, 0.0f, 1.0f), 
-//     glm::vec3(0.0f, 0.0f, 1.0f), 
-//     glm::vec3(0.0f, 1.0f, 0.0f), 
-//     glm::vec3(1.0f, 1.0f, 0.0f), 
-//     glm::vec3(1.0f, 0.0f, 0.0f),
-// };
+//Mine
+float rayMarchOR(vec3 o, vec3 d, float omega, float t_min, float t_max) 
+{
+    float t = t_min;
+    float previousDist = 0.0;
+    float stepLength = 0.0;
+    //float functionSign = map(o) < 9 ? -1 : 1;
+    vec3 dir = d + t_max;
+    vec3 dir_inv = 1.0 / dir;
+    float t_in, t_out;
+    bool intersectBB = raySlabIntersection(vec3(0), vec3(1), o, dir_inv, t_in, t_out);
+    for (int i = 0; i < (useItColorMode ? maxColorIterations : maxIterations); i++) 
+    {
+        //compute the distance in current point along the ray
+        //float signedDist = functionSign * map(o + d * t);
+        float dist;
+        if (intersectBB) dist = map(o + d * t);
+        else if (drawPlane) dist = distanceScale * planeSDF(o + d * t, vec3(0.0f, 1.0f, 0.0f), planePos);
+        else return t_max;
+        //dist = map(o + d * t);  
+        //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
+        bool fail = omega > 1.0f && (dist + previousDist) < stepLength;
+        if (fail)
+        {
+            //backtrack
+            stepLength -= omega * stepLength;
+            omega = 1.0f;
+        }
+        else 
+        {
+            //advance using overrelaxation parameter
+            stepLength = dist * omega;
+        }
 
-const int paletteNumColors = 5;
-const vec3 palette[5] = vec3[5](
-    vec3(1.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 0.0f, 1.0f), 
-    vec3(0.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 1.0f, 0.0f), 
-    vec3(1.0f, 0.0f, 0.0f)
-);
+        //update previous distance
+        previousDist = dist;
 
+        //if we hit something, return the distance
+        if (!fail && dist < epsilon)
+        {
+            if (useItColorMode) return i;
+            return t;
+        }
+        
+        if ( !fail && t > t_max) 
+        {
+            if (useItColorMode) return maxIterations;
+            return t_max;
+        } 
+
+        t += stepLength; 
+        
+        //if we are too far away, return the far plane
+    }
+    
+    //if we didn't hit anything, return the far plane
+    if (useItColorMode) return maxIterations;
+    return t_max;
+}
+
+bool raymarchV1(vec3 startPos, vec3 dir, out vec3 resultPos, float tmax)
+{
+    float accDistance = 0.0f;
+    vec3 pos = startPos;
+    float lastDistance = 1e8;
+    int it = 0;
+    while (lastDistance > epsilon && accDistance < tmax && it < maxIterations)
+    {
+        resultPos = pos;
+        lastDistance = map(pos);
+        float dist = max(lastDistance, 0.0f);
+        accDistance += dist;
+        pos += dir * dist;
+        it += 1;
+    }
+    return lastDistance < epsilon;
+}
+
+//marches nodes until leaf with surface is found
+float marchNodes(vec3 o, float t_end, vec3 dir, vec3 d_inv, out vec3 leafPos, out float leafSize)
+{
+    float t = 0;
+    while (t < t_end) {
+        vec3 nodePos;
+        float nodeSize;
+
+        //if (isOutsideGrid(o + dir * t)) return 1e8;
+
+        uint leafNode = getLeaf(o + dir * t, leafPos, leafSize); //problem is here maybe?
+
+        if (bool(leafNode & isMarkedMask))
+        {
+            return t;
+        }
+
+        vec3 leafBBmax;
+        vec3 leafBBmin;
+
+        leafBBmax = leafPos + leafSize;
+        leafBBmin = leafPos;
+
+
+        t += rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, d_inv);
+        t += epsilon;
+    }
+    return 1e8;
+}
+
+bool raymarchV2(vec3 o, vec3 dir, out vec3 result)
+{
+    vec3 dir_inv = vec3(1/dir.x, 1/dir.y, 1/dir.z);
+    float t_in;
+    float t_out;
+    bool intersect = raySlabIntersection(vec3(0), vec3(1), o, dir_inv, t_in, t_out);
+
+    //intersect bounding box first, if no intersection return false automatically
+    if (!intersect) return false;
+    
+    //works until here
+    float t_end = t_out;
+
+    vec3 leafPos;
+    float leafSize;
+
+    float t = t_in + epsilon;
+
+    while (t <= t_end)
+    {
+        t += marchNodes(o + dir * t, t_end, dir, dir_inv, leafPos, leafSize);
+        vec3 leafBBmax = leafPos + leafSize;
+        vec3 leafBBmin = leafPos;
+        float t_int = rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, dir_inv);
+
+        if (raymarchV1(o + dir * t, dir, result, t_int)) return true;
+        t += t_int + epsilon;
+    }
+
+    return false;    
+}
+
+bool isInsideNode(vec3 p, vec3 cubeMin, vec3 cubeMax)
+{
+    bool insideX, insideY, insideZ;
+    insideX = p.x >= cubeMin.x && p.x <= cubeMax.x;
+    insideY = p.y >= cubeMin.y && p.y <= cubeMax.y;
+    insideZ = p.z >= cubeMin.z && p.z <= cubeMax.z;
+    return insideX && insideY && insideZ;
+}
+
+float evalCubic(float[4] eq, float x)
+{
+    return ((eq[0] * x + eq[1]) * x + eq[2]) * x + eq[3];
+}
+
+float evalCubicDerivative(float[4] eq, float x)
+{
+    return (3.0f * eq[0] * x + 2.0f * eq[1]) * x + eq[2];
+}
+
+void improveRoots(float[4] eq, inout float[3] roots, float num)
+{
+    // We are going to improve the provided roots using 1 iteration of Newton-Raphson
+    float eval, der;
+
+    for (unsigned int i = 0; i < num; i++)
+    {
+        eval = evalCubic(eq, roots[i]);
+        if (abs(eval) > 1e-6)
+        {
+            der = evalCubicDerivative(eq, roots[i]);
+            if (abs(der) > 1e-3)
+                roots[i] = roots[i] - eval / der;
+        }
+    }
+}
+
+
+void SWAP(inout float a,  inout float b) 
+{
+    float tmp = b;
+    b = a;
+    a = tmp;
+}
+
+void solveCubic(float[4] eq, out float[3] roots, out int num)
+{
+    // Algorithm extracted from Numerical Recipes
+
+    if (abs(eq[0]) > 1e-7f)
+    {
+        // It really is a cubic
+        float a = eq[1] / eq[0];
+        float b = eq[2] / eq[0];
+        float c = eq[3] / eq[0];
+
+        float q = (a * a - 3 * b);
+        float r = (2 * a * a * a - 9 * a * b + 27 * c);
+
+        float Q = q / 9;
+        float R = r / 54;
+
+        float Q3 = Q * Q * Q;
+        float R2 = R * R;
+
+        float CR2 = 729 * r * r;
+        float CQ3 = 2916 * q * q * q;
+
+        if (R == 0 && Q == 0)
+        {
+            roots[0] = - a / 3 ;
+            roots[1] = - a / 3 ;
+            roots[2] = - a / 3 ;
+            num = 3;
+        }
+        else if (CR2 == CQ3) 
+        {
+            /* this test is actually R2 == Q3, written in a form suitable
+                for exact computation with integers */
+
+            /* Due to finite precision some float roots may be missed, and
+                considered to be a pair of complex roots z = x +/- epsilon i
+                close to the real axis. */
+
+            float sqrtQ = sqrt (Q);
+
+            if (R > 0)
+            {
+                roots[0] = -2 * sqrtQ  - a / 3;
+                roots[1] = sqrtQ - a / 3;
+                roots[2] = sqrtQ - a / 3;
+            }
+            else
+            {
+                roots[0] = - sqrtQ  - a / 3;
+                roots[1] = - sqrtQ - a / 3;
+                roots[2] = 2 * sqrtQ - a / 3;
+            }
+            num = 3 ;
+        }
+        else if (R2 < Q3)
+        {
+            float sgnR = (R >= 0 ? 1 : -1);
+            float ratio = sgnR * sqrt (R2 / Q3);
+            float theta = acos (ratio);
+            float norm = -2 * sqrt (Q);
+            roots[0] = norm * cos (theta / 3) - a / 3;
+            roots[1] = norm * cos ((theta + 2.0 * M_PI) / 3) - a / 3;
+            roots[2] = norm * cos ((theta - 2.0 * M_PI) / 3) - a / 3;
+            
+            /* Sort *x0, *x1, *x2 into increasing order */
+
+            if (roots[0] > roots[1])
+                SWAP(roots[0], roots[1]) ;
+            
+            if (roots[1]> roots[2])
+            {
+                SWAP(roots[1], roots[2]) ;
+            
+                if (roots[0] > roots[1])
+                    SWAP(roots[0], roots[1]) ;
+            }
+            num = 3;
+        }
+        else
+        {
+            float sgnR = (R >= 0 ? 1 : -1);
+            float A = -sgnR * pow (abs (R) + sqrt (R2 - Q3), 1.0/3.0);
+            float B = Q / A ;
+            roots[0] = A + B - a / 3;
+            num = 1;
+        }
+    }
+    else if (abs(eq[1]) > 1e-7f)
+    {
+        // It is a quadric
+        float discr = eq[2] * eq[2] - 4.0f * eq[1] * eq[3];
+        if (discr < 0.f)
+            num = 0;
+        else if (discr < 1e-7f)
+        {
+            num = 1;
+            roots[0] = -eq[2] / (2.0f * eq[1]);
+        }
+        else
+        {
+            num = 2;
+            roots[0] = (-eq[2] - sqrt(discr)) / (2.0f * eq[1]);
+            roots[1] = (-eq[2] + sqrt(discr)) / (2.0f * eq[1]);
+        }
+    }
+    else if (abs(eq[2]) > 1e-7f)
+    {
+        // It is linear
+        num = 1;
+        roots[0] = -eq[3] / eq[2];
+    }
+    else
+        num = 0;
+
+    improveRoots(eq, roots, num);
+}
+
+
+bool solvePolynomialEquation(vec3 p, vec3 v, float[8] values, out float[3] results, out int resultNum)
+{
+    float a, b, c, d, e, f, g, h;
+    a = -1.0 * values[0] + 1.0 * values[1] + 1.0 * values[2] - 1.0 * values[3] + 1.0 * values[4] - 1.0 * values[5] - 1.0 * values[6] + 1.0 * values[7];
+    b = 1.0 * values[0] - 1.0 * values[1] - 1.0 * values[2] + 1.0 * values[3];
+    c = 1.0 * values[0] - 1.0 * values[2] - 1.0 * values[4] + 1.0 * values[6];
+    d = 1.0 * values[0] - 1.0 * values[1] - 1.0 * values[4] + 1.0 * values[5];
+    e = -1.0 * values[0] + 1.0 * values[1];
+    f = -1.0 * values[0] + 1.0 * values[2];
+    g = -1.0 * values[0] + 1.0 * values[4];
+    h = 1.0 * values[0];
+
+
+    float c0, c1, c2, c3;
+
+    c0 = p.x * p.y * p.z * a + p.x * p.y * b + p.x * p.z * d + p.x * e + p.y * p.z * c + p.y * f + p.z * g + h;
+    c1 = p.x * p.y * a * v.z + p.x * p.z * a * v.y + p.x * b * v.y + p.x * d * v.z + p.y * p.z * a * v.x + p.y * b * v.x + p.y * c * v.z + p.z * c * v.y + p.z * d * v.x + e * v.x + f * v.y + g * v.z;
+    c2 = p.x * a * v.y * v.z + p.y * a * v.x * v.z + p.z * a * v.x * v.y + b * v.x * v.y + c * v.y * v.z + d * v.x * v.z;
+    c3 = a * v.x * v.y * v.z;
+
+    float[4] eq;
+    eq[0] = c3;
+    eq[1] = c2;
+    eq[2] = c1;
+    eq[3] = c0;
+
+    solveCubic(eq, results, resultNum);
+
+    return resultNum > 0;
+}
+
+bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
+{
+    vec3 d_inv = vec3(1 / dir.x, 1 / dir.y, 1 / dir.z);
+
+    float t_in;
+    float t_out;
+    bool intersect = raySlabIntersection(vec3(0), vec3(1), o, d_inv, t_in, t_out);
+
+    //intersect bounding box first, if no intersection return false automatically
+    if (!intersect) return false;
+
+    float t_end = t_out;
+
+    float t = t_in + epsilon;
+
+    while (t < t_end) {
+        vec3 leafPos; 
+        float leafSize;
+
+        if (isOutsideGrid(o + dir * t)) return false;
+
+        uint leafNode = getLeaf(o + dir * t, leafPos, leafSize);
+
+        vec3 leafBBmax;
+        vec3 leafBBmin;
+
+        leafBBmax = leafPos + leafSize;
+        leafBBmin = leafPos;
+
+        float t_int = rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, d_inv);
+
+        if (bool(leafNode & isMarkedMask))
+        {
+            float t_res;
+            float[8] values;
+            getPolynomial(leafNode, values);
+
+            vec3 p = o + dir * t;
+            vec3 v = dir;
+
+            p = (p - leafPos) / leafSize;
+            v = v / leafSize;
+
+            float[3] results;
+            int resultNum;
+            if (solvePolynomialEquation(p, v, values, results, resultNum))
+            {
+                for (int i = 0; i < resultNum; ++i) {
+                    float t_res = float(results[i]);
+                    float t_aux = t + t_res;
+                    vec3 intersectionPoint = o + dir * t_aux;
+                    if (isInsideNode(intersectionPoint, leafBBmin, leafBBmax)) {
+                        t += t_res;
+                        result = o + dir * t;
+                        return true;
+                    }
+                }
+            }
+        }
+        t += t_int;
+        t += epsilon;
+    }
+    return false;
+}
+
+float rayMarchLights(vec3 o, vec3 d, float omega, float t_min, float t_max) 
+{
+    float t = t_min;
+    float previousDist = 0.0;
+    float stepLength = 0.0;
+    //float functionSign = map(o) < 9 ? -1 : 1;
+    for (int i = 0; i <  maxIterations; i++) 
+    {
+        //compute the distance in current point along the ray
+        //float signedDist = functionSign * map(o + d * t);
+        float dist = mapLights(o + d * t);
+
+        //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
+        bool fail = omega > 1.0 && (dist + previousDist) < stepLength;
+        if (fail)
+        {
+            //backtrack
+            stepLength -= omega * stepLength;
+            omega = 1.0;
+        }
+        else 
+        {
+            //advance using overrelaxation parameter
+            stepLength = dist * omega;
+        }
+
+        //update previous distance
+        previousDist = dist;
+
+        //if we hit something, return the distance
+        if (!fail && dist < epsilon)
+        {
+            return t;
+        }
+        
+        if ( !fail && t > t_max) 
+        {
+            return nearAndFarPlane.y;
+        } 
+
+        t += stepLength; 
+        
+        //if we are too far away, return the far plane
+    }
+    
+    //if we didn't hit anything, return the far plane
+    return nearAndFarPlane.y;
+}
+
+const vec3 black = vec3(0,0,0);
+const vec3 white = vec3(1,1,1);
+const vec3 magenta  = vec3(1,0,1);
+const vec3 red   = vec3(1,0,0);
+
+vec3 gradientColor(float it)
+{   
+    float itColor = it / maxColorIterations;
+
+    if (itColor < 0.25) return mix(black, red, itColor * 4.0); 
+    if (itColor < 0.5) return mix(red, magenta, (itColor - 0.25) * 4.0); 
+    return mix(magenta, white, (itColor - 0.5) * 4.0); 
+}
+
+//New main
 void main()
 {
+    //Get pixel coord
     uvec2 pCoord = gl_GlobalInvocationID.xy;
     vec3 pixelPos = vec3((vec2(pCoord) + vec2(0.5)) * pixelToView - nearPlaneHalfSize, -nearAndFarPlane.x);
 
+    //Get world position and direction
     vec3 worldPos = vec3(invViewModelMatrix * vec4(vec3(0.0), 1.0));
     vec3 worldDir = normalize(vec3(invViewModelMatrix * vec4(pixelPos, 1.0)) - worldPos);
 
+    //Background colour
     vec3 outColor = vec3(0.9);
-    
-    vec3 hitPoint;
-    
-    if(raycast(worldPos, worldDir, hitPoint))
+
+    if (drawLights) 
     {
-        outColor = mapColor(hitPoint, worldPos);
+        float dist = rayMarchLights(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
+        if (dist < nearAndFarPlane.y-epsilon)
+        {
+            outColor = vec3(1.0);
+        }
+        else {
+            vec3 hitPoint;
+            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+            {
+                outColor = mapColor(hitPoint, worldPos);
+            }
+        }
+    }
+    else 
+    {
+        vec3 hitPoint;
+        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+        {
+            outColor = mapColor(hitPoint, worldPos);
+        }
     }
 
+    //Store the rendered image to output texture to later display in a quad
     imageStore(outputTexture, ivec2(pCoord), vec4(outColor, 1.0));
 }

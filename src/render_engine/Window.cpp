@@ -30,7 +30,8 @@ bool Window::start() {
 	glfwSetErrorCallback(error_callback);
 
 	// Start a glfw window
-	mGlfwWindow = glfwCreateWindow(640, 640, "SharpBox", NULL, NULL);
+	
+	mGlfwWindow = glfwCreateWindow(1920, 1080, mWindowName.c_str(), glfwGetPrimaryMonitor(), NULL);
 	// glfwMaximizeWindow(glWindow);
 	glfwMakeContextCurrent(mGlfwWindow);
 	gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
@@ -44,11 +45,16 @@ bool Window::start() {
 	glCullFace(GL_BACK);
 
 	// Resize
-	int width, height;
-	glfwGetFramebufferSize(mGlfwWindow, &width, &height);
-	mWindowSize.x = width;
-	mWindowSize.y = height;
-	glViewport(0, 0, width, height);
+	//int width, height;
+	//glfwGetFramebufferSize(mGlfwWindow, &width, &height);
+	//mWindowSize.x = width;
+	//mWindowSize.y = height;
+	//glViewport(0, 0, width, height);
+	//glfwGetFramebufferSize(mGlfwWindow, 1920, 1080);
+	mWindowSize.x = 1920;
+	mWindowSize.y = 1080;
+	glViewport(0, 0, 1920, 1080);
+
 
 	// Start imgui
 	IMGUI_CHECKVERSION();

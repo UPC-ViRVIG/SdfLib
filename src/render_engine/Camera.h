@@ -42,7 +42,7 @@ protected:
     float mFov = 60.0;
 	float mZNear = 0.01f;
 	float mZFar = 50.0f;
-    float mAspectRatio = 1.0f;
+    float mAspectRatio = 16.0f/9.0f;
 
     // Cached matrices
     glm::mat4x4 mProjectionMatrix;
