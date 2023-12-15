@@ -159,9 +159,6 @@ private:
 
     //GUI
     bool mShowSceneGUI = false;
-    bool mShowLightingGUI = false;
-    bool mShowAlgorithmGUI = false;
-    bool mShowSdfModelGUI = false;
 
     sdflib::Timer mTimer;
     unsigned int mTimeLocation;

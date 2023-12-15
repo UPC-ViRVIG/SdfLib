@@ -14,14 +14,13 @@ using namespace sdflib;
 class MyScene : public Scene
 {
 public:
-    MyScene(std::string sdfPath, std::string sdfTricubicPath) : mSdfPath(sdfPath), mSdfTricubicPath(sdfTricubicPath) {}
+    MyScene(std::string sdfPath, std::optional<std::string> sdfTricubicPath) : mSdfPath(sdfPath), mSdfTricubicPath(sdfTricubicPath) {}
 
     void start() override
 	{
         Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
 
         // Create camera
-		
         auto camera = std::make_shared<NavigationCamera>();
         camera->start();
         setMainCamera(camera);
@@ -36,9 +35,13 @@ public:
         std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
 
         // Load tricubic model
-        std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath);
-        std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
-        std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
+        std::shared_ptr<OctreeSdf> octreeTriSdf(nullptr);
+        if(mSdfTricubicPath.has_value())
+        {
+            std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath.value());
+            std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
+            octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
+        }        
         
         sdfBB = octreeSdf->getGridBoundingBox();
         glm::vec3 center = sdfBB.getSize();
@@ -72,7 +75,7 @@ public:
                 if (ImGui::MenuItem("Load Sdf")) 
                 {
                     strncpy( buf, mSdfPath.c_str(), sizeof(buf)-1 );
-                    strncpy(bufTri, mSdfTricubicPath.c_str(), sizeof(bufTri) - 1);
+                    if(mSdfTricubicPath.has_value()) strncpy(bufTri, mSdfTricubicPath.value().c_str(), sizeof(bufTri) - 1);
                     mShowLoadSdfWindow = true;
                 }	
                 
@@ -84,17 +87,22 @@ public:
         if (mShowLoadSdfWindow) {
             ImGui::Begin("Load Sdf");
             ImGui::InputText("Sdf Linear Path", buf, sizeof(buf));
-            ImGui::InputText("Sdf Tricubic Path", bufTri, sizeof(bufTri));
+            if(mSdfTricubicPath.has_value()) ImGui::InputText("Sdf Tricubic Path", bufTri, sizeof(bufTri));
             if (ImGui::Button("Load")) 
             {   
                 mSdfPath = buf;
-                mSdfTricubicPath = bufTri;
                 std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
                 std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
                 std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
-                std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath);
-                std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
-                std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
+
+                std::shared_ptr<OctreeSdf> octreeTriSdf(nullptr);
+                if(mSdfTricubicPath.has_value())
+                {
+                    mSdfTricubicPath = bufTri;
+                    std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath.value());
+                    std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
+                    std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
+                }
 
                 mRenderSdf->setSdf(octreeSdf, octreeTriSdf);
                 mShowLoadSdfWindow = false;
@@ -109,7 +117,7 @@ public:
 
 private:
     std::string mSdfPath;
-    std::string mSdfTricubicPath;
+    std::optional<std::string> mSdfTricubicPath;
     std::shared_ptr<RenderSdf> mRenderSdf;
     char buf[255]{};
     char bufTri[255]{};
@@ -125,7 +133,9 @@ int main(int argc, char** argv)
     #endif
 
     args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
+    args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "sdf_path", "The model path");
+    args::Positional<std::string> modelTricubicPathArg(parser, "sdftri_path", "The tricubic version of the model");
     
     try
     {
@@ -137,8 +147,16 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if(!modelPathArg)
+    {
+        std::cerr << "Error: No sdf_path specified" << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+
     //MyScene scene(args::get(modelPathArg));
-    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyIsoLin.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin");
+    MyScene scene(args::get(modelPathArg), 
+                    (modelTricubicPathArg) ? std::optional<std::string>(args::get(modelTricubicPathArg)) : std::optional<std::string>());
     MainLoop loop;
     loop.start(scene, "SdfRender");
 }

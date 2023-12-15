@@ -1,5 +1,10 @@
 #version 460 core
 
+// Algorithm configuration
+// #define USE_TRILINAR_ISOSURFACE
+// #define USE_TRICUBIC
+// #define USE_TRILINAR
+
 #define MAX_AO_ITERATIONS 8
 #define NEWTON_ITER 1
 #define HALLEY_ITER 1
@@ -81,7 +86,7 @@ uniform vec3 modelRot;
 uniform vec3 bbmin;
 uniform vec3 bbmax;
 
-//Utils
+/// --- Utils --- ///
 float planeSDF(vec3 samplePoint, vec3 n, float h) {
     return dot(samplePoint,n) + h;
 }
@@ -277,9 +282,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-//Access to the sdfOctree
-
-//Access to the sdfOctree
+/// --- Access to the sdfOctree --- ///
 bool isOutsideGrid(vec3 point) 
 {
     vec3 fracPart = point * startGridSize;
@@ -525,10 +528,7 @@ vec3 getGradientTricubic(vec3 point) //tricubic interpolation
     ));
 }
 
-
-
-//SCENE
-//SDF of the scene
+/// --- Scene --- ///
 float map(vec3 pos)
 {
     float distToObj = distanceScale * getDistance((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
@@ -588,7 +588,8 @@ vec3 mapGradient(vec3 pos)
     ));
 }
 
-//LIGHTING
+/// --- Lighthing --- ///
+
 float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
@@ -756,7 +757,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     return color;
 }
 
-//RAY MARCHING ALGORITHM
+/// --- RAY MARCHING ALGORITHM --- ///
 
 //Original
 bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
@@ -1263,7 +1264,9 @@ void main()
         }
         else {
             vec3 hitPoint;
-            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
+               (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
+               (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
             {
                 outColor = mapColor(hitPoint, worldPos);
             }
@@ -1272,7 +1275,9 @@ void main()
     else 
     {
         vec3 hitPoint;
-        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
+           (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
+           (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
         {
             outColor = mapColor(hitPoint, worldPos);
         }

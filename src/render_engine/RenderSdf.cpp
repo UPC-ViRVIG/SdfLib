@@ -304,9 +304,6 @@ void RenderSdf::drawGui()
         if (ImGui::BeginMenu("Scene")) 
         {
             ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
-            ImGui::MenuItem("Show lighting settings", NULL, &mShowLightingGUI);
-            ImGui::MenuItem("Show algorithm settings", NULL, &mShowAlgorithmGUI);	
-            ImGui::MenuItem("Show model settings", NULL, &mShowSdfModelGUI);	
             
             ImGui::EndMenu();
         }
@@ -316,19 +313,17 @@ void RenderSdf::drawGui()
     if (mShowSceneGUI) 
     {
         ImGui::Begin("Scene");
-        ImGui::Text("Scene Settings");
-        //ImGui::Checkbox("Draw Plane", &mDrawPlane);
-        //if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
-        ImGui::Checkbox("AO", &mUseAO);
-        ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-        ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
+        // Scene settings
+        // TODO: this features are not working
+        // ImGui::Checkbox("Draw Plane", &mDrawPlane);
+        // if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
+        // ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
 
-        ImGui::End();
-    }
+        // Light settings
+        ImGui::Spacing();
+        ImGui::Separator();
 
-    if (mShowLightingGUI)
-    {
-        ImGui::Begin("Lighting settings");
+        ImGui::Text("Lighting settings");
         ImGui::Checkbox("Draw Lights", &mDrawLights);
         ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
@@ -344,35 +339,36 @@ void RenderSdf::drawGui()
             ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
         }
 
-        ImGui::End();
-    }
+        // Material settings
+        ImGui::Spacing();
+        ImGui::Separator();
 
-    if (mShowSdfModelGUI)
-    {
-        ImGui::Begin("Model Settings");
         //ImGui::Text("Transform");
         //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
         //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
         //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
-       // ImGui::Spacing();
+        //ImGui::Spacing();
         //ImGui::Separator();
-        ImGui::Text("Material");
+        ImGui::Text("Material settings");
         ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
         ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
         ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
         ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
-        ImGui::End();
-    }
 
-    if (mShowAlgorithmGUI) 
-    {
-        ImGui::Begin("Algorithm Settings");
+        // Algorithm settings
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        ImGui::Text("Algorithm Settings");
         ImGui::SliderInt("Version", &mRaymarchVersion, 1, 3);
         ImGui::InputInt("Max Iterations", &mMaxIterations);
+        ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
         ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+        ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
         if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
         ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
+
         ImGui::End();
     }
 }

@@ -222,30 +222,19 @@ float map(vec3 pos)
     return distanceScale * getDistance(pos);
 }
 
-/*
-vec3 mapGradient(vec3 pos)
-{
-    return getGradient(pos);
-}
-*/
-
 //Gradient of the scene
 vec3 mapGradient(vec3 pos)
 {
     // Get the exact gradient
-    // vec3 aPos = pos + planePosition;
-    // float fd = max(length(aPos.xz) - 1.3, abs(aPos.y) - 0.07);
-    // return (fd < epsilon) 
-    //         ? (abs(aPos.y) - 0.07 > length(aPos.xz) - 1.3) ? vec3(0.0, sign(aPos.y), 0.0) : normalize(vec3(aPos.x, 0.0, aPos.z))
-    //         : getGradient(pos);
+    return getGradient(pos);
 
     // Get an approximation of the gradient
-    float dist = map(pos);
-    return normalize(vec3(
-        map(pos + vec3(epsilon, 0, 0)) - dist,
-        map(pos + vec3(0, epsilon, 0)) - dist,
-        map(pos + vec3(0, 0, epsilon)) - dist
-    ));
+    // float dist = map(pos);
+    // return normalize(vec3(
+    //     map(pos + vec3(epsilon, 0, 0)) - dist,
+    //     map(pos + vec3(0, epsilon, 0)) - dist,
+    //     map(pos + vec3(0, 0, epsilon)) - dist
+    // ));
 }
 
 //LIGHTING

@@ -1227,7 +1227,7 @@ int main(int argc, char** argv)
         spdlog::set_pattern("[%^%l%$] %v");
     #endif
 
-    args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
+    args::ArgumentParser parser("SdfViewer tool to visualize sdfs");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
 	args::ValueFlag<std::string> sdfPathArg(parser, "sdf_path", " The precalculated sdf to visualize", {"in"});

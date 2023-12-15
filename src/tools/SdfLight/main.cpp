@@ -17,7 +17,7 @@ using namespace sdflib;
 class MyScene : public Scene
 {
 public:
-    MyScene(std::string modelPath, std::string sdfPath) : mModelPath(modelPath), mSdfPath(sdfPath){}
+    MyScene(std::string modelPath, std::string sdfPath, bool normalizeModel) : mModelPath(modelPath), mSdfPath(sdfPath), mNormalizeModel(normalizeModel) {}
 
     void start() override
 	{
@@ -26,18 +26,13 @@ public:
 
         Mesh mesh(mModelPath);
         
-        glm::mat4 invTransform;
-        if(true)
+        if(mNormalizeModel)
         {
             // Normalize model units
             const glm::vec3 boxSize = mesh.getBoundingBox().getSize();
             glm::vec3 center = mesh.getBoundingBox().getCenter();
             mesh.applyTransform(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
                                             glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
-
-            invTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-                                            glm::translate(glm::mat4(1.0), -center));
-            SPDLOG_INFO("Center is {}, {}, {}", center.x, center.y, center.z);
         }
         
         // Load Sdf
@@ -64,6 +59,8 @@ public:
 			mModelRenderer->setIndexData(mesh.getIndices());
 			mModelRenderer->setShader(mOctreeLightShader.get());
             mModelRenderer->callDraw = false; // Disable the automatic call because we already call the function
+            mModelRenderer->callDrawGui = false;
+            mModelRenderer->systemName = "Mesh Model";
 			addSystem(mModelRenderer);
         }
 
@@ -90,13 +87,15 @@ public:
                                         glm::scale(glm::mat4(1.0f), glm::vec3(64.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
             mPlaneRenderer->callDraw = false; // Disable the automatic call because we already call the function
+            mPlaneRenderer->callDrawGui = false;
+            mPlaneRenderer->systemName = "Mesh Plane";
             addSystem(mPlaneRenderer);
         }
 
         // Create camera
 		{
 			auto camera = std::make_shared<NavigationCamera>();
-        // Move camera in the z-axis to be able to see the whole model
+            // Move camera in the z-axis to be able to see the whole model
             BoundingBox BB = mesh.getBoundingBox();
 			float zMovement = 0.5f * glm::max(BB.getSize().x, BB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
 			camera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * BB.getSize().z + zMovement));
@@ -143,36 +142,20 @@ public:
             if (ImGui::BeginMenu("Scene")) 
             {
                 ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
-                ImGui::MenuItem("Show lighting settings", NULL, &mShowLightingGUI);
-                ImGui::MenuItem("Show algorithm settings", NULL, &mShowAlgorithmGUI);	
-                ImGui::MenuItem("Show model settings", NULL, &mShowSdfModelGUI);	
-                
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Mesh")) 
-            {
-                ImGui::MenuItem("Show model settings", NULL, &mShowModelMeshGUI);
-                ImGui::MenuItem("Show plane settings", NULL, &mShowPlaneMeshGUI);
-                ImGui::EndMenu();
-            }
+
             ImGui::EndMenuBar();
         }
-
-        mModelRenderer->setShowGui(mShowModelMeshGUI);
-        mPlaneRenderer->setShowGui(mShowPlaneMeshGUI);
 
         if (mShowSceneGUI) 
         {
             ImGui::Begin("Scene");
-            ImGui::Text("Scene Settings");
-            ImGui::Checkbox("AO", &mUseAO);
-            ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-            ImGui::End();
-        }
+            // Print light settings
+            ImGui::Spacing();
+		    ImGui::Separator();
 
-        if (mShowLightingGUI)
-        {
-            ImGui::Begin("Lighting settings");
+            ImGui::Text("Lighting settings");
             ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
             for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
@@ -187,25 +170,30 @@ public:
                 ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
             }
 
-            ImGui::End();
-        }
+            // Print meterial settings
+            ImGui::Spacing();
+		    ImGui::Separator();
 
-        if (mShowSdfModelGUI)
-        {
-            ImGui::Begin("Model Settings");
-            ImGui::Text("Material");
+            ImGui::Text("Material settings");
             ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
             ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
             ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
             ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
-            ImGui::End();
-        }
 
-        if (mShowAlgorithmGUI) 
-        {
-            ImGui::Begin("Algorithm Settings");
+            // Print algorithm settings
+            ImGui::Spacing();
+		    ImGui::Separator();
+
+            ImGui::Text("Algorithm Settings");
             ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
             ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
+            ImGui::Checkbox("AO", &mUseAO);
+            ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+
+            // Print model GUI
+            mModelRenderer->drawGui();
+            mPlaneRenderer->drawGui();
+
             ImGui::End();
         }
     }
@@ -213,6 +201,7 @@ public:
 private:
     std::string mSdfPath;
     std::string mModelPath;
+    bool mNormalizeModel;
     std::shared_ptr<RenderSdf> mRenderSdf;
     std::shared_ptr<RenderMesh> mModelRenderer;
     std::shared_ptr<RenderMesh> mPlaneRenderer;
@@ -222,8 +211,8 @@ private:
 
     //Options
     int mMaxShadowIterations = 512;
-    bool mUseAO = false;
-    bool mUseSoftShadows = false;
+    bool mUseAO = true;
+    bool mUseSoftShadows = true;
     float mOverRelaxation = 1.47f;
 
     //Lighting
@@ -268,11 +257,6 @@ private:
 
     //GUI
     bool mShowSceneGUI = false;
-    bool mShowLightingGUI = false;
-    bool mShowAlgorithmGUI = false;
-    bool mShowSdfModelGUI = false;
-    bool mShowModelMeshGUI = false;
-    bool mShowPlaneMeshGUI = false;
 };
 
 int main(int argc, char** argv)
@@ -283,9 +267,11 @@ int main(int argc, char** argv)
         spdlog::set_pattern("[%^%l%$] %v");
     #endif
 
-    args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
+    args::ArgumentParser parser("SdfLight app for rendering a model using its sdf");
+    args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
     args::Positional<std::string> sdfPathArg(parser, "sdf_path", "The sdf model path");
+    args::Flag normalizeBBArg(parser, "sdf_is_normalized", "Indicates that the sdf model is normalized", {'n', "normalize"});
     
     try
     {
@@ -297,7 +283,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    MyScene scene(args::get(modelPathArg), args::get(sdfPathArg));
+    MyScene scene(args::get(modelPathArg), args::get(sdfPathArg), (normalizeBBArg) ? true : false);
     MainLoop loop;
     loop.start(scene, "SdfLight");
 }
