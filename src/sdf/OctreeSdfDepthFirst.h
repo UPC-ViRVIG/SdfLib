@@ -30,13 +30,15 @@ struct DepthFirstNodeInfo
 
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                           float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
+                           OctreeSdf::TerminationRule terminationRule,
+                           TerminationRuleParams terminationRuleParams,
                            uint32_t numThreads)
 {
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
+    // Line for using the error regadring the voxel diagonal
+    // terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
 
     struct ThreadContext
     {
@@ -48,6 +50,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         uint32_t maxDepth;
         OctreeSdf::TerminationRule terminationRule;
         float sqTerminationThreshold;
+        TerminationRuleParams terminationRuleParams;
         float valueRange;
         uint32_t padding[16];
 
@@ -70,7 +73,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     mainThread.startOctreeDepth = startOctreeDepth;
     mainThread.maxDepth = maxDepth;
     mainThread.terminationRule = terminationRule;
-    mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    mainThread.sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
+    mainThread.terminationRuleParams = terminationRuleParams;
     mainThread.valueRange = 0.0f;
 
     #ifdef SDFLIB_PRINT_STATISTICS
@@ -194,6 +198,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                         break;
                     case TerminationRule::SIMPSONS_RULE:
                         value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
+                        break;
+                    case TerminationRule::BY_DISTANCE_RULE:
+                        value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, tContext.terminationRuleParams[1]);
                         break;
                     case TerminationRule::ISOSURFACE:
                         value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size)

@@ -90,12 +90,13 @@ inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 cur
 
 template<typename TrianglesInfluenceStrategy>
 void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
+                                         OctreeSdf::TerminationRule terminationRule,
+                                         TerminationRuleParams terminationRuleParams)
 {
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef BreadthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    const float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -231,7 +232,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
@@ -305,6 +306,9 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
+                            break;
+                        case TerminationRule::BY_DISTANCE_RULE:
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, terminationRuleParams[1]);
                             break;
                         case TerminationRule::ISOSURFACE:
                             value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size) 

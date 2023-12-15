@@ -102,7 +102,24 @@ public:
         NONE, // Subdivide always
         TRAPEZOIDAL_RULE, // Estimate error integral by the trapezoidal rule
         SIMPSONS_RULE, // Estimate error integral by the simpson rule
+        BY_DISTANCE_RULE, // The minimum error is defined regarding the distance to the surface
         ISOSURFACE // Subdivide only at parts containing the isosurface
+    };
+
+    class TerminationRuleParams
+    {
+        public:
+            std::array<float, 2> params;
+
+            static TerminationRuleParams setNoneRuleParams() { return TerminationRuleParams();}
+            static TerminationRuleParams setTrapezoidalRuleParams(float expectedError) { return TerminationRuleParams {expectedError}; }
+            static TerminationRuleParams setSimpsonRuleParams(float expectedError) { return TerminationRuleParams {expectedError}; }
+            static TerminationRuleParams setByDistanceRuleParams(float baseError, float errorDecayByDistance) { return TerminationRuleParams {baseError, errorDecayByDistance}; }
+
+            float& operator[](int p)
+            {
+                return params[p];
+            }
     };
 
     static std::optional<TerminationRule> stringToTerminationRule(std::string text)
@@ -118,6 +135,10 @@ public:
         else if(text == "simpsons_rule" || text == "SIMPSONS_RULE")
         {
             return std::optional<TerminationRule>(TerminationRule::SIMPSONS_RULE);
+        }
+        else if(text == "by_distance_rule" || text == "BY_DISTANCE_RULE")
+        {
+            return std::optional<TerminationRule>(TerminationRule::BY_DISTANCE_RULE);
         }
         else if(text == "isosurface" || text == "ISOSURFACE")
         {
@@ -141,10 +162,22 @@ public:
      * @param terminationRule The heuristic used to decide if one node has to be subdivided
      **/
     OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
-              float minimumError = 1e-3,
+              float maxError = 1e-3,
               InitAlgorithm initAlgorithm = InitAlgorithm::NO_CONTINUITY,
-              uint32_t numThreads = 1,
-              TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE);
+              uint32_t numThreads = 1);
+
+    /**
+     * @param mesh The input mesh.
+     * @param box The area that the structure must cover.
+     * @param maxDepth The maximum octree depth.
+     * @param startDepth The start depth of the octree.
+     * @param terminationRule The algorithm termination rule
+     * @param params The parameters of the termination rule chosen
+     * @param initAlgorithm The building algorithm.
+     **/
+    OctreeSdf(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+              TerminationRule terminationRule, TerminationRuleParams params,
+              InitAlgorithm initAlgorithm, uint32_t numThreads = 1);
 
     /**
      * @return Returns the maximum distance in absulute value contained by the octree
@@ -239,19 +272,26 @@ private:
     // Array storing the octree nodes and the arrays of coefficients
     std::vector<OctreeNode> mOctreeData;
 
+    void buildOctree(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+                     TerminationRule terminationRule, TerminationRuleParams params,
+                     InitAlgorithm initAlgorithm, uint32_t numThreads = 1);
+
     // Functions to construct the structure with different strategies
     template<typename TrianglesInfluenceStrategy>
     void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                    float terminationThreshold, TerminationRule terminationRule,
+                    TerminationRule terminationRule,
+                    TerminationRuleParams terminationRuleParams,
                     uint32_t numThreads = 1);
 
     template<typename TrianglesInfluenceStrategy>
     void initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                                  float terminationThreshold, TerminationRule terminationRule);
+                                  TerminationRule terminationRule,
+                                  TerminationRuleParams terminationRuleParams);
 
     template<typename TrianglesInfluenceStrategy>
     void initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                                         float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
+                                         OctreeSdf::TerminationRule terminationRule,
+                                         TerminationRuleParams terminationRuleParams,
                                          uint32_t numThreads = 1);
     
     void initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth); // For testing propouses
