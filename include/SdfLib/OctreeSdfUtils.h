@@ -58,6 +58,12 @@ inline float pow2(float a)
 }
 
 template<typename Inter>
+inline bool isIsosurfaceInside(const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints, float nodeSize)
+{
+    return middlePoints[9][0] * middlePoints[9][0] < 3 * nodeSize * nodeSize;
+}
+
+template<typename Inter>
 inline float estimateErrorFunctionIntegralByTrapezoidRule(const std::array<float, Inter::NUM_COEFFICIENTS>& interpolationCoeff,
                                                           const std::array<std::array<float, Inter::VALUES_PER_VERTEX>, 19>& middlePoints)
 {

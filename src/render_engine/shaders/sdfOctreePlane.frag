@@ -1,6 +1,6 @@
 #version 430
 
-//#define USE_TRILINEAR_INTERPOLATION
+// #define USE_TRILINEAR_INTERPOLATION
 #define USE_TRICUBIC_INTERPOLATION
 
 out vec4 fragColor;
@@ -49,7 +49,8 @@ const vec3 palette[7] = vec3[7](
 // );
 
 const uint isLeafMask = 1 << 31;
-const uint childrenIndexMask = ~(1 << 31);
+const uint isMarkedMask = 1 << 30;
+const uint childrenIndexMask = ~(isLeafMask | isMarkedMask);
 
 uint roundFloat(float a)
 {
@@ -84,6 +85,9 @@ float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength
     distToGrid = min(min((abs(planeNormal.x) < 0.95) ? distToGridAxis.x : 1.0, 
                          (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
                          (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
+
+
+    if(currentNode == 0xFFFFFFFF) return 10.0;
 
     uint vIndex = currentNode & childrenIndexMask;
 
@@ -131,6 +135,8 @@ float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength
     distToGrid = min(min((abs(planeNormal.x) < 0.95) ? distToGridAxis.x : 1.0, 
                          (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
                          (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
+
+    if(currentNode == 0xFFFFFFFF) return 10.0;
 
     uint vIndex = currentNode & childrenIndexMask;
 

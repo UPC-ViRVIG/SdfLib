@@ -9,7 +9,8 @@ layout(std430, binding = 3) buffer octree
 };
 
 const uint isLeafMask = 1 << 31;
-const uint childrenIndexMask = ~(1 << 31);
+const uint isMarkedMask = 1 << 30;
+const uint childrenIndexMask = ~(isLeafMask | isMarkedMask);
 
 uint roundFloat(float a)
 {

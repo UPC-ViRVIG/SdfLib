@@ -12,16 +12,17 @@
 
 namespace sdflib
 {
-// typedef TriLinearInterpolation InterpolationMethod;
-typedef TriCubicInterpolation InterpolationMethod;
+typedef TriLinearInterpolation InterpolationMethod;
+// typedef TriCubicInterpolation InterpolationMethod;
 
 OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box, 
                      uint32_t depth, uint32_t startDepth,
                      float terminationThreshold,
                      OctreeSdf::InitAlgorithm initAlgorithm,
-                     uint32_t numThreads)
+                     uint32_t numThreads,
+                     OctreeSdf::TerminationRule terminationRule)
 {
-    const OctreeSdf::TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE;
+    // const OctreeSdf::TerminationRule terminationRule = TerminationRule::TRAPEZOIDAL_RULE;
     mMaxDepth = depth;
 
     const glm::vec3 bbSize = box.getSize();
@@ -40,12 +41,9 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
             initUniformOctree(mesh, startDepth, depth);
             break;
         case OctreeSdf::InitAlgorithm::NO_CONTINUITY:
-            // initOctree<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
-            //initOctree<FCPWQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule, numThreads);
             break;
         case OctreeSdf::InitAlgorithm::CONTINUITY:
-            //initOctreeWithContinuity<PerNodeRegionTrianglesInfluence<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
             if(DELAY_NODE_TERMINATION)
             {
                 initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationThreshold, terminationRule);
@@ -67,6 +65,10 @@ OctreeSdf::OctreeSdf(const Mesh& mesh, BoundingBox box,
     }
 
     computeMinBorderValue();
+    if(terminationRule == OctreeSdf::TerminationRule::ISOSURFACE)
+    {
+        reduceTree();
+    }
 }
 
 inline uint32_t roundFloat(float a)
@@ -98,6 +100,8 @@ float OctreeSdf::getDistance(glm::vec3 sample) const
         currentNode = &mOctreeData[currentNode->getChildrenIndex() + childIdx];
         fracPart = glm::fract(2.0f * fracPart);
     }
+
+    if(currentNode->getChildrenIndex() >= mOctreeData.size()) return 10.0;
 
     auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[currentNode->getChildrenIndex()]);
 
@@ -264,6 +268,74 @@ void OctreeSdf::computeMinBorderValue()
     }
 
     mMinBorderValue = minValue;
+}
+
+void OctreeSdf::reduceTree()
+{
+    std::vector<OctreeSdf::OctreeNode> octreeTmp = mOctreeData;
+    uint32_t currentIndex = mStartGridSize * mStartGridSize * mStartGridSize;
+    std::function<bool(OctreeNode&, uint32_t)> vistNode;
+    vistNode = [&](OctreeNode& node, uint32_t nodeIndex)
+    {
+        // Iterate children
+        if(!node.isLeaf())
+        {
+            bool reduceNode = true;
+            uint32_t childrenIndices = currentIndex;
+            currentIndex += 8;
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                reduceNode = vistNode(octreeTmp[node.getChildrenIndex() + i], childrenIndices + i) && reduceNode;
+            }
+
+            if(reduceNode)
+            {
+                mOctreeData[nodeIndex].setValues(true, std::numeric_limits<uint32_t>::max());
+                currentIndex = childrenIndices;
+            } 
+            else
+            {
+                mOctreeData[nodeIndex].setValues(false, childrenIndices);
+            }
+
+            return reduceNode;
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&octreeTmp[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values))
+            {
+                mOctreeData[nodeIndex].setValues(true, currentIndex);
+                mOctreeData[nodeIndex].markNode();
+                for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
+                {
+                    mOctreeData[currentIndex++].value = values[i];
+                }
+                return false;
+            }
+            else
+            {
+                mOctreeData[nodeIndex].setValues(true, std::numeric_limits<uint32_t>::max());
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    for(uint32_t k=0; k < mStartGridSize; k++)
+    {
+        for(uint32_t j=0; j < mStartGridSize; j++)
+        {
+            for(uint32_t i=0; i < mStartGridSize; i++)
+            {
+                const uint32_t nodeStartIndex = k * mStartGridSize * mStartGridSize + j * mStartGridSize + i;
+                vistNode(octreeTmp[nodeStartIndex], nodeStartIndex);
+            }
+        }
+    }
+
+    mOctreeData.resize(currentIndex);
 }
 
 void OctreeSdf::getDepthDensity(std::vector<float>& depthsDensity)

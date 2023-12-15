@@ -350,17 +350,21 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                             // float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             // generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
                             value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            generateTerminalNodes = value < sqTerminationThreshold;
                             }
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            generateTerminalNodes = value < sqTerminationThreshold;
+                            break;
+                        case TerminationRule::ISOSURFACE:
+                            value = isIsosurfaceInside<InterpolationMethod>(node.midPointsValues, node.size)
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues)
+                                        : 0;
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;
                             break;
                     }
+                    generateTerminalNodes = value < sqTerminationThreshold;
                 }
 
                 node.isTerminalNode = generateTerminalNodes;
@@ -1187,7 +1191,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         // nodesBuffer[nextBuffer].clear();
     }
 
-    // Add start index to the subtree
+    // Remove nodes mark and mark only nodes containing the isosurface
     std::function<void(OctreeNode&)> vistNode;
     vistNode = [&](OctreeNode& node)
     {
@@ -1200,6 +1204,11 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             {
                 vistNode(mOctreeData[node.getChildrenIndex() + i]);
             }
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values)) node.markNode();
         }
     };
 

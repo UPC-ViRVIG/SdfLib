@@ -306,6 +306,11 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
                             break;
+                        case TerminationRule::ISOSURFACE:
+                            value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size) 
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues)
+                                        : 0;
+                            break;
                         case TerminationRule::NONE:
                             value = INFINITY;
                             break;
@@ -507,6 +512,39 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         currentBuffer = (currentBuffer + 1) % 3;
         nextBuffer = (nextBuffer + 1) % 3;
         nodesBuffer[nextBuffer].clear();
+    }
+
+    // Remove nodes mark and mark only nodes containing the isosurface
+    std::function<void(OctreeNode&)> vistNode;
+    vistNode = [&](OctreeNode& node)
+    {
+        node.removeMark();
+
+        // Iterate children
+        if(!node.isLeaf())
+        {
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                vistNode(mOctreeData[node.getChildrenIndex() + i]);
+            }
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values)) node.markNode();
+        }
+    };
+
+    for(uint32_t k=0; k < mStartGridSize; k++)
+    {
+        for(uint32_t j=0; j < mStartGridSize; j++)
+        {
+            for(uint32_t i=0; i < mStartGridSize; i++)
+            {
+                const uint32_t nodeStartIndex = k * mStartGridSize * mStartGridSize + j * mStartGridSize + i;
+                vistNode(mOctreeData[nodeStartIndex]);
+            }
+        }
     }
 }
 }
