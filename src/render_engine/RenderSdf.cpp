@@ -168,7 +168,7 @@ void RenderSdf::start()
         // Set octree trilinear data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -184,7 +184,7 @@ void RenderSdf::start()
         // Set octree data
         glGenBuffers(1, &mOctreeTricubicSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeTricubicSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mOctreeTricubicSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }

@@ -38,6 +38,11 @@ public:
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
         std::shared_ptr<IOctreeSdf> octreeSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdf);
+        if(octreeSdf->hasSdfOnlyAtSurface())
+        {
+            std::cerr << "The octrees with the isosurface termination rule are not supported in this application" << std::endl;
+            exit(1);
+        }
 
         mOctreeLightShader = std::make_unique<SdfOctreeLightShader>(*octreeSdf);
 

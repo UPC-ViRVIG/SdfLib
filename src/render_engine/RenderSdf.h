@@ -15,7 +15,7 @@
 class RenderSdf : public System
 {
 public:
-    RenderSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
+    RenderSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
@@ -25,7 +25,7 @@ public:
 
     void restart();
 
-    void setSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
+    void setSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
@@ -168,8 +168,8 @@ private:
     float mOctreeDistanceScale;
     float mOctreeMinBorderValue;
 
-    std::shared_ptr<sdflib::OctreeSdf> mInputOctree;
-    std::shared_ptr<sdflib::OctreeSdf> mInputTricubicOctree;
+    std::shared_ptr<sdflib::IOctreeSdf> mInputOctree;
+    std::shared_ptr<sdflib::IOctreeSdf> mInputTricubicOctree;
 
 };
 

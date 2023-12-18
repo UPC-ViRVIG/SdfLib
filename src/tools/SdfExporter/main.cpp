@@ -198,9 +198,6 @@ int main(int argc, char** argv)
             (numThreadsArg) ? args::get(numThreadsArg) : 1
         ));
 
-        std::vector<float> density;
-        reinterpret_cast<IOctreeSdf*>(sdfFunc.get())->getDepthDensity(density);
-
         if(sdfFunc == nullptr) return 1;
     }
     else if(sdfFormat == "exact_octree")

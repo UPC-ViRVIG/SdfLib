@@ -597,7 +597,7 @@ float getAO(vec3 pos, vec3 n)
     for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
         float h = 0.002 + 0.1 * float(i)/8.0;
-        float d = map(pos + n * h);
+        float d = mapTri(pos + n * h);
         occ += max(h-d, 0.0);
         decay *= 0.8;
     }

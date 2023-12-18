@@ -32,16 +32,34 @@ public:
         // Load linear model
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
-        std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
+        std::shared_ptr<IOctreeSdf> octreeSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdf);
+
+        if(octreeSdf->getFormat() != IOctreeSdf::SdfFormat::TRILINEAR_OCTREE)
+        {
+            std::cerr << "ERROR: The input octree sdf should use trilinar interpolation" << std::endl;
+            exit(1);
+        }
 
         // Load tricubic model
-        std::shared_ptr<OctreeSdf> octreeTriSdf(nullptr);
+        std::shared_ptr<IOctreeSdf> octreeTriSdf(nullptr);
         if(mSdfTricubicPath.has_value())
         {
             std::unique_ptr<SdfFunction> sdfTriUnique = SdfFunction::loadFromFile(mSdfTricubicPath.value());
             std::shared_ptr<SdfFunction> sdfTri = std::move(sdfTriUnique);
-            octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
-        }        
+            octreeTriSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdfTri);
+        }
+        
+        if(octreeTriSdf == nullptr)
+        {
+            std::cerr << "ERROR: The tricubic octree is mandatory" << std::endl;
+            exit(1);
+        }
+
+        if(octreeTriSdf->getFormat() != IOctreeSdf::SdfFormat::TRICUBIC_OCTREE)
+        {
+            std::cerr << "ERROR: The second octree sdf should use tricubic interpolation" << std::endl;
+            exit(1);
+        }       
         
         sdfBB = octreeSdf->getGridBoundingBox();
         glm::vec3 center = sdfBB.getSize();

@@ -196,8 +196,6 @@ public:
         std::function<void(OctreeNode&, uint32_t)> vistNode;
         vistNode = [&](OctreeNode& node, uint32_t depth)
         {
-            node.removeMark();
-
             // Iterate children
             if(!node.isLeaf())
             {

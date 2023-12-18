@@ -86,7 +86,7 @@ float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength
                          (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
 
 
-    if(currentNode == 0xFFFFFFFF) return 10.0;
+    if((currentNode & childrenIndexMask) == 0x3FFFFFFF) return 10.0;
 
     uint vIndex = currentNode & childrenIndexMask;
 
@@ -135,7 +135,7 @@ float getDistance(vec3 point, out float distToGrid, out float nodeRelativeLength
                          (abs(planeNormal.y) < 0.95) ? distToGridAxis.y : 1.0),
                          (abs(planeNormal.z) < 0.95) ? distToGridAxis.z : 1.0);
 
-    if(currentNode == 0xFFFFFFFF) return 10.0;
+    if((currentNode & childrenIndexMask) == 0x3FFFFFFF) return 10.0;
 
     uint vIndex = currentNode & childrenIndexMask;
 
