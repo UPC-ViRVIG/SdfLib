@@ -109,6 +109,7 @@ void RenderSdf::start()
 
         //Options
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
+        mUseShadowsLocation = glGetUniformLocation(mRenderProgramId, "useShadows");
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
         mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
         mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
@@ -259,6 +260,7 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
+    glUniform1i(mUseShadowsLocation, mUseShadows);
     glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
     glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
     glUniform1f(mOverRelaxationLocation, mOverRelaxation);
@@ -326,7 +328,8 @@ void RenderSdf::drawGui()
         //ImGui::Checkbox("Draw Plane", &mDrawPlane);
         //if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
         ImGui::Checkbox("AO", &mUseAO);
-        ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+        ImGui::Checkbox("Shadows", &mUseShadows);
+        if (mUseShadows) ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
         ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
 
         ImGui::End();

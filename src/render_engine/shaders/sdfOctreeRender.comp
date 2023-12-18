@@ -47,12 +47,12 @@ uniform int maxIterations;
 uniform int maxColorIterations;
 uniform int maxShadowIterations;
 
-
 uniform float overRelaxation;
 uniform bool useAO;
 
 uniform bool drawPlane;
 uniform bool drawLights;
+uniform bool useShadows;
 uniform bool useSoftShadows;
 uniform bool usePerlinNoise;
 uniform bool useItColorMode;
@@ -606,74 +606,6 @@ float getAO(vec3 pos, vec3 n)
     return min(1.0 - 1.5 * occ, 1.0);
 }
 
-
-float softshadowToPoint(vec3 ro, vec3 rd, float far)
-{
-    float res = 1.0;
-    float ph = 1e20;
-    float t = 0.005;
-    for( int i=0; i < 512 && t < far; i++ )
-    {
-        float h = map(ro + rd*t);
-        if( h < epsilon ) return 0.0;
-        // float y = h * h / (2.0 * ph);
-        // float d = sqrt(h * h - y * y);
-        // res = min(res, d / max(0.0,t-y));
-        res = min(res, h/t);
-        ph = h;
-        t += h;
-    }
-    return res;
-}
-
-//Attempt to apply over relaxation to soft shadows too
-float softshadowOR(vec3 ro, vec3 rd, float far, float omega, float w)
-{
-    float res = 1.0;
-    float ph = 0.0;
-    float t = 0.005;
-    float stepLength = 0.0;
-    for( int i=0; i < maxShadowIterations && t < far; i++ )
-    {
-        float h = map(ro + rd * t);
-        bool fail = omega > 1.0f && (h + ph) < stepLength;
-        if (fail)
-        {
-            stepLength -= omega * stepLength;
-            omega = 1.0f;
-        }
-        else
-        {
-            stepLength = h * omega;
-        }
-        if(!fail && h < epsilon ) return 0.0;
-        if (!fail) 
-        {
-            res = min(res, w*h/t);
-        } 
-
-        ph = h;
-        t += stepLength;
-    }
-    return res;
-}
-
-//Inigo Quilez improved soft shadow
-float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
-{
-    float res = 1.0;
-    float t = mint;
-    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
-    {
-        float h = mapTri(ro + t*rd);
-        res = min( res, h/(w*t) );
-        t += clamp(h, 0.005, 0.50);
-        if( res<-1.0 || t>maxt ) break;
-    }
-    res = max(res,-1.0);
-    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
-}
-
 //procedural checker texture for the plane
 vec3 planeTexture(vec3 pos) 
 {
@@ -681,81 +613,6 @@ vec3 planeTexture(vec3 pos)
     if (pos.z < 0.0) pos.z -= 1.0f;
     if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.25, 0.25, 0.25);
     return vec3(0.5, 0.5, 0.5);
-}
-
-vec3 mapColor(vec3 pos, vec3 cameraPos)
-{
-    //Approximate normal
-    vec3 N = (useTricubicNormals) ? getGradientTricubic(pos) : getGradient(pos);
-    //View vector
-    vec3 V = normalize(cameraPos - pos);
-
-    //Plane vs model
-    float planeDist = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
-    float objDist = distanceScale * getDistanceTricubic((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
-
-    // Object material
-    float metallic, roughness;
-    vec3 albedo, F0;
-
-    if (drawPlane) {
-        metallic =  (planeDist < objDist) ? 0.1 : matMetallic;
-        roughness = (planeDist < objDist) ? 0.1 : matRoughness;
-        albedo = (planeDist < objDist) ? planeTexture(pos) : matAlbedo;
-        F0 = (planeDist < objDist) ? mix(vec3(0.07f), albedo, metallic): mix(matF0, albedo, metallic);
-    }
-
-    else
-    {
-        metallic = matMetallic;
-        roughness = matRoughness;
-        albedo = matAlbedo;
-        F0 = mix(matF0, albedo, metallic);
-    } 
- 
-    vec3 Lo = vec3(0.0);
-
-    // Directional lights
-    for (int i = 0; i < lightNumber; i++) 
-    {
-        float distToLight = length(lightPos[i] - pos);
-        vec3 L = normalize(lightPos[i] - pos);
-        vec3 H = normalize(V + L);
-
-        vec3 sunColor = lightIntensity[i] * lightColor[i];
-
-        float coneAngle = atan(lightRadius[i]/distToLight);
-        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
-        //float intensity = useSoftShadows ? min(atan(softshadowToPoint(pos + epsilon * N, L, distToLight)) / coneAngle, 1.0) : 1.0f;
-        //float intensity = useSoftShadows ? clamp(softshadowOR(pos + epsilon * N, L, distToLight, overRelaxation, 1.0/solidAngle), 0.0, 1.0) : 1.0f;
-        float intensity = useSoftShadows ? softshadow(pos + epsilon * N, L, 0.005, distToLight, solidAngle) : 1.0f;
-        vec3 radiance = sunColor * intensity;
-        
-        // Cook-torrance brdf
-        float NDF = DistributionGGX(N, H, roughness);        
-        float G = GeometrySmith(N, V, L, roughness);      
-        vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
-        
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;	  
-        
-        vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
-        vec3 specular = numerator / denominator;  
-            
-        // Add to outgoing radiance Lo
-        float NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
-    }
-
-    vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
-    vec3 color = ambient + Lo;
-
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));  
-   
-    return color;
 }
 
 //RAY MARCHING ALGORITHM
@@ -1349,6 +1206,121 @@ bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
         t += epsilon;
     }
     return false;
+}
+
+float hardshadow(in vec3 ro, in vec3 rd)
+{
+    vec3 leafPos; 
+    float leafSize;
+
+    uint leafNode = getLeaf(ro, leafPos, leafSize);
+
+    vec3 leafBBmax;
+    vec3 leafBBmin;
+
+    leafBBmax = leafPos + leafSize;
+    leafBBmin = leafPos;
+
+    vec3 d_inv = vec3(1 / rd.x, 1 / rd.y, 1 / rd.z);
+    float t_int = rayLeafIntersection(leafBBmax, leafBBmin, ro, d_inv);
+    vec3 result;
+    if (raymarchV3(ro+rd*t_int, rd, result)) return 0.0;
+    return 1.0;
+}
+
+//Inigo Quilez improved soft shadow
+float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+{
+    float res = 1.0;
+    float t = mint;
+    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+    {
+        float h = mapTri(ro + t*rd);
+        res = min( res, h/(w*t) );
+        t += clamp(h, 0.005, 0.50);
+        if( res<-1.0 || t>maxt ) break;
+    }
+    res = max(res,-1.0);
+    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
+}
+
+//hard shadows using v3
+float shadow(in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+{
+    return useSoftShadows ? softshadow(ro, rd, mint, maxt, w) : hardshadow(ro, rd);
+}
+
+vec3 mapColor(vec3 pos, vec3 cameraPos)
+{
+    //Approximate normal
+    vec3 N = (useTricubicNormals) ? getGradientTricubic(pos) : getGradient(pos);
+    //View vector
+    vec3 V = normalize(cameraPos - pos);
+
+    //Plane vs model
+    float planeDist = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
+    float objDist = distanceScale * getDistanceTricubic((pos-modelPos)/modelScale)*min(modelScale.x, min(modelScale.y, modelScale.z));
+
+    // Object material
+    float metallic, roughness;
+    vec3 albedo, F0;
+
+    if (drawPlane) {
+        metallic =  (planeDist < objDist) ? 0.1 : matMetallic;
+        roughness = (planeDist < objDist) ? 0.1 : matRoughness;
+        albedo = (planeDist < objDist) ? planeTexture(pos) : matAlbedo;
+        F0 = (planeDist < objDist) ? mix(vec3(0.07f), albedo, metallic): mix(matF0, albedo, metallic);
+    }
+
+    else
+    {
+        metallic = matMetallic;
+        roughness = matRoughness;
+        albedo = matAlbedo;
+        F0 = mix(matF0, albedo, metallic);
+    } 
+ 
+    vec3 Lo = vec3(0.0);
+
+    // Directional lights
+    for (int i = 0; i < lightNumber; i++) 
+    {
+        float distToLight = length(lightPos[i] - pos);
+        vec3 L = normalize(lightPos[i] - pos);
+        vec3 H = normalize(V + L);
+
+        vec3 sunColor = lightIntensity[i] * lightColor[i];
+
+        float coneAngle = atan(lightRadius[i]/distToLight);
+        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
+        float intensity = useShadows ? shadow(pos + epsilon * L, L, 0.005, distToLight, solidAngle) : 1.0f;
+        vec3 radiance = sunColor * intensity;
+        
+        // Cook-torrance brdf
+        float NDF = DistributionGGX(N, H, roughness);        
+        float G = GeometrySmith(N, V, L, roughness);      
+        vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
+        
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;	  
+        
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
+        vec3 specular = numerator / denominator;  
+            
+        // Add to outgoing radiance Lo
+        float NdotL = max(dot(N, L), 0.0);                
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+    }
+
+    vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
+    vec3 color = ambient + Lo;
+
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));  
+   
+    return color;
 }
 
 float rayMarchLights(vec3 o, vec3 d, float omega, float t_min, float t_max) 

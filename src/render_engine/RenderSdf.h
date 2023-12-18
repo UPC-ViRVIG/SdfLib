@@ -60,6 +60,7 @@ private:
     
     //Options
     unsigned int mUseAOLocation;
+    unsigned int mUseShadowsLocation;
     unsigned int mUseSoftShadowsLocation;
     unsigned int mUsePerlinNoiseLocation;
     unsigned int mOverRelaxationLocation;
@@ -79,6 +80,7 @@ private:
 
 
     bool mUseAO = false;
+    bool mUseShadows = false;
     bool mUseSoftShadows = false;
     bool mUsePerlinNoise = false;
     float mOverRelaxation = 1.47f;
