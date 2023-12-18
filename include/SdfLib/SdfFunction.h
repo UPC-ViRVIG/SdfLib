@@ -16,7 +16,8 @@ public:
     enum SdfFormat
     {
         GRID,
-        OCTREE,
+        TRILINEAR_OCTREE,
+        TRICUBIC_OCTREE,
         EXACT_OCTREE,
         NONE
     };

@@ -125,7 +125,7 @@ uint32_t RenderMesh::setVertexData(std::vector<VertexParameterLayout> parameters
 	// Set the vertex parameters
 	int currentSize = 0;
 	for (uint32_t i = 0; i < parameters.size(); i++) {
-		glVertexAttribPointer(mNextAttributeIndex, parameters[i].size, parameters[i].type, GL_FALSE, stripSize, (void*) currentSize);
+		glVertexAttribPointer(mNextAttributeIndex, parameters[i].size, parameters[i].type, GL_FALSE, stripSize, reinterpret_cast<void*>(static_cast<size_t>(currentSize)));
 		glEnableVertexAttribArray(mNextAttributeIndex++);
 		currentSize += parameters[i].size * getSize(parameters[i].type);
 	}

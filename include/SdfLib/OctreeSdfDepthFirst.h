@@ -14,6 +14,8 @@
 
 namespace sdflib
 {
+namespace internal
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfo
 {
@@ -27,14 +29,16 @@ struct DepthFirstNodeInfo
     std::array<std::array<float, VALUES_PER_VERTEX>, 8> verticesValues;
     std::array<VertexInfo, 8> verticesInfo;
 };
+}
 
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                           OctreeSdf::TerminationRule terminationRule,
-                           TerminationRuleParams terminationRuleParams,
-                           uint32_t numThreads)
+void TOctreeSdf<InterpolationMethod>::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                 TerminationRule terminationRule,
+                                                 TerminationRuleParams terminationRuleParams,
+                                                 uint32_t numThreads)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef DepthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     // Line for using the error regadring the voxel diagonal
@@ -48,7 +52,7 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         uint32_t startDepth;
         uint32_t startOctreeDepth;
         uint32_t maxDepth;
-        OctreeSdf::TerminationRule terminationRule;
+        TerminationRule terminationRule;
         float sqTerminationThreshold;
         TerminationRuleParams terminationRuleParams;
         float valueRange;

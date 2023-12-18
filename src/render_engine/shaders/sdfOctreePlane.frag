@@ -1,7 +1,6 @@
-#version 430
-
+// The version tag is inserted by code
 // #define USE_TRILINEAR_INTERPOLATION
-#define USE_TRICUBIC_INTERPOLATION
+// #define USE_TRICUBIC_INTERPOLATION
 
 out vec4 fragColor;
 

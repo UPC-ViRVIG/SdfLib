@@ -4,13 +4,13 @@
 #include <glad/glad.h>
 #include <vector>
 
-#include "System.h"
-#include "shaders/IShader.h"
-#include "shaders/ScreenPlaneShader.h"
-#include "RenderMesh.h"
-
 #include "SdfLib/OctreeSdf.h"
 #include "SdfLib/utils/Timer.h"
+
+#include "shaders/IShader.h"
+#include "shaders/ScreenPlaneShader.h"
+#include "System.h"
+#include "RenderMesh.h"
 
 class RenderSdf : public System
 {

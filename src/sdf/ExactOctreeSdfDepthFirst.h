@@ -9,6 +9,9 @@
 
 namespace sdflib
 {
+
+namespace internal
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfoExactOctree
 {
@@ -23,11 +26,13 @@ struct DepthFirstNodeInfoExactOctree
     std::array<std::array<float, VALUES_PER_VERTEX>, 8> verticesValues;
     std::array<VertexInfo, 8> verticesInfo;
 };
+}
 
 template<typename TrianglesInfluenceStrategy>
 void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                                 uint32_t minTrianglesPerNode, uint32_t numThreads)
 {
+    using namespace internal;
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfoExactOctree<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 

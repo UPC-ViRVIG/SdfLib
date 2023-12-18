@@ -7,6 +7,7 @@
 #include "SdfLib/utils/PrimitivesFactory.h"
 #include "SdfLib/utils/Timer.h"
 #include "SdfLib/utils/GJK.h"
+#include "SdfLib/OctreeSdf.h"
 #include "SdfLib/OctreeSdfUtils.h"
 #include "InfluenceRegionCreator.h"
 #include "SdfLib/TrianglesInfluence.h"
@@ -45,7 +46,7 @@ public:
 	MyScene(std::string modelPath, uint32_t maxDepth) : mSdfFormat(SdfFormat::GRID), mModelPath(modelPath), mDepth(maxDepth), mNormalizeModel(true) {}
 	MyScene(std::string modelPath, uint32_t maxDepth, uint32_t startDepth,
 			float terminationThreshold = 1e-3,
-			OctreeSdf::TerminationRule terminationRule = OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE) : 
+			IOctreeSdf::TerminationRule terminationRule = IOctreeSdf::TerminationRule::TRAPEZOIDAL_RULE) : 
 		mSdfFormat(SdfFormat::OCTREE), 
 		mModelPath(modelPath), 
 		mDepth(maxDepth), 
@@ -58,8 +59,6 @@ public:
 		mModelPath(modelPath),
 		mNormalizeModel(normalizeModel) {}
 
-	glm::mat4 invTransform;
-	OctreeSdf octreeSdf;
 	void start() override
 	{
 		Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
@@ -75,7 +74,8 @@ public:
 		}
 
 		// Create unifrom grid
-		UniformGridSdf sdfGrid;
+		std::unique_ptr<UniformGridSdf> sdfGrid;
+		std::unique_ptr<IOctreeSdf> octreeSdf;
 
 		BoundingBox sdfBB;
 		BoundingBox viewBB;
@@ -91,7 +91,7 @@ public:
 				mMesh.value().applyTransform(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
 											 glm::translate(glm::mat4(1.0), -mMesh.value().getBoundingBox().getCenter()));
 
-				invTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
+				mInvTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
 											 glm::translate(glm::mat4(1.0), -center));
 				SPDLOG_INFO("Center is {}, {}, {}", center.x, center.y, center.z);
 			}
@@ -115,17 +115,18 @@ public:
 			{
 				case SdfFunction::SdfFormat::GRID:
 					mSdfFormat = SdfFormat::GRID;
-					sdfGrid = std::move(*reinterpret_cast<UniformGridSdf*>(sdfFunc.get()));
-					sdfBB = sdfGrid.getGridBoundingBox();
-					viewBB = sdfGrid.getGridBoundingBox();
-					mGridSize = sdfGrid.getGridCellSize();
+					sdfGrid = std::move(*reinterpret_cast<std::unique_ptr<UniformGridSdf>*>(&sdfFunc));
+					sdfBB = sdfGrid->getGridBoundingBox();
+					viewBB = sdfGrid->getGridBoundingBox();
+					mGridSize = sdfGrid->getGridCellSize();
 					break;
-				case SdfFunction::SdfFormat::OCTREE:
+				case SdfFunction::SdfFormat::TRICUBIC_OCTREE:
+				case SdfFunction::SdfFormat::TRILINEAR_OCTREE:
 					mSdfFormat = SdfFormat::OCTREE;
-					octreeSdf = std::move(*reinterpret_cast<OctreeSdf*>(sdfFunc.get()));
-					sdfBB = octreeSdf.getGridBoundingBox();
-					viewBB = octreeSdf.getGridBoundingBox();
-					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, octreeSdf.getOctreeMaxDepth());
+					octreeSdf = std::move(*reinterpret_cast<std::unique_ptr<IOctreeSdf>*>(&sdfFunc));
+					sdfBB = octreeSdf->getGridBoundingBox();
+					viewBB = octreeSdf->getGridBoundingBox();
+					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, octreeSdf->getOctreeMaxDepth());
 					break;
 				default:
 					assert(false);
@@ -142,30 +143,30 @@ public:
 			switch(mSdfFormat)
 			{
 				case SdfFormat::GRID:
-					sdfGrid = (mCellSize.has_value()) ? 
-							UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
-							UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE);
-					sdfBB = sdfGrid.getGridBoundingBox();
-					viewBB = sdfGrid.getGridBoundingBox();
-					mGridSize = sdfGrid.getGridCellSize();
+					sdfGrid = std::unique_ptr<UniformGridSdf>((mCellSize.has_value()) ? 
+								new UniformGridSdf(mMesh.value(), box, mCellSize.value(), UniformGridSdf::InitAlgorithm::OCTREE) :
+								new UniformGridSdf(mMesh.value(), box, mDepth.value(), UniformGridSdf::InitAlgorithm::OCTREE));
+					sdfBB = sdfGrid->getGridBoundingBox();
+					viewBB = sdfGrid->getGridBoundingBox();
+					mGridSize = sdfGrid->getGridCellSize();
 					break;
 				case SdfFormat::OCTREE:
-					octreeSdf = OctreeSdf(mMesh.value(), box, mDepth.value(), mStartDepth.value(), mTerminationRule.value());
-					sdfBB = octreeSdf.getGridBoundingBox();
-					viewBB = octreeSdf.getGridBoundingBox();
+					octreeSdf = std::unique_ptr<IOctreeSdf>(new OctreeSdf(mMesh.value(), box, mDepth.value(), mStartDepth.value(), mTerminationRule.value()));
+					sdfBB = octreeSdf->getGridBoundingBox();
+					viewBB = octreeSdf->getGridBoundingBox();
 					mGridSize = sdfBB.getSize().x * glm::pow(0.5f, mDepth.value());
 					break;
 			}
 			SPDLOG_INFO("Uniform grid generation time: {}s", timer.getElapsedSeconds());
 		}
 
-		{
-			glm::vec3 pos = glm::vec3(invTransform * glm::vec4(octreeSdf.getGridBoundingBox().min, 1.0f));
-			SPDLOG_INFO("Min Point: {}, {}, {}", pos.x, pos.y, pos.z);
+		// {
+		// 	glm::vec3 pos = glm::vec3(mInvTransform * glm::vec4(octreeSdf->getGridBoundingBox().min, 1.0f));
+		// 	SPDLOG_INFO("Min Point: {}, {}, {}", pos.x, pos.y, pos.z);
 
-			pos = glm::vec3(invTransform * glm::vec4(octreeSdf.getGridBoundingBox().max, 1.0f));
-			SPDLOG_INFO("Max Point: {}, {}, {}", pos.x, pos.y, pos.z);
-		}
+		// 	pos = glm::vec3(mInvTransform * glm::vec4(octreeSdf->getGridBoundingBox().max, 1.0f));
+		// 	SPDLOG_INFO("Max Point: {}, {}, {}", pos.x, pos.y, pos.z);
+		// }
 
 		mSelectArea = viewBB;
 
@@ -192,11 +193,11 @@ public:
 			switch(mSdfFormat)
 			{
 				case SdfFormat::GRID:
-					mGridPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(sdfGrid, viewBB));
+					mGridPlaneShader = std::unique_ptr<SdfPlaneShader> (new SdfPlaneShader(*sdfGrid, viewBB));
 					mPlaneRenderer->setShader(mGridPlaneShader.get());
 					break;
 				case SdfFormat::OCTREE:
-					mOctreePlaneShader = std::unique_ptr<SdfOctreePlaneShader> (new SdfOctreePlaneShader(octreeSdf, viewBB));
+					mOctreePlaneShader = std::unique_ptr<SdfOctreePlaneShader> (new SdfOctreePlaneShader(*octreeSdf, viewBB));
 					mPlaneRenderer->setShader(mOctreePlaneShader.get());
 					break;
 			}
@@ -422,6 +423,16 @@ public:
 			float zMovment = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
 			camera->setPosition(sdfBB.getCenter() + glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovment));
 		}
+
+		switch(mSdfFormat)
+		{
+			case SdfFormat::GRID:
+				mSdfFunction = std::move(sdfGrid);
+				break;
+			case SdfFormat::OCTREE:
+				mSdfFunction = std::move(octreeSdf);
+				break;
+		}
 	}
 
 	void update(float deltaTime) override
@@ -516,6 +527,8 @@ public:
 			{
 				if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_N))
 				{
+					using namespace sdflib::internal;
+
 					// Get selected point and selected region
 					glm::vec3 cameraPos = getMainCamera()->getPosition();
 					glm::vec3 cameraDir(0.0f);
@@ -565,7 +578,7 @@ public:
 
 					for(uint32_t i=0; i < 8; i++)
 					{
-						const glm::vec3 pos = glm::vec3(invTransform * glm::vec4((centerPoint + 0.5f * childrens[i] * size), 1.0f));
+						const glm::vec3 pos = glm::vec3(mInvTransform * glm::vec4((centerPoint + 0.5f * childrens[i] * size), 1.0f));
 						std::cout << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
 					}
 
@@ -653,8 +666,8 @@ public:
 						{
 							glm::vec3 point = getRandomSample();
 							float exactDist = getDistance(point);
-							sdfRMSE += static_cast<double>(pow2((octreeSdf.getDistance(point) - exactDist)));
-							sdfMAE += static_cast<double>(glm::abs(octreeSdf.getDistance(point) - exactDist));
+							sdfRMSE += static_cast<double>(pow2((mSdfFunction->getDistance(point) - exactDist)));
+							sdfMAE += static_cast<double>(glm::abs(mSdfFunction->getDistance(point) - exactDist));
 						}
 
 						SPDLOG_INFO("MC RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
@@ -1155,6 +1168,7 @@ public:
 
 	
 private:
+	glm::mat4 mInvTransform;
 	std::unique_ptr<SdfPlaneShader> mGridPlaneShader;
 	std::unique_ptr<SdfOctreePlaneShader> mOctreePlaneShader;
 	std::unique_ptr<NormalsSplitPlaneShader> mCubeShader;
@@ -1193,6 +1207,7 @@ private:
 	uint32_t mSelectedTriangle = 0;
 
 	std::optional<Mesh> mMesh;
+	std::unique_ptr<SdfFunction> mSdfFunction;
 
 	// Input parameters
 	SdfFormat mSdfFormat;
@@ -1202,7 +1217,7 @@ private:
 	std::optional<uint32_t> mStartDepth;
 	std::optional<std::string> mSdfPath;
 	std::optional<float> mTerminationThreshold;
-	std::optional<OctreeSdf::TerminationRule> mTerminationRule;
+	std::optional<IOctreeSdf::TerminationRule> mTerminationRule;
 	bool mNormalizeModel;
 
 	bool drawGrid = true;
@@ -1255,10 +1270,10 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	std::optional<OctreeSdf::TerminationRule> terminationRule;
+	std::optional<IOctreeSdf::TerminationRule> terminationRule;
 	if(terminationRuleArg)
 	{
-		terminationRule = OctreeSdf::stringToTerminationRule(args::get(terminationRuleArg));
+		terminationRule = IOctreeSdf::stringToTerminationRule(args::get(terminationRuleArg));
 
 		if(!terminationRule.has_value())
 		{
@@ -1309,9 +1324,9 @@ int main(int argc, char** argv)
 			(depthArg) ? args::get(depthArg) : 6,
 			(startDepthArg) ? args::get(startDepthArg) : 2,
 			(terminationThresholdArg) ? args::get(terminationThresholdArg) : 1e-3,
-			terminationRule.value_or(OctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
+			terminationRule.value_or(IOctreeSdf::TerminationRule::TRAPEZOIDAL_RULE)
 		);
 		MainLoop loop;
 		loop.start(scene, "SdfViewer");
-	}	
+	}
 }

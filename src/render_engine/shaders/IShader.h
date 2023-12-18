@@ -8,6 +8,8 @@
 class IShader {
 public:
 	IShader(const std::string& vertexShaderName, const std::string& fragmentShaderName);
+	IShader(const std::string& vertexShaderName, const std::string& vertexShaderHeader, 
+			const std::string& fragmentShaderName, const std::string& fragmentShaderHeader);
 	~IShader();
 	unsigned int getProgramId() { return programId; }
 	void setMatrices(const glm::mat4x4& projection, const glm::mat4x4& view, const glm::mat4x4& model);
@@ -23,7 +25,10 @@ private:
 
 	unsigned int programId;
 
+	void compileShader(const std::string& vertexShaderName, const char* vertexShaderText, uint32_t vertexShaderLength,
+					   const std::string& fragmentShaderName, const char* fragmentShaderText, uint32_t fragmentShaderLength);
 	char* loadFromFile(std::string path, unsigned long* length);
+	char* loadShaderFile(const std::string& shaderName, unsigned long* length);
 };
 
 #endif // ISHADER_H

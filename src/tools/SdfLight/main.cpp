@@ -1,13 +1,12 @@
 #include "SdfLib/utils/Mesh.h"
 #include "SdfLib/utils/PrimitivesFactory.h"
 #include "SdfLib/utils/Timer.h"
+#include "render_engine/shaders/SdfOctreeLightShader.h"
+#include "render_engine/shaders/BasicShader.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
-#include "render_engine/RenderSdf.h"
 #include "render_engine/Window.h"
-#include "render_engine/shaders/SdfOctreeLightShader.h"
-#include "render_engine/shaders/BasicShader.h"
 #include <spdlog/spdlog.h>
 #include <args.hxx>
 #include <imgui.h>
@@ -38,7 +37,7 @@ public:
         // Load Sdf
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
-        std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
+        std::shared_ptr<IOctreeSdf> octreeSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdf);
 
         mOctreeLightShader = std::make_unique<SdfOctreeLightShader>(*octreeSdf);
 
@@ -202,7 +201,6 @@ private:
     std::string mSdfPath;
     std::string mModelPath;
     bool mNormalizeModel;
-    std::shared_ptr<RenderSdf> mRenderSdf;
     std::shared_ptr<RenderMesh> mModelRenderer;
     std::shared_ptr<RenderMesh> mPlaneRenderer;
     std::shared_ptr<RenderMesh> mLightRenderer;

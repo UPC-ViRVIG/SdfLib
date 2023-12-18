@@ -13,6 +13,8 @@
 
 namespace sdflib
 {
+namespace internal
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX, int NUM_COEFFICIENTS>
 struct BreadthFirstNoDelayNodeInfo
 {
@@ -42,51 +44,16 @@ struct BreadthFirstNoDelayNodeInfo
 		std::vector<uint32_t>* parentTriangles;
 		std::vector<uint32_t> triangles;
 };
+}
 
-// inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, const std::array<uint32_t, 6>& parentNeighbours, std::array<uint32_t, 6>& outNeighbours)
-// {
-//     for (uint32_t n = 1; n <= 6; n++)
-//     {
-//         const uint32_t nIdx = (~(outChildId ^ childId)) & n;
-//         outNeighbours[n - 1] = ((nIdx != 0)
-//             ? parentNeighbours[nIdx - 1]
-//             : parentChildrenIndex
-//             ) + (n ^ childId);
-//     }
-// }
-
-// inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 currentPos, uint32_t gridSize, std::array<uint32_t, 6>& outNeighbours)
-// {
-//     for (uint32_t n = 1; n <= 6; n++)
-//     {
-//         const glm::ivec3 nPos =
-//             currentPos +
-//             glm::ivec3(
-//                 (n & 0b0001) ? ((outChildId & 0b0001) ? 1 : -1) : 0,
-//                 (n & 0b0010) ? ((outChildId & 0b0010) ? 1 : -1) : 0,
-//                 (n & 0b0100) ? ((outChildId & 0b0100) ? 1 : -1) : 0
-//             );
-
-//         if (nPos.x >= 0 && nPos.x < gridSize &&
-//             nPos.y >= 0 && nPos.y < gridSize &&
-//             nPos.z >= 0 && nPos.z < gridSize)
-//         {
-//             outNeighbours[n - 1] = nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x;
-//         }
-//         else
-//         {
-//             outNeighbours[n - 1] = 1 << 30;
-//         }
-//     }
-// }
-
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                                                OctreeSdf::TerminationRule terminationRule,
-                                                OctreeSdf::TerminationRuleParams terminationRuleParams,
-                                                uint32_t numThreads)
+void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                                      TerminationRule terminationRule,
+                                                                      TerminationRuleParams terminationRuleParams,
+                                                                      uint32_t numThreads)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef BreadthFirstNoDelayNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
 
     float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
@@ -387,7 +354,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                         ? node.parentChildrenIndex + (node.childIndices & 0b0111)
                                         : std::numeric_limits<uint32_t>::max();
 
-            const std::vector<OctreeSdf::OctreeNode>& octreeData = mOctreeData;
+            const std::vector<OctreeNode>& octreeData = mOctreeData;
 
             glm::ivec3 nodeStartGridPos;
             if(currentDepth == startDepth)

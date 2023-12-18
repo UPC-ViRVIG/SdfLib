@@ -1,9 +1,9 @@
 #include "SdfLib/utils/Mesh.h"
 #include "SdfLib/utils/PrimitivesFactory.h"
+#include "render_engine/RenderSdf.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
-#include "render_engine/RenderSdf.h"
 #include "render_engine/Window.h"
 #include <spdlog/spdlog.h>
 #include <args.hxx>

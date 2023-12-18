@@ -3,6 +3,7 @@
 #include "SdfLib/UniformGridSdf.h"
 #include "SdfLib/OctreeSdf.h"
 #include "SdfLib/ExactOctreeSdf.h"
+#include "SdfLib/InterpolationMethods.h"
 
 namespace sdflib
 {
@@ -22,10 +23,15 @@ bool SdfFunction::saveToFile(const std::string& outputPath)
         archive(format);
         archive(*reinterpret_cast<UniformGridSdf*>(this));
     }
-    else if(format == SdfFormat::OCTREE)
+    else if(format == SdfFormat::TRILINEAR_OCTREE)
     {
         archive(format);
-        archive(*reinterpret_cast<OctreeSdf*>(this));
+        archive(*reinterpret_cast<TOctreeSdf<TriLinearInterpolation>*>(this));
+    }
+    else if(format == SdfFormat::TRICUBIC_OCTREE)
+    {
+        archive(format);
+        archive(*reinterpret_cast<TOctreeSdf<TriCubicInterpolation>*>(this));
     }
     else if(format == SdfFormat::EXACT_OCTREE)
     {
@@ -59,9 +65,15 @@ std::unique_ptr<SdfFunction> SdfFunction::loadFromFile(const std::string& inputP
         archive(*obj);
         return obj;
     }
-    else if(format == SdfFormat::OCTREE)
+    else if(format == SdfFormat::TRILINEAR_OCTREE)
     {
-        std::unique_ptr<OctreeSdf> obj(new OctreeSdf());
+        std::unique_ptr<TOctreeSdf<TriLinearInterpolation>> obj(new TOctreeSdf<TriLinearInterpolation>());
+        archive(*obj);
+        return obj;
+    }
+    else if(format == SdfFormat::TRICUBIC_OCTREE)
+    {
+        std::unique_ptr<TOctreeSdf<TriCubicInterpolation>> obj(new TOctreeSdf<TriCubicInterpolation>());
         archive(*obj);
         return obj;
     }

@@ -10,6 +10,8 @@
 
 namespace sdflib
 {
+namespace internal
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct BreadthFirstNodeInfo
 {
@@ -87,13 +89,15 @@ inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 cur
         }
     }
 }
+}
 
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                                         OctreeSdf::TerminationRule terminationRule,
-                                         TerminationRuleParams terminationRuleParams)
+void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                               TerminationRule terminationRule,
+                                                               TerminationRuleParams terminationRuleParams)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef BreadthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
     const float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];

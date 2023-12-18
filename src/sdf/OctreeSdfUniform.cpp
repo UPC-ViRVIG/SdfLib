@@ -1,3 +1,4 @@
+/* Old version
 #include "SdfLib/OctreeSdf.h"
 #include "SdfLib/utils/Timer.h"
 #include "SdfLib/utils/GJK.h"
@@ -22,10 +23,10 @@ namespace OctreeUniformData
 	};
 }
 
-using namespace OctreeUniformData;
-
-void OctreeSdf::initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth)
+template<typename InterpolationMethod>
+void TOctreeSdf<InterpolationMethod>::initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth)
 {
+    using namespace OctreeUniformData;
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
 
     const uint32_t startOctreeDepth = glm::min(startDepth, START_OCTREE_DEPTH);
@@ -215,3 +216,4 @@ void OctreeSdf::initUniformOctree(const Mesh& mesh, uint32_t startDepth, uint32_
     }
 }
 }
+*/

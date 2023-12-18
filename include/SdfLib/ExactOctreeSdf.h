@@ -214,6 +214,4 @@ private:
 };
 }
 
-#include "ExactOctreeSdfDepthFirst.h"
-
 #endif

@@ -10,6 +10,8 @@ class Shader : public IShader
 {
 public:
 	Shader(const std::string& vertexShaderName, const std::string& fragmentShaderName) : IShader(vertexShaderName, fragmentShaderName) {}
+	Shader(const std::string& vertexShaderName, const std::string& vertexShaderHeader, const std::string& fragmentShaderName, const std::string& fragmentShaderHeader) :
+		IShader(vertexShaderName, vertexShaderHeader, fragmentShaderName, fragmentShaderHeader) {}
 	static T* getInstance() {
 		if (instance == nullptr) instance = new T();
 		return instance;
