@@ -11,6 +11,51 @@
 
 using namespace sdflib;
 
+const char* models[]{
+    "Armadillo",
+    "Bunny",
+    "Dragon",
+    "Frog",
+    "Happy",
+    "ReliefPlate",
+    "Sponza",
+    "Temple"
+};
+
+const char* isoLinearPaths[]{ 
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleIsoLin.bin"
+};
+
+const char* linearPaths[]{
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleLin.bin"
+};
+
+const char* cubicPaths[]{
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleCub.bin"
+};
+
+
 class MyScene : public Scene
 {
 public:
@@ -71,8 +116,6 @@ public:
             {
                 if (ImGui::MenuItem("Load Sdf")) 
                 {
-                    strncpy( buf, mSdfPath.c_str(), sizeof(buf)-1 );
-                    strncpy(bufTri, mSdfTricubicPath.c_str(), sizeof(bufTri) - 1);
                     mShowLoadSdfWindow = true;
                 }	
                 
@@ -83,12 +126,12 @@ public:
 
         if (mShowLoadSdfWindow) {
             ImGui::Begin("Load Sdf");
-            ImGui::InputText("Sdf Linear Path", buf, sizeof(buf));
-            ImGui::InputText("Sdf Tricubic Path", bufTri, sizeof(bufTri));
+            ImGui::Checkbox("Use Isosurface", &mUseIsoSurfaceModels);
+            ImGui::Combo("Model", &selecteditem, models, IM_ARRAYSIZE(models));
             if (ImGui::Button("Load")) 
             {   
-                mSdfPath = buf;
-                mSdfTricubicPath = bufTri;
+                mSdfPath = mUseIsoSurfaceModels ? isoLinearPaths[selecteditem] : linearPaths[selecteditem];
+                mSdfTricubicPath = cubicPaths[selecteditem];
                 std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
                 std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
                 std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
@@ -114,6 +157,8 @@ private:
     char buf[255]{};
     char bufTri[255]{};
     bool mShowLoadSdfWindow = false;
+    bool mUseIsoSurfaceModels = true;
+    int selecteditem = 0;
 };
 
 int main(int argc, char** argv)
