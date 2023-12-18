@@ -56,6 +56,7 @@ private:
     
     unsigned int mEpsilonLocation;
     float mEpsilon = 0.0001f;
+    float mEpsilon10000 = 0.0001f * 10000;
     
     //Options
     unsigned int mUseAOLocation;
@@ -66,6 +67,8 @@ private:
     unsigned int mDrawPlaneLocation;
     unsigned int mDrawLightsLocation;
     unsigned int mRaymarchVersionLocation;
+    unsigned int mV1TriCubicLocation;
+    unsigned int mUseTricubicNormalsLocation;
     unsigned int mMaxIterationsLocation;
     unsigned int mMaxColorIterationsLocation;
     unsigned int mMaxShadowIterationsLocation;
@@ -83,6 +86,8 @@ private:
     bool mDrawPlane = false;
     bool mDrawLights = false;
     int mRaymarchVersion = 3;
+    bool mV1TriCubic = true;
+    bool mUseTricubicNormals = true;
 
     //Lighting
     unsigned int mLightNumberLocation;
@@ -103,9 +108,9 @@ private:
     glm::vec3 mLightColor[4] =
     {
         glm::vec3(1.0f, 1.0f, 1.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f),
-        glm::vec3(1.0f, 0.0f, 1.0f)
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f)
     };
 
     float mLightIntensity[4] = 
@@ -131,8 +136,8 @@ private:
     unsigned int mF0Location;
 
     float mMetallic = 0.0f;
-    float mRoughness = 0.5f;
-    glm::vec3 mAlbedo = glm::vec3(1.0f, 0.0f, 0.0f);
+    float mRoughness = 0.77f;
+    glm::vec3 mAlbedo = glm::vec3(0.35f, 0.0f, 0.014f);
     glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
 
     //Geometric transformations

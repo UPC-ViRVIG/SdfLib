@@ -119,6 +119,8 @@ void RenderSdf::start()
         mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
         mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
         mRaymarchVersionLocation = glGetUniformLocation(mRenderProgramId, "raymarchVersion");
+        mV1TriCubicLocation = glGetUniformLocation(mRenderProgramId, "v1TriCubic");
+        mUseTricubicNormalsLocation = glGetUniformLocation(mRenderProgramId, "useTricubicNormals");
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -208,7 +210,8 @@ void RenderSdf::start()
 
     mOctreeStartGridSize = mInputOctree->getStartGridSize();
     float minNodeSize = mInputOctree->getSampleArea().getSize().x / float(1 << mInputOctree->getOctreeMaxDepth());
-    mEpsilon = minNodeSize / 128.0f;
+    mEpsilon = minNodeSize / 2048.0f;
+    mEpsilon10000 = mEpsilon * 10000;
     mInputOctree = nullptr; // We do not need the octree in the CPU any more
     mInputTricubicOctree = nullptr;
 }
@@ -252,6 +255,7 @@ void RenderSdf::draw(Camera* camera)
 
     //mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
     //mEpsilon = 0.0001f;
+    if (mEpsilon != mEpsilon10000/10000) mEpsilon = mEpsilon10000/10000;
     glUniform1f(mEpsilonLocation, mEpsilon);
     //Options
     glUniform1i(mUseAOLocation, mUseAO);
@@ -265,6 +269,8 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mDrawPlaneLocation, mDrawPlane);
     glUniform1i(mDrawLightsLocation, mDrawLights);
     glUniform1i(mRaymarchVersionLocation, mRaymarchVersion);
+    glUniform1i(mV1TriCubicLocation, mV1TriCubic);
+    glUniform1i(mUseTricubicNormalsLocation, mUseTricubicNormals);
     //Lighting
     glUniform1i(mLightNumberLocation, mLightNumber);
     glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
@@ -368,11 +374,15 @@ void RenderSdf::drawGui()
     {
         ImGui::Begin("Algorithm Settings");
         ImGui::SliderInt("Version", &mRaymarchVersion, 1, 3);
+        if (mRaymarchVersion == 1) ImGui::Checkbox("V1 Tricubic", &mV1TriCubic);
+        if (mRaymarchVersion != 1 || mRaymarchVersion == 1 && !mV1TriCubic) ImGui::Checkbox("Use Tricubic Normals", &mUseTricubicNormals);
+        if (mRaymarchVersion == 1 && mV1TriCubic && !mUseTricubicNormals) mUseTricubicNormals = true;
         ImGui::InputInt("Max Iterations", &mMaxIterations);
         ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
         ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
         if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
         ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
+        ImGui::SliderFloat("Epsilon * 10000", &mEpsilon10000, 0.007f, 21.0f);
         ImGui::End();
     }
 }

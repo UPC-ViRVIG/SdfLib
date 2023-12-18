@@ -28,7 +28,7 @@ void Camera::recalculateViewMatrix()
 void Camera::drawGui()
 {
     bool change = false;
-    change |= ImGui::SliderFloat("Fov", &mFov, 10.0f, 80.0f);
+    change |= ImGui::InputFloat("Fov", &mFov, 1.0f, 10.0f);
     change |= ImGui::SliderFloat("zNear", &mZNear, 0.01f, 5.0f);
     change |= ImGui::SliderFloat("zFar", &mZFar, 1.0f, 50.0f);
     if (change) recalculateProjectionMatrix();
