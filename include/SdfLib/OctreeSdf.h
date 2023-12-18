@@ -75,13 +75,13 @@ public:
     template<class Archive>
     void save(Archive & archive) const
     { 
-        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mMinBorderValue, mOctreeData);
+        archive(mBox, mStartGridSize, mMaxDepth, mSdfOnlyAySurface, mValueRange, mMinBorderValue, mOctreeData);
     }
 
     template<class Archive>
     void load(Archive & archive)
     {
-        archive(mBox, mStartGridSize, mMaxDepth, mValueRange, mMinBorderValue, mOctreeData);
+        archive(mBox, mStartGridSize, mMaxDepth, mSdfOnlyAySurface, mValueRange, mMinBorderValue, mOctreeData);
         
         mStartGridCellSize = mBox.getSize().x / static_cast<float>(mStartGridSize);
         mStartGridXY = mStartGridSize * mStartGridSize;
@@ -112,6 +112,8 @@ private:
         mStartGridXY = mStartGridSize * mStartGridSize;
 
         mStartGridCellSize = maxSize / static_cast<float>(mStartGridSize);
+
+        mSdfOnlyAySurface = terminationRule == TerminationRule::ISOSURFACE; 
 
         switch(initAlgorithm)
         {

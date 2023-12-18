@@ -181,6 +181,8 @@ public:
      **/
     std::vector<OctreeNode>& getOctreeData() { return mOctreeData; }
 
+    bool hasSdfOnlyAtSurface() const { return mSdfOnlyAySurface; }
+
     /**
      * @brief Computes the area covered by the leaves at different depths, 
      *          supposing that the hole octree has area 1.
@@ -247,6 +249,7 @@ protected:
     float mStartGridCellSize = 0.0f;
 
     uint32_t mMaxDepth;
+    bool mSdfOnlyAySurface;
     // Array storing the octree nodes and the arrays of coefficients
     std::vector<OctreeNode> mOctreeData;
 };
