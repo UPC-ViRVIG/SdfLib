@@ -97,9 +97,9 @@ private:
     glm::vec3 mLightPosition[4] =
     {
         glm::vec3 (1.0f, 2.0f, 1.0f),
-        glm::vec3 (-1.0f, 2.0f, 1.0f),
-        glm::vec3 (1.0f, 2.0f, -1.0f),
-        glm::vec3 (-1.0f, 2.0f, -1.0f)
+        glm::vec3 (-1.0f, 2.0f, -1.0f),
+        glm::vec3 (1.0f, -2.0f, 1.0f),
+        glm::vec3 (-1.0f, -2.0f, -1.0f)
     };
 
     glm::vec3 mLightColor[4] =

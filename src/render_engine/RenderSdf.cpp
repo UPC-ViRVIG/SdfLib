@@ -325,8 +325,8 @@ void RenderSdf::drawGui()
     {
         ImGui::Begin("Model Settings");
         ImGui::Text("Material");
-        ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
-        ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
+        ImGui::InputFloat("Metallic", &mMetallic, 0.0f, 1.0f);
+        ImGui::InputFloat("Roughness", &mRoughness, 0.0f, 1.0f);
         ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
         ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
         ImGui::End();
