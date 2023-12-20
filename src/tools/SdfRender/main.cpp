@@ -127,11 +127,11 @@ public:
         if (mShowLoadSdfWindow) {
             ImGui::Begin("Load Sdf");
             ImGui::Checkbox("Use Isosurface", &mUseIsoSurfaceModels);
-            ImGui::Combo("Model", &selecteditem, models, IM_ARRAYSIZE(models));
+            ImGui::Combo("Model", &selectedItem, models, IM_ARRAYSIZE(models));
             if (ImGui::Button("Load")) 
             {   
-                mSdfPath = mUseIsoSurfaceModels ? isoLinearPaths[selecteditem] : linearPaths[selecteditem];
-                mSdfTricubicPath = cubicPaths[selecteditem];
+                mSdfPath = mUseIsoSurfaceModels ? isoLinearPaths[selectedItem] : linearPaths[selectedItem];
+                mSdfTricubicPath = cubicPaths[selectedItem];
                 std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
                 std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
                 std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
@@ -158,7 +158,7 @@ private:
     char bufTri[255]{};
     bool mShowLoadSdfWindow = false;
     bool mUseIsoSurfaceModels = true;
-    int selecteditem = 0;
+    int selectedItem = 1;
 };
 
 int main(int argc, char** argv)

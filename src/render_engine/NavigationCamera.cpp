@@ -60,7 +60,7 @@ void NavigationCamera::update(float deltaTime)
         glm::vec2 mousePos = Window::getCurrentWindow().getMousePosition();
         if(mInRotationMode)
         {
-            glm::vec2 offset = (mousePos - mLastMousePosition) * mRotationVelocity * deltaTime;
+            glm::vec2 offset = (mousePos - mLastMousePosition) * mRotationVelocity;
             mEulerAngles.x -= offset.y;
             mEulerAngles.y -= offset.x;
             setOrientation(

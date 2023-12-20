@@ -11,7 +11,7 @@ public:
         mMaxVelocity(4.0f),
         mCurrentVelocity(mBaseVelocity),
         mAcceleration(1.0f),
-        mRotationVelocity(2.0f),
+        mRotationVelocity(0.002f),
         mInRotationMode(false),
         mLastMousePosition(0.0f),
         mEulerAngles(0.0f)
@@ -25,7 +25,7 @@ private:
     float mCurrentVelocity = mBaseVelocity;
     float mAcceleration = 1.0f;
 
-    float mRotationVelocity = 2.0f;
+    float mRotationVelocity = 0.002f;
     bool mInRotationMode = false;
     bool mShowGUI = false;
     glm::vec2 mLastMousePosition;

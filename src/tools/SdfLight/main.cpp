@@ -14,6 +14,40 @@
 
 using namespace sdflib;
 
+const char* models[]{
+    "Armadillo",
+    "Bunny",
+    "Dragon",
+    "Frog",
+    "Happy",
+    "ReliefPlate",
+    "Sponza",
+    "Temple"
+};
+
+const char* modelPaths[]{
+    "C:/Users/juane/Documents/Github/SdfLib/models/Armadillo.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/bunny.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/dragon.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/frog.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/happy_rep.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/reliefPlate1M.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/sponza_rep.ply",
+    "C:/Users/juane/Documents/Github/SdfLib/models/temple.ply"
+
+};
+
+const char* cubicPaths[]{
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleCub.bin"
+};
+
 class MyScene : public Scene
 {
 public:
@@ -94,6 +128,7 @@ public:
         }
 
         // Create camera
+        if (firstTime)
 		{
 			auto camera = std::make_shared<NavigationCamera>();
         // Move camera in the z-axis to be able to see the whole model
@@ -103,6 +138,7 @@ public:
             camera->start();
 			setMainCamera(camera);
 			addSystem(camera);
+            firstTime = false;
 		}
 
     }
@@ -140,6 +176,15 @@ public:
     {
         if (ImGui::BeginMainMenuBar()) 
         {
+            if (ImGui::BeginMenu("File"))
+            {
+                if (ImGui::MenuItem("Load Model"))
+                {
+                    mShowLoadSdfWindow = true;
+                }
+
+                ImGui::EndMenu();
+            }
             if (ImGui::BeginMenu("Scene")) 
             {
                 ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
@@ -208,6 +253,23 @@ public:
             ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
             ImGui::End();
         }
+
+        if (mShowLoadSdfWindow) {
+            ImGui::Begin("Load Model");
+            ImGui::Combo("Model", &selectedItem, models, IM_ARRAYSIZE(models));
+            if (ImGui::Button("Load"))
+            {
+                mSdfPath = cubicPaths[selectedItem];
+                mModelPath = modelPaths[selectedItem];
+                start();
+                mShowLoadSdfWindow = false;
+            }
+            if (ImGui::Button("Cancel"))
+            {
+                mShowLoadSdfWindow = false;
+            }
+            ImGui::End();
+        }
     }
 
 private:
@@ -273,6 +335,10 @@ private:
     bool mShowSdfModelGUI = false;
     bool mShowModelMeshGUI = false;
     bool mShowPlaneMeshGUI = false;
+    bool mShowLoadSdfWindow = false;
+    bool firstTime = true;
+    int selectedItem = 1;
+    
 };
 
 int main(int argc, char** argv)
@@ -297,7 +363,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    MyScene scene(args::get(modelPathArg), args::get(sdfPathArg));
+    //MyScene scene(args::get(modelPathArg), args::get(sdfPathArg));
+    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/models/bunny.ply", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin");
     MainLoop loop;
     loop.start(scene, "SdfLight");
 }
