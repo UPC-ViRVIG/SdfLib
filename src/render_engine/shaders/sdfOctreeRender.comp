@@ -838,6 +838,8 @@ bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
 
             float leaf_t_in, leaf_t_out;
             raySlabIntersection(vec3(0), vec3(1), p, 1/v, leaf_t_in, leaf_t_out); 
+            
+            if (t == epsilon) leaf_t_in = t;
 
             float[4] results;
             int resultNum;
@@ -864,21 +866,8 @@ bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
 
 float hardshadow(in vec3 ro, in vec3 rd)
 {
-    vec3 leafPos; 
-    float leafSize;
-
-    uint leafNode = getLeaf(ro, leafPos, leafSize);
-
-    vec3 leafBBmax;
-    vec3 leafBBmin;
-
-    leafBBmax = leafPos + leafSize;
-    leafBBmin = leafPos;
-
-    vec3 d_inv = vec3(1 / rd.x, 1 / rd.y, 1 / rd.z);
-    float t_int = rayLeafIntersection(leafBBmax, leafBBmin, ro, d_inv);
     vec3 result;
-    if (raymarchV3(ro+rd*t_int, rd, result)) return 0.0;
+    if (raymarchV3(ro, rd, result)) return 0.0;
     return 1.0;
 }
 
@@ -901,7 +890,7 @@ float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
 //hard shadows using v3
 float shadow(in vec3 ro, in vec3 rd, float mint, float maxt, float w )
 {
-    return useSoftShadows ? softshadow(ro, rd, mint, maxt, w) : hardshadow(ro, rd);
+    return useSoftShadows ? softshadow(ro, rd, mint, maxt, w) : hardshadow(ro+mint*rd, rd);
 }
 
 vec3 mapColor(vec3 pos, vec3 cameraPos)

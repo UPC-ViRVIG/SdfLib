@@ -344,7 +344,7 @@ void RenderSdf::drawGui()
         ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
         if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
         ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
-        ImGui::SliderFloat("Epsilon * 10000", &mEpsilon10000, 0.007f, 21.0f);
+        ImGui::SliderFloat("Epsilon * 10000", &mEpsilon10000, 0.001f, 21.0f);
         ImGui::End();
     }
 }

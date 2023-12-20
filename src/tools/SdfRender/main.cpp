@@ -23,36 +23,36 @@ const char* models[]{
 };
 
 const char* isoLinearPaths[]{ 
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaIsoLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleIsoLin.bin"
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeArmadilloIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeBunnyIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeDragonIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeFrogIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeHappyIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeReliefPlate1MIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeSponzaIsoLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeTempleIsoLin.bin"
 };
 
 const char* linearPaths[]{
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaLin.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleLin.bin"
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeArmadilloLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeBunnyLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeDragonLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeFrogLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeHappyLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeReliefPlate1MLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeSponzaLin.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeTempleLin.bin"
 };
 
 const char* cubicPaths[]{
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleCub.bin"
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeArmadilloCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeBunnyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeDragonCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeFrogCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeHappyCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeReliefPlate1MCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeSponzaCub.bin",
+    "C:/Users/juane/Documents/Github/SdfLib/output/SdfOctreeTempleCub.bin"
 };
 
 
@@ -183,7 +183,7 @@ int main(int argc, char** argv)
     }
 
     //MyScene scene(args::get(modelPathArg));
-    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyIsoLin.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin");
+    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloIsoLin.bin", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloCub.bin");
     MainLoop loop;
     loop.start(scene, "SdfRender");
 }
