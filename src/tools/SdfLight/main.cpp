@@ -34,7 +34,6 @@ const char* modelPaths[]{
     "C:/Users/juane/Documents/Github/SdfLib/models/reliefPlate1M.ply",
     "C:/Users/juane/Documents/Github/SdfLib/models/sponza_rep.ply",
     "C:/Users/juane/Documents/Github/SdfLib/models/temple.ply"
-
 };
 
 const char* cubicPaths[]{

@@ -62,10 +62,8 @@ private:
     unsigned int mUseAOLocation;
     unsigned int mUseShadowsLocation;
     unsigned int mUseSoftShadowsLocation;
-    unsigned int mUsePerlinNoiseLocation;
     unsigned int mOverRelaxationLocation;
     unsigned int mUseItColorModeLocation;
-    unsigned int mDrawPlaneLocation;
     unsigned int mDrawLightsLocation;
     unsigned int mRaymarchVersionLocation;
     unsigned int mV1TriCubicLocation;
@@ -74,18 +72,15 @@ private:
     unsigned int mMaxColorIterationsLocation;
     unsigned int mMaxShadowIterationsLocation;
 
-    int mMaxIterations = 1024;
+    int mMaxIterations = 700;
     int mMaxColorIterations = 64;
-    int mMaxShadowIterations = 512;
-
+    int mMaxShadowIterations = 64;
 
     bool mUseAO = false;
     bool mUseShadows = false;
     bool mUseSoftShadows = false;
-    bool mUsePerlinNoise = false;
     float mOverRelaxation = 1.47f;
     bool mUseItColorMode = false;
-    bool mDrawPlane = false;
     bool mDrawLights = false;
     int mRaymarchVersion = 3;
     bool mV1TriCubic = true;
@@ -142,36 +137,11 @@ private:
     glm::vec3 mAlbedo = glm::vec3(0.35f, 0.0f, 0.014f);
     glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
 
-    //Geometric transformations
-    unsigned int mPositionLocation;
-    unsigned int mRotationLocation;
-    unsigned int mScaleLocation;
-
-
-    glm::vec3 mPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 mRotation = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 mScale = glm::vec3(1.0f, 1.0f, 1.0f);
-
-    //BoundingBox
-    
-    unsigned int mBBminLocation;
-    unsigned int mBBmaxLocation;
-
-    glm::vec3 mBBMin; 
-    glm::vec3 mBBMax;
-
-    //Plane
-    unsigned int mPlanePosLocation;
-    float mPlanePos = 0.0f;
-
     //GUI
     bool mShowSceneGUI = false;
     bool mShowLightingGUI = false;
     bool mShowAlgorithmGUI = false;
     bool mShowSdfModelGUI = false;
-
-    sdflib::Timer mTimer;
-    unsigned int mTimeLocation;
 
     glm::ivec3 mOctreeStartGridSize;
     glm::mat4x4 mOctreeMatrix;

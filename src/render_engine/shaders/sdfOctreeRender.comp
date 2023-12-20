@@ -36,9 +36,6 @@ uniform vec2 nearAndFarPlane;
 uniform mat4 invViewModelMatrix;
 uniform float distanceScale;
 uniform float minBorderValue;
-
-
-uniform float planePos; 
 uniform float epsilon;
 
 //Options
@@ -49,7 +46,6 @@ uniform int maxShadowIterations;
 uniform float overRelaxation;
 uniform bool useAO;
 
-uniform bool drawPlane;
 uniform bool drawLights;
 uniform bool useShadows;
 uniform bool useSoftShadows;
@@ -71,11 +67,6 @@ uniform vec3 matAlbedo;
 uniform vec3 matF0;
 
 //Utils
-float planeSDF(vec3 samplePoint, vec3 n, float h) {
-    return dot(samplePoint,n) + h;
-}
-
-
 float sphereSDF(vec3 samplePoint, float radius) {
     return length(samplePoint) - radius;
 }
@@ -181,8 +172,6 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-const float PI = 3.14159265359;
-
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a      = roughness*roughness;
@@ -192,7 +181,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
 	
     float num   = a2;
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
+    denom = M_PI * denom * denom;
 	
     return num / denom;
 }
@@ -492,15 +481,6 @@ float getAO(vec3 pos, vec3 n)
     return min(1.0 - 1.5 * occ, 1.0);
 }
 
-//procedural checker texture for the plane
-vec3 planeTexture(vec3 pos) 
-{
-    if (pos.x < 0.0) pos.x -= 1.0f;
-    if (pos.z < 0.0) pos.z -= 1.0f;
-    if ((int(pos.x) % 2) == (int(pos.z) % 2)) return vec3(0.25, 0.25, 0.25);
-    return vec3(0.5, 0.5, 0.5);
-}
-
 //RAY MARCHING ALGORITHM
 
 //Original
@@ -519,6 +499,7 @@ bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
         pos += dir * dist;
         it += 1;
     }
+    if (useItColorMode) resultPos.x = float(it);
     return lastDistance < epsilon;
 }
 
@@ -813,6 +794,7 @@ bool solvePolynomialEquation(vec3 p, vec3 v, float[8] values, out float[4] resul
 
 bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
 {
+    float nodeCounter = 0.0;
     vec3 d_inv = vec3(1 / dir.x, 1 / dir.y, 1 / dir.z);
 
     float t_in;
@@ -833,7 +815,7 @@ bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
         if (isOutsideGrid(o + dir * t)) return false;
 
         uint leafNode = getLeaf(o + dir * t, leafPos, leafSize);
-
+        nodeCounter += 1.0;
         vec3 leafBBmax;
         vec3 leafBBmin;
 
@@ -868,6 +850,7 @@ bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
                     if (isInsideNode(intersectionPoint, leafBBmin, leafBBmax)) {
                         t += t_res;
                         result = o + dir * t;
+                        if (useItColorMode) result.x = nodeCounter;
                         return true;
                     }
                 }
@@ -928,23 +911,10 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
     //View vector
     vec3 V = normalize(cameraPos - pos);
 
-    //Plane vs model
-   // float planeDist = distanceScale * planeSDF(pos, vec3(0.0f, 1.0f, 0.0f), planePos);
-    //float objDist = distanceScale * getDistanceTricubic(pos);
-
     // Object material
     float metallic, roughness;
     vec3 albedo, F0;
 
-    //if (drawPlane) {
-    //    metallic =  (planeDist < objDist) ? 0.1 : matMetallic;
-    //    roughness = (planeDist < objDist) ? 0.1 : matRoughness;
-    //    albedo = (planeDist < objDist) ? planeTexture(pos) : matAlbedo;
-    //    F0 = (planeDist < objDist) ? mix(vec3(0.07f), albedo, metallic): mix(matF0, albedo, metallic);
-    //}
-
-    //else
-    //{
         metallic = matMetallic;
         roughness = matRoughness;
         albedo = matAlbedo;
@@ -963,7 +933,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
         vec3 sunColor = lightIntensity[i] * lightColor[i];
 
         float coneAngle = atan(lightRadius[i]/distToLight);
-        float solidAngle = PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
+        float solidAngle = M_PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
         float intensity = useShadows ? shadow(pos + epsilon * L, L, 0.005, distToLight, solidAngle) : 1.0f;
         vec3 radiance = sunColor * intensity;
         
@@ -982,7 +952,7 @@ vec3 mapColor(vec3 pos, vec3 cameraPos)
             
         // Add to outgoing radiance Lo
         float NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        Lo += (kD * albedo / M_PI + specular) * radiance * NdotL;
     }
 
     vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
@@ -1080,7 +1050,8 @@ void main()
             vec3 hitPoint;
             if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
             {
-                outColor = mapColor(hitPoint, worldPos);
+                if (useItColorMode) outColor = gradientColor(hitPoint.x);
+                else outColor = mapColor(hitPoint, worldPos);
             }
         }
     }
@@ -1089,7 +1060,8 @@ void main()
         vec3 hitPoint;
         if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
         {
-            outColor = mapColor(hitPoint, worldPos);
+            if (useItColorMode) outColor = gradientColor(hitPoint.x);
+            else outColor = mapColor(hitPoint, worldPos);
         }
     }
 

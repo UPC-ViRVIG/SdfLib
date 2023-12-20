@@ -103,21 +103,15 @@ void RenderSdf::start()
 
         mEpsilonLocation = glGetUniformLocation(mRenderProgramId, "epsilon");
 
-        mBBmaxLocation = glGetUniformLocation(mRenderProgramId, "bbmax");
-        mBBminLocation = glGetUniformLocation(mRenderProgramId, "bbmin");
-
-
         //Options
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
         mUseShadowsLocation = glGetUniformLocation(mRenderProgramId, "useShadows");
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
-        mUsePerlinNoiseLocation = glGetUniformLocation(mRenderProgramId, "usePerlinNoise");
         mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
         mUseItColorModeLocation = glGetUniformLocation(mRenderProgramId, "useItColorMode");
         mMaxColorIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxColorIterations");
         mMaxIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxIterations");
         mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
-        mDrawPlaneLocation = glGetUniformLocation(mRenderProgramId, "drawPlane");
         mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
         mRaymarchVersionLocation = glGetUniformLocation(mRenderProgramId, "raymarchVersion");
         mV1TriCubicLocation = glGetUniformLocation(mRenderProgramId, "v1TriCubic");
@@ -134,17 +128,6 @@ void RenderSdf::start()
         mRoughnessLocation = glGetUniformLocation(mRenderProgramId, "matRoughness");
         mAlbedoLocation = glGetUniformLocation(mRenderProgramId, "matAlbedo");
         mF0Location = glGetUniformLocation(mRenderProgramId, "matF0");
-
-        //Geometric transform
-        mPositionLocation = glGetUniformLocation(mRenderProgramId, "modelPos");
-        mRotationLocation = glGetUniformLocation(mRenderProgramId, "modelRot");
-        mScaleLocation = glGetUniformLocation(mRenderProgramId, "modelScale");
-        //Plane
-        mPlanePosLocation = glGetUniformLocation(mRenderProgramId, "planePos");
-
-
-        mTimeLocation = glGetUniformLocation(mRenderProgramId, "time");
-        mTimer.start();
 
         checkForOpenGLErrors();
     }
@@ -178,8 +161,6 @@ void RenderSdf::start()
         mOctreeMatrix = glm::scale(glm::mat4(1.0f), 1.0f / mInputOctree->getGridBoundingBox().getSize()) * glm::translate(glm::mat4(1.0f), -mInputOctree->getGridBoundingBox().min);
         mOctreeDistanceScale = 1.0f / mInputOctree->getGridBoundingBox().getSize().x;
         mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
-        mBBMax = mInputOctree->getGridBoundingBox().max;
-        mBBMin = mInputOctree->getGridBoundingBox().min;
     }
 
     // Set octree tricubic data
@@ -252,7 +233,6 @@ void RenderSdf::draw(Camera* camera)
     glUniform3f(mStartGridSizeLocation, mOctreeStartGridSize.x, mOctreeStartGridSize.y, mOctreeStartGridSize.z);
     glUniform1f(mDistanceScaleLocation, mOctreeDistanceScale);
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
-    glUniform1f(mTimeLocation, mTimer.getElapsedSeconds());
 
     //mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
     //mEpsilon = 0.0001f;
@@ -262,13 +242,11 @@ void RenderSdf::draw(Camera* camera)
     glUniform1i(mUseAOLocation, mUseAO);
     glUniform1i(mUseShadowsLocation, mUseShadows);
     glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
-    glUniform1i(mUsePerlinNoiseLocation, mUsePerlinNoise);
     glUniform1f(mOverRelaxationLocation, mOverRelaxation);
     glUniform1i(mUseItColorModeLocation, mUseItColorMode);
     glUniform1i(mMaxIterationsLocation, mMaxIterations);
     glUniform1i(mMaxColorIterationsLocation, mMaxColorIterations);
     glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
-    glUniform1i(mDrawPlaneLocation, mDrawPlane);
     glUniform1i(mDrawLightsLocation, mDrawLights);
     glUniform1i(mRaymarchVersionLocation, mRaymarchVersion);
     glUniform1i(mV1TriCubicLocation, mV1TriCubic);
@@ -285,18 +263,6 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mRoughnessLocation, mRoughness);
     glUniform3f(mAlbedoLocation, mAlbedo.x, mAlbedo.y, mAlbedo.z);
     glUniform3f(mF0Location, mF0.x, mF0.y, mF0.z);
-
-    //Geometric transform
-    glUniform3f(mPositionLocation, mPosition.x, mPosition.y, mPosition.z);
-    glUniform3f(mRotationLocation, mRotation.x, mRotation.y, mRotation.z);
-    glUniform3f(mScaleLocation, mScale.x, mScale.y, mScale.z);
-
-    //BB
-    glUniform3f(mBBmaxLocation, mBBMax.x, mBBMax.y, mBBMax.z);
-    glUniform3f(mBBminLocation, mBBMin.x, mBBMin.y, mBBMin.z);
-
-    //Plane
-    glUniform1f(mPlanePosLocation, mPlanePos);
 
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
@@ -330,7 +296,6 @@ void RenderSdf::drawGui()
         ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Shadows", &mUseShadows);
         if (mUseShadows) ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-        ImGui::Checkbox("Perlin Noise", &mUsePerlinNoise);
 
         ImGui::End();
     }
@@ -359,12 +324,6 @@ void RenderSdf::drawGui()
     if (mShowSdfModelGUI)
     {
         ImGui::Begin("Model Settings");
-        //ImGui::Text("Transform");
-        //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
-        //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
-        //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
-       // ImGui::Spacing();
-        //ImGui::Separator();
         ImGui::Text("Material");
         ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
         ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
