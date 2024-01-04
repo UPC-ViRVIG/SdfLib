@@ -99,6 +99,7 @@ public:
         // Create camera
 		{
 			auto camera = std::make_shared<NavigationCamera>();
+            camera->callDrawGui = false;
             // Move camera in the z-axis to be able to see the whole model
             BoundingBox BB = mesh.getBoundingBox();
 			float zMovement = 0.5f * glm::max(BB.getSize().x, BB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
@@ -106,6 +107,7 @@ public:
             camera->start();
 			setMainCamera(camera);
 			addSystem(camera);
+            mCamera = camera;
 		}
 
     }
@@ -151,6 +153,8 @@ public:
 
             ImGui::EndMenuBar();
         }
+
+        mCamera->drawGuiWindow();
 
         if (mShowSceneGUI) 
         {
@@ -203,6 +207,7 @@ public:
     }
 
 private:
+    std::shared_ptr<NavigationCamera> mCamera;
     std::string mSdfPath;
     std::string mModelPath;
     bool mNormalizeModel;

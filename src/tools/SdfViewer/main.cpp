@@ -449,8 +449,7 @@ public:
 				break;
 		}
 
-		drawGui();
-		Scene::update(deltaTime);
+		drawGui(deltaTime);
 
 
 
@@ -1080,7 +1079,7 @@ public:
 
 	}
 
-	void drawGui() 
+	void drawGui(float deltaTime) 
 	{
 		if (ImGui::BeginMainMenuBar()) 
 		{
@@ -1097,12 +1096,12 @@ public:
 			
 			ImGui::EndMenuBar();
 		}
-
 		if (mShowOptionsGUI)
 		{
-			ImGui::Begin("Options");
+			ImGui::Begin("Scene");
 			ImGui::Checkbox("Print grid", &drawGrid);
 			ImGui::Checkbox("Print Isolines", &drawIsolines);
+			Scene::update(deltaTime);
 
 			#ifdef SDFLIB_PRINT_STATISTICS
 			ImGui::Checkbox("Visualize zone", &mSelectZone);
@@ -1138,6 +1137,10 @@ public:
 			}
 
 			ImGui::End();
+		}
+		else
+		{
+			Scene::update(deltaTime);
 		}
 		
 		// Print shortcuts information

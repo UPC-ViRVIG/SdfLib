@@ -21,10 +21,11 @@ public:
         Window::getCurrentWindow().setBackgroudColor(glm::vec4(0.9, 0.9, 0.9, 1.0));
 
         // Create camera
-        auto camera = std::make_shared<NavigationCamera>();
-        camera->start();
-        setMainCamera(camera);
-        addSystem(camera);
+        mCamera = std::make_shared<NavigationCamera>();
+        mCamera->start();
+        mCamera->callDrawGui = false;
+        setMainCamera(mCamera);
+        addSystem(mCamera);
 		
 
         BoundingBox sdfBB;
@@ -73,8 +74,8 @@ public:
 
         // Move camera in the z-axis to be able to see the whole model
 		{
-			float zMovement = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
-			camera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovement));
+			float zMovement = 0.5f * glm::max(sdfBB.getSize().x, sdfBB.getSize().y) / glm::tan(glm::radians(0.5f * mCamera->getFov()));
+			mCamera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * sdfBB.getSize().z + zMovement));
 		}
     }
 
@@ -101,6 +102,8 @@ public:
             }
             ImGui::EndMenuBar();
         }
+
+        mCamera->drawGuiWindow();
 
         if (mShowLoadSdfWindow) {
             ImGui::Begin("Load Sdf");
@@ -134,6 +137,7 @@ public:
     }
 
 private:
+    std::shared_ptr<NavigationCamera> mCamera;
     std::string mSdfPath;
     std::optional<std::string> mSdfTricubicPath;
     std::shared_ptr<RenderSdf> mRenderSdf;
