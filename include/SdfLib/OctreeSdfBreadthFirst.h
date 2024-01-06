@@ -10,6 +10,8 @@
 
 namespace sdflib
 {
+namespace internal
+{
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct BreadthFirstNodeInfo
 {
@@ -87,15 +89,18 @@ inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 cur
         }
     }
 }
+}
 
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule)
+void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                               TerminationRule terminationRule,
+                                                               TerminationRuleParams terminationRuleParams)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef BreadthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    const float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -231,7 +236,7 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
@@ -305,6 +310,14 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
+                            break;
+                        case TerminationRule::BY_DISTANCE_RULE:
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, terminationRuleParams[1]);
+                            break;
+                        case TerminationRule::ISOSURFACE:
+                            value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size) 
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues)
+                                        : 0;
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;
@@ -507,6 +520,39 @@ void OctreeSdf::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, 
         currentBuffer = (currentBuffer + 1) % 3;
         nextBuffer = (nextBuffer + 1) % 3;
         nodesBuffer[nextBuffer].clear();
+    }
+
+    // Remove nodes mark and mark only nodes containing the isosurface
+    std::function<void(OctreeNode&)> vistNode;
+    vistNode = [&](OctreeNode& node)
+    {
+        node.removeMark();
+
+        // Iterate children
+        if(!node.isLeaf())
+        {
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                vistNode(mOctreeData[node.getChildrenIndex() + i]);
+            }
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values)) node.markNode();
+        }
+    };
+
+    for(uint32_t k=0; k < mStartGridSize; k++)
+    {
+        for(uint32_t j=0; j < mStartGridSize; j++)
+        {
+            for(uint32_t i=0; i < mStartGridSize; i++)
+            {
+                const uint32_t nodeStartIndex = k * mStartGridSize * mStartGridSize + j * mStartGridSize + i;
+                vistNode(mOctreeData[nodeStartIndex]);
+            }
+        }
     }
 }
 }

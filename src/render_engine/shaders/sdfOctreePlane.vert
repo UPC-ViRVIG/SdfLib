@@ -1,4 +1,4 @@
-#version 430
+// The version tag is inserted by code
 layout (location = 0) in vec3 position;
 
 uniform mat4 projectionViewModelMatrix;

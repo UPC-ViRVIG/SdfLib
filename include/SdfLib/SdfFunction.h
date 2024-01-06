@@ -16,10 +16,13 @@ public:
     enum SdfFormat
     {
         GRID,
-        OCTREE,
+        TRILINEAR_OCTREE,
+        TRICUBIC_OCTREE,
         EXACT_OCTREE,
         NONE
     };
+
+    virtual ~SdfFunction() = default;
 
     /**
      * @return The signed distance to the mesh at the point

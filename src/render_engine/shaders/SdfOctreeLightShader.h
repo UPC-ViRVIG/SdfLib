@@ -12,7 +12,8 @@
 class SdfOctreeLightShader : public Shader<SdfOctreeLightShader>
 {
 public:
-    SdfOctreeLightShader(sdflib::OctreeSdf& octreeSdf) : Shader(SHADER_PATH + "sdfOctreeLight.vert", SHADER_PATH + "sdfOctreeLight.frag")
+    SdfOctreeLightShader(sdflib::IOctreeSdf& octreeSdf) : 
+        Shader(SHADER_PATH + "sdfOctreeLight.vert", "", SHADER_PATH + "sdfOctreeLight.frag", getFragmentShaderHeader(octreeSdf))
     {
         unsigned int mRenderProgramId = getProgramId();
 
@@ -229,6 +230,23 @@ private:
     float mRoughness = 0.5f;
     glm::vec3 mAlbedo = glm::vec3(1.0f, 0.0f, 0.0f);
     glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
+
+    std::string getFragmentShaderHeader(sdflib::IOctreeSdf& octreeSdf)
+    {
+        switch (octreeSdf.getFormat())
+        {
+        case sdflib::IOctreeSdf::TRILINEAR_OCTREE:
+            return "#define USE_TRILINEAR_INTERPOLATION\n\n";
+            break;
+        case sdflib::IOctreeSdf::TRICUBIC_OCTREE:
+            return "#define USE_TRICUBIC_INTERPOLATION\n\n";
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        return "";
+    }
 };
 
 #endif

@@ -1,6 +1,7 @@
 #include "SdfLib/ExactOctreeSdf.h"
 #include "SdfLib/TrianglesInfluence.h"
 #include "SdfLib/InterpolationMethods.h"
+#include "sdf/ExactOctreeSdfDepthFirst.h"
 
 namespace sdflib
 {

@@ -84,14 +84,13 @@ void RenderMesh::draw(Camera* camera)
 
 void RenderMesh::drawGui()
 {
-	if (mShowMeshGUI) 
-	{
-		std::string name = systemName == "" ? "Default" : systemName.c_str();
-		name += " Settings";
-		ImGui::Begin(name.c_str());
-		ImGui::Checkbox("Draw Wireframe", &mPrintWireframe);
-		ImGui::Checkbox("Draw Surface", &mPrintSurface);
-	}
+	std::string name = systemName == "" ? "RenderMesh" : systemName.c_str();
+	name += " Settings";
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text(name.c_str());
+	ImGui::Checkbox("Draw Wireframe", &mPrintWireframe);
+	ImGui::Checkbox("Draw Surface", &mPrintSurface);
 }
 
 int getSize(GLenum type) {
@@ -126,7 +125,7 @@ uint32_t RenderMesh::setVertexData(std::vector<VertexParameterLayout> parameters
 	// Set the vertex parameters
 	int currentSize = 0;
 	for (uint32_t i = 0; i < parameters.size(); i++) {
-		glVertexAttribPointer(mNextAttributeIndex, parameters[i].size, parameters[i].type, GL_FALSE, stripSize, (void*) currentSize);
+		glVertexAttribPointer(mNextAttributeIndex, parameters[i].size, parameters[i].type, GL_FALSE, stripSize, reinterpret_cast<void*>(static_cast<size_t>(currentSize)));
 		glEnableVertexAttribArray(mNextAttributeIndex++);
 		currentSize += parameters[i].size * getSize(parameters[i].type);
 	}

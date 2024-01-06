@@ -4,18 +4,18 @@
 #include <glad/glad.h>
 #include <vector>
 
-#include "System.h"
-#include "shaders/IShader.h"
-#include "shaders/ScreenPlaneShader.h"
-#include "RenderMesh.h"
-
 #include "SdfLib/OctreeSdf.h"
 #include "SdfLib/utils/Timer.h"
+
+#include "shaders/IShader.h"
+#include "shaders/ScreenPlaneShader.h"
+#include "System.h"
+#include "RenderMesh.h"
 
 class RenderSdf : public System
 {
 public:
-    RenderSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
+    RenderSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
@@ -25,7 +25,7 @@ public:
 
     void restart();
 
-    void setSdf(std::shared_ptr<sdflib::OctreeSdf> inputOctree, std::shared_ptr<sdflib::OctreeSdf> inputTricubicOctree)
+    void setSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
@@ -139,17 +139,14 @@ private:
 
     //GUI
     bool mShowSceneGUI = false;
-    bool mShowLightingGUI = false;
-    bool mShowAlgorithmGUI = false;
-    bool mShowSdfModelGUI = false;
 
     glm::ivec3 mOctreeStartGridSize;
     glm::mat4x4 mOctreeMatrix;
     float mOctreeDistanceScale;
     float mOctreeMinBorderValue;
 
-    std::shared_ptr<sdflib::OctreeSdf> mInputOctree;
-    std::shared_ptr<sdflib::OctreeSdf> mInputTricubicOctree;
+    std::shared_ptr<sdflib::IOctreeSdf> mInputOctree;
+    std::shared_ptr<sdflib::IOctreeSdf> mInputTricubicOctree;
 
 };
 

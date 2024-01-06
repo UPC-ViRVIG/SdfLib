@@ -2,7 +2,7 @@
 #define SDF_OCTREE_PLANE_SHADER_H
 
 #include "Shader.h"
-#include "SdfLib/OctreeSdf.h"
+#include "SdfLib/IOctreeSdf.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -10,7 +10,8 @@
 class SdfOctreePlaneShader : public Shader<SdfOctreePlaneShader> 
 {
 public:
-    SdfOctreePlaneShader(sdflib::OctreeSdf& octreeSdf, const sdflib::BoundingBox& viewBB) : Shader(SHADER_PATH + "sdfOctreePlane.vert", SHADER_PATH + "sdfOctreePlane.frag") 
+    SdfOctreePlaneShader(sdflib::IOctreeSdf& octreeSdf, const sdflib::BoundingBox& viewBB) : 
+        Shader(SHADER_PATH + "sdfOctreePlane.vert", "", SHADER_PATH + "sdfOctreePlane.frag", getFragmentShaderHeader(octreeSdf))
     {
         worldToStartGridMatrixLocation = glGetUniformLocation(getProgramId(), "worldToStartGridMatrix");
         worldToStartGridMatrix = glm::scale(glm::mat4x4(1.0f), 1.0f / viewBB.getSize()) *
@@ -33,7 +34,7 @@ public:
         // Set octree data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, octreeSdf.getOctreeData().size() * sizeof(sdflib::OctreeSdf::OctreeNode), octreeSdf.getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, octreeSdf.getOctreeData().size() * sizeof(sdflib::IOctreeSdf::OctreeNode), octreeSdf.getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
@@ -70,6 +71,23 @@ private:
     bool printGrid;
     unsigned int printIsolinesLocation;
     bool printIsolines;
+
+    std::string getFragmentShaderHeader(sdflib::IOctreeSdf& octreeSdf)
+    {
+        switch (octreeSdf.getFormat())
+        {
+        case sdflib::IOctreeSdf::TRILINEAR_OCTREE:
+            return "#define USE_TRILINEAR_INTERPOLATION\n\n";
+            break;
+        case sdflib::IOctreeSdf::TRICUBIC_OCTREE:
+            return "#define USE_TRICUBIC_INTERPOLATION\n\n";
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        return "";
+    }
 };
 
 #endif

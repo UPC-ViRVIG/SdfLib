@@ -2,10 +2,15 @@
 #define EXACT_OCTREE_SDF_DEPTH_FIRST_H
 
 #include <string>
-#include <omp.h>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
+#include <omp.h>
+#endif
 
 namespace sdflib
+{
+
+namespace internal
 {
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfoExactOctree
@@ -21,11 +26,13 @@ struct DepthFirstNodeInfoExactOctree
     std::array<std::array<float, VALUES_PER_VERTEX>, 8> verticesValues;
     std::array<VertexInfo, 8> verticesInfo;
 };
+}
 
 template<typename TrianglesInfluenceStrategy>
 void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                                 uint32_t minTrianglesPerNode, uint32_t numThreads)
 {
+    using namespace internal;
     typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
     typedef DepthFirstNodeInfoExactOctree<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
@@ -488,7 +495,9 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
     };
 
     const uint32_t voxlesPerAxis = 1 << startDepth;
+    #ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
+    #endif
     {
         // Create the grid
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
@@ -509,6 +518,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
         mMaxTrianglesInLeafs = mainThread.maxTrianglesInLeafs;
         mMaxTrianglesEncodedInLeafs = mainThread.maxTrianglesEncodedInLeafs;
     }
+    #ifdef OPENMP_AVAILABLE
     else
     {
         std::vector<ThreadContext> threadsContext(numThreads, mainThread);
@@ -643,6 +653,7 @@ void ExactOctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t 
             }
         #endif
     }
+    #endif
 	
 #ifdef SDFLIB_PRINT_STATISTICS
     SPDLOG_INFO("Used an octree of max depth {}", maxDepth);

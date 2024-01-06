@@ -1,8 +1,11 @@
 #include "Camera.h"
 #include <imgui.h>
+#include "Window.h"
 
 void Camera::start()
 {
+    glm::ivec2 windowSize = Window::getCurrentWindow().getWindowSize();
+    mAspectRatio = mAspectRatio = static_cast<float>(windowSize.x) / static_cast<float>(windowSize.y);
     recalculateProjectionMatrix();
     recalculateViewMatrix();
 }

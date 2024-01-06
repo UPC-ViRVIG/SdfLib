@@ -7,9 +7,13 @@
 #include "SdfLib/OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
 #include <omp.h>
+#endif
 
 namespace sdflib
+{
+namespace internal
 {
 template<typename VertexInfo, int VALUES_PER_VERTEX, int NUM_COEFFICIENTS>
 struct BreadthFirstNoDelayNodeInfo
@@ -40,56 +44,22 @@ struct BreadthFirstNoDelayNodeInfo
 		std::vector<uint32_t>* parentTriangles;
 		std::vector<uint32_t> triangles;
 };
+}
 
-// inline void getNeighboursVector(uint32_t outChildId, uint32_t childId, uint32_t parentChildrenIndex, const std::array<uint32_t, 6>& parentNeighbours, std::array<uint32_t, 6>& outNeighbours)
-// {
-//     for (uint32_t n = 1; n <= 6; n++)
-//     {
-//         const uint32_t nIdx = (~(outChildId ^ childId)) & n;
-//         outNeighbours[n - 1] = ((nIdx != 0)
-//             ? parentNeighbours[nIdx - 1]
-//             : parentChildrenIndex
-//             ) + (n ^ childId);
-//     }
-// }
-
-// inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 currentPos, uint32_t gridSize, std::array<uint32_t, 6>& outNeighbours)
-// {
-//     for (uint32_t n = 1; n <= 6; n++)
-//     {
-//         const glm::ivec3 nPos =
-//             currentPos +
-//             glm::ivec3(
-//                 (n & 0b0001) ? ((outChildId & 0b0001) ? 1 : -1) : 0,
-//                 (n & 0b0010) ? ((outChildId & 0b0010) ? 1 : -1) : 0,
-//                 (n & 0b0100) ? ((outChildId & 0b0100) ? 1 : -1) : 0
-//             );
-
-//         if (nPos.x >= 0 && nPos.x < gridSize &&
-//             nPos.y >= 0 && nPos.y < gridSize &&
-//             nPos.z >= 0 && nPos.z < gridSize)
-//         {
-//             outNeighbours[n - 1] = nPos.z * gridSize * gridSize + nPos.y * gridSize + nPos.x;
-//         }
-//         else
-//         {
-//             outNeighbours[n - 1] = 1 << 30;
-//         }
-//     }
-// }
-
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                              float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
-                              uint32_t numThreads)
+void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                                      TerminationRule terminationRule,
+                                                                      TerminationRuleParams terminationRuleParams,
+                                                                      uint32_t numThreads)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef BreadthFirstNoDelayNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX, InterpolationMethod::NUM_COEFFICIENTS> NodeInfo;
 
-    // terminationThreshold = terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
-    // const float sqTerminationThreshold = terminationThreshold * terminationThreshold * glm::length(mesh.getBoundingBox().getSize());
-    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
-    const float sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    float sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
+
+    // Line for using the error regadring the voxel diagonal
+    // sqTerminationThreshold *= glm::length(mesh.getBoundingBox().getSize()) * glm::length(mesh.getBoundingBox().getSize());
 
     std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
@@ -226,7 +196,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<uint32_t> nodesToSubdivide;
     std::map<uint32_t, std::pair<uint32_t, uint32_t>> leavesData;
@@ -240,8 +210,12 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
     float afterSubdivisionTime = 0.0f;
     uint32_t numNodesSubdividedAfterDecision = 0;
 
+    #ifdef OPENMP_AVAILABLE
     omp_set_dynamic(0);
     omp_set_num_threads(numThreads);
+    #else
+    numThreads = 1;
+    #endif
 
     std::vector<TrianglesInfluenceStrategy> threadTrianglesInfluence(numThreads, trianglesInfluence);
 
@@ -251,14 +225,18 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         timer.start();
         if(currentDepth < maxDepth)
         {
-            //for(NodeInfo& node : nodesBuffer[currentBuffer])
-            // const auto nodesBufferSize = nodesBuffer[currentBuffer].size();
             const auto nodesBufferSize = nodesBuffer[currentDepth].size();
+            #ifdef OPENMP_AVAILABLE
             #pragma omp parallel for default(shared) schedule(dynamic, 16)
+            #endif
             for(uint32_t nId=0; nId < nodesBufferSize; nId++)
             {
+                #ifdef OPENMP_AVAILABLE
                 const uint32_t tId = omp_get_thread_num();
-                // std::cout << "enter" << std::endl;
+                #else
+                const uint32_t tId = 0;
+                #endif
+
                 NodeInfo& node = nodesBuffer[currentDepth][nId];
                 if(node.ignoreNode) continue;
 
@@ -335,22 +313,27 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     switch(terminationRule)
                     {
                         case TerminationRule::TRAPEZOIDAL_RULE:
-                            {
-                            // float value1 = estimateFaceErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            // float value2 = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
-                            // generateTerminalNodes = value1 < sqTerminationThreshold && value2 < sqTerminationThreshold;
                             value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             generateTerminalNodes = value < sqTerminationThreshold;
-                            }
                             break;
                         case TerminationRule::SIMPSONS_RULE:
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
+                            break;
+                        case TerminationRule::ISOSURFACE:
+                            value = isIsosurfaceInside<InterpolationMethod>(node.midPointsValues, node.size)
+                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues)
+                                        : 0;
+                            generateTerminalNodes = value < sqTerminationThreshold;
+                            break;
+                        case TerminationRule::BY_DISTANCE_RULE:
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues, terminationRuleParams[1]);
                             generateTerminalNodes = value < sqTerminationThreshold;
                             break;
                         case TerminationRule::NONE:
                             value = INFINITY;
                             break;
                     }
+                    generateTerminalNodes = value < sqTerminationThreshold;
                 }
 
                 node.isTerminalNode = generateTerminalNodes;
@@ -371,7 +354,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                                         ? node.parentChildrenIndex + (node.childIndices & 0b0111)
                                         : std::numeric_limits<uint32_t>::max();
 
-            const std::vector<OctreeSdf::OctreeNode>& octreeData = mOctreeData;
+            const std::vector<OctreeNode>& octreeData = mOctreeData;
 
             glm::ivec3 nodeStartGridPos;
             if(currentDepth == startDepth)
@@ -1162,7 +1145,8 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
                     node.isTerminalNode = true;
                     node.ignoreNode = true;
                     nodesBuffer[depth].push_back(node);
-                    leavesData.insert(std::make_pair(node.parentChildrenIndex + (node.childIndices & 0b0111), std::make_pair(depth, nodesBuffer[depth].size()-1)));
+                    leavesData.insert(std::make_pair(node.parentChildrenIndex + static_cast<uint32_t>(node.childIndices & 0b0111), 
+                                      std::make_pair(depth, static_cast<uint32_t>(nodesBuffer[depth].size()-1))));
                 }
 
                 firstIteration = false;
@@ -1177,7 +1161,7 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
         // nodesBuffer[nextBuffer].clear();
     }
 
-    // Add start index to the subtree
+    // Remove nodes mark and mark only nodes containing the isosurface
     std::function<void(OctreeNode&)> vistNode;
     vistNode = [&](OctreeNode& node)
     {
@@ -1190,6 +1174,11 @@ void OctreeSdf::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t start
             {
                 vistNode(mOctreeData[node.getChildrenIndex() + i]);
             }
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values)) node.markNode();
         }
     };
 

@@ -154,7 +154,7 @@ void RenderSdf::start()
         // Set octree trilinear data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -168,7 +168,7 @@ void RenderSdf::start()
         // Set octree data
         glGenBuffers(1, &mOctreeTricubicSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeTricubicSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(OctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mOctreeTricubicSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
@@ -278,9 +278,6 @@ void RenderSdf::drawGui()
         if (ImGui::BeginMenu("Scene")) 
         {
             ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
-            ImGui::MenuItem("Show lighting settings", NULL, &mShowLightingGUI);
-            ImGui::MenuItem("Show algorithm settings", NULL, &mShowAlgorithmGUI);	
-            ImGui::MenuItem("Show model settings", NULL, &mShowSdfModelGUI);	
             
             ImGui::EndMenu();
         }
@@ -290,19 +287,11 @@ void RenderSdf::drawGui()
     if (mShowSceneGUI) 
     {
         ImGui::Begin("Scene");
-        ImGui::Text("Scene Settings");
-        //ImGui::Checkbox("Draw Plane", &mDrawPlane);
-        //if (mDrawPlane) ImGui::SliderFloat("Plane Position", &mPlanePos, -1.0f, 1.0f);
-        ImGui::Checkbox("AO", &mUseAO);
-        ImGui::Checkbox("Shadows", &mUseShadows);
-        if (mUseShadows) ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+        // Light settings
+        ImGui::Spacing();
+        ImGui::Separator();
 
-        ImGui::End();
-    }
-
-    if (mShowLightingGUI)
-    {
-        ImGui::Begin("Lighting settings");
+        ImGui::Text("Lighting settings");
         ImGui::Checkbox("Draw Lights", &mDrawLights);
         ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
@@ -318,29 +307,36 @@ void RenderSdf::drawGui()
             ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
         }
 
-        ImGui::End();
-    }
+        // Material settings
+        ImGui::Spacing();
+        ImGui::Separator();
 
-    if (mShowSdfModelGUI)
-    {
-        ImGui::Begin("Model Settings");
-        ImGui::Text("Material");
-        ImGui::InputFloat("Metallic", &mMetallic, 0.0f, 1.0f);
-        ImGui::InputFloat("Roughness", &mRoughness, 0.0f, 1.0f);
+        //ImGui::Text("Transform");
+        //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
+        //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
+        //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
+        //ImGui::Spacing();
+        //ImGui::Separator();
+        ImGui::Text("Material settings");
+        ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
+        ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
         ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
         ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
-        ImGui::End();
-    }
 
-    if (mShowAlgorithmGUI) 
-    {
-        ImGui::Begin("Algorithm Settings");
+        // Algorithm settings
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        ImGui::Text("Algorithm Settings");
         ImGui::SliderInt("Version", &mRaymarchVersion, 1, 3);
         if (mRaymarchVersion == 1) ImGui::Checkbox("V1 Tricubic", &mV1TriCubic);
         if (mRaymarchVersion != 1 || mRaymarchVersion == 1 && !mV1TriCubic) ImGui::Checkbox("Use Tricubic Normals", &mUseTricubicNormals);
         if (mRaymarchVersion == 1 && mV1TriCubic && !mUseTricubicNormals) mUseTricubicNormals = true;
         ImGui::InputInt("Max Iterations", &mMaxIterations);
-        ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+        ImGui::Checkbox("Shadows", &mUseShadows);
+        if (mUseShadows) ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+        if (mUseShadows) ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+        ImGui::Checkbox("AO", &mUseAO);
         ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
         if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
         ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);

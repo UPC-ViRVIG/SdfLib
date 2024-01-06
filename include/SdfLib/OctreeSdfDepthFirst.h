@@ -7,9 +7,14 @@
 #include "SdfLib/OctreeSdfUtils.h"
 #include <array>
 #include <stack>
+#ifdef OPENMP_AVAILABLE
 #include <omp.h>
+#endif    
+
 
 namespace sdflib
+{
+namespace internal
 {
 template<typename VertexInfo, int VALUES_PER_VERTEX>
 struct DepthFirstNodeInfo
@@ -24,16 +29,20 @@ struct DepthFirstNodeInfo
     std::array<std::array<float, VALUES_PER_VERTEX>, 8> verticesValues;
     std::array<VertexInfo, 8> verticesInfo;
 };
+}
 
+template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
-                           float terminationThreshold, OctreeSdf::TerminationRule terminationRule,
-                           uint32_t numThreads)
+void TOctreeSdf<InterpolationMethod>::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+                                                 TerminationRule terminationRule,
+                                                 TerminationRuleParams terminationRuleParams,
+                                                 uint32_t numThreads)
 {
-    typedef typename TrianglesInfluenceStrategy::InterpolationMethod InterpolationMethod;
+    using namespace internal;
     typedef DepthFirstNodeInfo<typename TrianglesInfluenceStrategy::VertexInfo, InterpolationMethod::VALUES_PER_VERTEX> NodeInfo;
 
-    terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
+    // Line for using the error regadring the voxel diagonal
+    // terminationThreshold *= glm::length(mesh.getBoundingBox().getSize());
 
     struct ThreadContext
     {
@@ -43,8 +52,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
         uint32_t startDepth;
         uint32_t startOctreeDepth;
         uint32_t maxDepth;
-        OctreeSdf::TerminationRule terminationRule;
+        TerminationRule terminationRule;
         float sqTerminationThreshold;
+        TerminationRuleParams terminationRuleParams;
         float valueRange;
         uint32_t padding[16];
 
@@ -67,7 +77,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     mainThread.startOctreeDepth = startOctreeDepth;
     mainThread.maxDepth = maxDepth;
     mainThread.terminationRule = terminationRule;
-    mainThread.sqTerminationThreshold = terminationThreshold * terminationThreshold;
+    mainThread.sqTerminationThreshold = terminationRuleParams[0] * terminationRuleParams[0];
+    mainThread.terminationRuleParams = terminationRuleParams;
     mainThread.valueRange = 0.0f;
 
     #ifdef SDFLIB_PRINT_STATISTICS
@@ -191,6 +202,14 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                         break;
                     case TerminationRule::SIMPSONS_RULE:
                         value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
+                        break;
+                    case TerminationRule::BY_DISTANCE_RULE:
+                        value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, tContext.terminationRuleParams[1]);
+                        break;
+                    case TerminationRule::ISOSURFACE:
+                        value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size)
+                                    ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues)
+                                    : 0;
                         break;
                     case TerminationRule::NONE:
                         value = INFINITY;
@@ -381,7 +400,9 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
     };
 
     const uint32_t voxlesPerAxis = 1 << startDepth;
+#ifdef OPENMP_AVAILABLE
     if(numThreads < 2)
+#endif
     {
         // Create the grid
         mOctreeData.resize(voxlesPerAxis * voxlesPerAxis * voxlesPerAxis);
@@ -402,7 +423,8 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
 
         mValueRange = mainThread.valueRange;
     }
-    else
+#ifdef OPENMP_AVAILABLE
+    else 
     {
         std::vector<ThreadContext> threadsContext(numThreads, mainThread);
 
@@ -510,6 +532,40 @@ void OctreeSdf::initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDe
                 }
             }
         #endif
+    }
+#endif
+
+    // Remove nodes mark and mark only nodes containing the isosurface
+    std::function<void(OctreeNode&)> vistNode;
+    vistNode = [&](OctreeNode& node)
+    {
+        node.removeMark();
+
+        // Iterate children
+        if(!node.isLeaf())
+        {
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                vistNode(mOctreeData[node.getChildrenIndex() + i]);
+            }
+        }
+        else
+        {
+            auto& values = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&mOctreeData[node.getChildrenIndex()]);
+            if(InterpolationMethod::isIsosurfaceInside(values)) node.markNode();
+        }
+    };
+
+    for(uint32_t k=0; k < mStartGridSize; k++)
+    {
+        for(uint32_t j=0; j < mStartGridSize; j++)
+        {
+            for(uint32_t i=0; i < mStartGridSize; i++)
+            {
+                const uint32_t nodeStartIndex = k * mStartGridSize * mStartGridSize + j * mStartGridSize + i;
+                vistNode(mOctreeData[nodeStartIndex]);
+            }
+        }
     }
 	
 #ifdef SDFLIB_PRINT_STATISTICS

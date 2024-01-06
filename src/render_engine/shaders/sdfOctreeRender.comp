@@ -1,5 +1,10 @@
 #version 460 core
 
+// Algorithm configuration
+// #define USE_TRILINAR_ISOSURFACE
+// #define USE_TRICUBIC
+// #define USE_TRILINAR
+
 #define MAX_AO_ITERATIONS 8
 #define NEWTON_ITER 1
 #define HALLEY_ITER 1
@@ -22,8 +27,8 @@ layout(std430, binding = 2) buffer octreeTricubic
 };
 
 const uint isLeafMask = 1 << 31;
-const uint childrenIndexMask = ~(1 << 31);
 const uint isMarkedMask = 1 << 30;
+const uint childrenIndexMask = ~(isLeafMask | isMarkedMask);
 
 uint roundFloat(float a)
 {
@@ -66,7 +71,7 @@ uniform float matRoughness;
 uniform vec3 matAlbedo;
 uniform vec3 matF0;
 
-//Utils
+/// --- Utils --- ///
 float sphereSDF(vec3 samplePoint, float radius) {
     return length(samplePoint) - radius;
 }
@@ -206,7 +211,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-//Access to the sdfOctree
+/// --- Access to the sdfOctree --- ///
 bool isOutsideGrid(vec3 point) 
 {
     vec3 fracPart = point * startGridSize;
@@ -452,8 +457,17 @@ vec3 getGradientTricubic(vec3 point) //tricubic interpolation
     ));
 }
 
-//SCENE
-//SDF of the scene
+/// --- Scene --- ///
+float map(vec3 pos)
+{
+    return distanceScale * getDistance(pos);
+}
+
+float mapTri(vec3 pos)
+{
+    return distanceScale * getDistanceTricubic(pos);
+}
+
 float mapLights(vec3 pos)
 {
     float dist = distanceScale * sphereSDF(pos-lightPos[0], lightRadius[0]);
@@ -464,8 +478,23 @@ float mapLights(vec3 pos)
     return dist;
 }
 
+//Gradient of the scene
+vec3 mapGradient(vec3 pos)
+{
+    // Get the exact gradient
+    return getGradientTricubic(pos);
 
-//LIGHTING
+    // Get an approximation of the gradient
+    // float dist = mapTri(pos);
+    // return normalize(vec3(
+    //     mapTri(pos + vec3(epsilon, 0, 0)) - dist,
+    //     mapTri(pos + vec3(0, epsilon, 0)) - dist,
+    //     mapTri(pos + vec3(0, 0, epsilon)) - dist
+    // ));
+}
+
+/// --- Lighthing --- ///
+
 float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
@@ -473,7 +502,7 @@ float getAO(vec3 pos, vec3 n)
     for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
         float h = 0.002 + 0.1 * float(i)/8.0;
-        float d = distanceScale*getDistanceTricubic(pos + n * h);
+        float d = mapTri(pos + n * h);
         occ += max(h-d, 0.0);
         decay *= 0.8;
     }
@@ -481,7 +510,7 @@ float getAO(vec3 pos, vec3 n)
     return min(1.0 - 1.5 * occ, 1.0);
 }
 
-//RAY MARCHING ALGORITHM
+/// --- RAY MARCHING ALGORITHM --- ///
 
 //Original
 bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
@@ -1037,7 +1066,9 @@ void main()
         }
         else {
             vec3 hitPoint;
-            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
+               (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
+               (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
             {
                 if (useItColorMode) outColor = gradientColor(hitPoint.x);
                 else outColor = mapColor(hitPoint, worldPos);
@@ -1047,7 +1078,9 @@ void main()
     else 
     {
         vec3 hitPoint;
-        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
+        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
+           (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
+           (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
         {
             if (useItColorMode) outColor = gradientColor(hitPoint.x);
             else outColor = mapColor(hitPoint, worldPos);

@@ -12,23 +12,53 @@ const std::string SHADER_PATH_DEBUG = "../src/render_engine/shaders/";
 
 IShader::IShader(const std::string& vertexShaderName, const std::string& fragmentShaderName)
 {
-    unsigned long length;
-	//load the vertex shader 
+	unsigned long vertexLength;
+    char* vertexShaderText = loadShaderFile(vertexShaderName, &vertexLength);
+
+	unsigned long fragmentLength;
+	char* fragmentShaderText = loadShaderFile(fragmentShaderName, &fragmentLength);
+
+	compileShader(vertexShaderName, vertexShaderText, vertexLength,
+				  fragmentShaderName, fragmentShaderText, fragmentLength);
+
+	delete[] vertexShaderText;
+	delete[] fragmentShaderText;
+}
+
+IShader::IShader(const std::string& vertexShaderName, const std::string& vertexShaderHeader, 
+				 const std::string& fragmentShaderName, const std::string& fragmentShaderHeader)
+{
+	unsigned long vertexLength;
+    char* vertexShaderText = loadShaderFile(vertexShaderName, &vertexLength);
+
+	std::string vertexShader;
+	vertexShader.append("#version 430\n\n");
+	vertexShader.append(vertexShaderHeader);
+	vertexShader.append(vertexShaderText);
+
+	unsigned long fragmentLength;
+	char* fragmentShaderText = loadShaderFile(fragmentShaderName, &fragmentLength);
+
+	std::string fragmentShader;
+	fragmentShader.append("#version 430\n\n");
+	fragmentShader.append(fragmentShaderHeader);
+	fragmentShader.append(fragmentShaderText);
+
+	compileShader(vertexShaderName, vertexShader.c_str(), vertexLength,
+				  fragmentShaderName, fragmentShader.c_str(), fragmentLength);
+
+	delete[] vertexShaderText;
+	delete[] fragmentShaderText;
+}
+
+void IShader::compileShader(const std::string& vertexShaderName, const char* vertexShaderText, uint32_t vertexShaderLength,
+				   			const std::string& fragmentShaderName, const char* fragmentShaderText, uint32_t fragmentShaderLength)
+{
+	unsigned long length;
+	// Load the vertex shader 
 	unsigned int vertexShaderId = glCreateShader(GL_VERTEX_SHADER);
 
-	char* fileShader = loadFromFile(vertexShaderName, &length);
-	if (fileShader == nullptr) {
-#ifdef CHECK_DEBUG_DIRECTORY
-		std::filesystem::path p(vertexShaderName);
-		fileShader = loadFromFile(SHADER_PATH_DEBUG + p.filename().string(), &length);
-		if (fileShader == nullptr)
-			std::cout << "File " << vertexShaderName << " not found" << std::endl;
-#else
-		std::cout << "File " << vertexShaderName << " not found" << std::endl;
-#endif
-	}
-
-	glShaderSource(vertexShaderId, 1, &fileShader, NULL);
+	glShaderSource(vertexShaderId, 1, &vertexShaderText, NULL);
 	glCompileShader(vertexShaderId);
 
 	int success;
@@ -40,24 +70,10 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 		std::cout << infoLog << std::endl;
 	}
 
-	delete[] fileShader;
-
-	//load the fragment shader
+	// Load the fragment shader
 	unsigned int fragmentShaderId = glCreateShader(GL_FRAGMENT_SHADER);
 
-	fileShader = loadFromFile(fragmentShaderName, &length);
-	if (fileShader == nullptr) {
-#ifdef CHECK_DEBUG_DIRECTORY
-		std::filesystem::path p(fragmentShaderName);
-		fileShader = loadFromFile(SHADER_PATH_DEBUG + p.filename().string(), &length);
-		if (fileShader == nullptr)
-			std::cout << "File " << fragmentShaderName << " not found" << std::endl;
-#else
-		std::cout << "File " << fragmentShaderName << " not found" << std::endl;
-#endif
-	}
-
-	glShaderSource(fragmentShaderId, 1, &fileShader, NULL);
+	glShaderSource(fragmentShaderId, 1, &fragmentShaderText, NULL);
 	glCompileShader(fragmentShaderId);
 
 	glGetShaderiv(fragmentShaderId, GL_COMPILE_STATUS, &success);
@@ -68,7 +84,7 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 		std::cout << infoLog << std::endl;
 	}
 
-	//create the program
+	// Create the program
 	programId = glCreateProgram();
 
 	glAttachShader(programId, vertexShaderId);
@@ -86,7 +102,7 @@ IShader::IShader(const std::string& vertexShaderName, const std::string& fragmen
 		std::cout << infoLog << std::endl;
 	}
 
-	//get standard attributes
+	// Get standard attributes
 	projectionViewModelMatrixLocation = glGetUniformLocation(programId, "projectionViewModelMatrix");
 	projectionMatrixLocation = glGetUniformLocation(programId, "projectionMatrix");
 	viewModelMatrixLocation = glGetUniformLocation(programId, "viewModelMatrix");
@@ -132,6 +148,23 @@ void IShader::setMatrices(const glm::mat4x4& projection, const glm::mat4x4& view
 	if (projectionViewModelMatrixLocation != -1) {
 		glUniformMatrix4fv(projectionViewModelMatrixLocation, 1, GL_FALSE, glm::value_ptr(res));
 	}
+}
+
+char* IShader::loadShaderFile(const std::string& shaderName, unsigned long* length)
+{
+	char* res = loadFromFile(shaderName, length);
+	if (res == nullptr) {
+	#ifdef CHECK_DEBUG_DIRECTORY
+			std::filesystem::path p(shaderName);
+			res = loadFromFile(SHADER_PATH_DEBUG + p.filename().string(), length);
+			if (res == nullptr)
+				std::cout << "File " << shaderName << " not found" << std::endl;
+	#else
+			std::cout << "File " << shaderName << " not found" << std::endl;
+	#endif
+	}
+
+	return res;
 }
 
 char* IShader::loadFromFile(std::string path, unsigned long* length)

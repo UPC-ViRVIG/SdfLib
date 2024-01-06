@@ -1,56 +1,22 @@
 #include "SdfLib/utils/Mesh.h"
 #include "SdfLib/utils/PrimitivesFactory.h"
 #include "SdfLib/utils/Timer.h"
+#include "render_engine/shaders/SdfOctreeLightShader.h"
+#include "render_engine/shaders/BasicShader.h"
 #include "render_engine/MainLoop.h"
 #include "render_engine/NavigationCamera.h"
 #include "render_engine/RenderMesh.h"
-#include "render_engine/RenderSdf.h"
 #include "render_engine/Window.h"
-#include "render_engine/shaders/SdfOctreeLightShader.h"
-#include "render_engine/shaders/BasicShader.h"
 #include <spdlog/spdlog.h>
 #include <args.hxx>
 #include <imgui.h>
 
 using namespace sdflib;
 
-const char* models[]{
-    "Armadillo",
-    "Bunny",
-    "Dragon",
-    "Frog",
-    "Happy",
-    "ReliefPlate",
-    "Sponza",
-    "Temple"
-};
-
-const char* modelPaths[]{
-    "C:/Users/juane/Documents/Github/SdfLib/models/Armadillo.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/bunny.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/dragon.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/frog.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/happy_rep.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/reliefPlate1M.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/sponza_rep.ply",
-    "C:/Users/juane/Documents/Github/SdfLib/models/temple.ply"
-};
-
-const char* cubicPaths[]{
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeArmadilloCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeDragonCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeFrogCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeHappyCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeReliefPlate1MCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeSponzaCub.bin",
-    "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeTempleCub.bin"
-};
-
 class MyScene : public Scene
 {
 public:
-    MyScene(std::string modelPath, std::string sdfPath) : mModelPath(modelPath), mSdfPath(sdfPath){}
+    MyScene(std::string modelPath, std::string sdfPath, bool normalizeModel) : mModelPath(modelPath), mSdfPath(sdfPath), mNormalizeModel(normalizeModel) {}
 
     void start() override
 	{
@@ -59,24 +25,24 @@ public:
 
         Mesh mesh(mModelPath);
         
-        glm::mat4 invTransform;
-        if(true)
+        if(mNormalizeModel)
         {
             // Normalize model units
             const glm::vec3 boxSize = mesh.getBoundingBox().getSize();
             glm::vec3 center = mesh.getBoundingBox().getCenter();
             mesh.applyTransform(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
                                             glm::translate(glm::mat4(1.0), -mesh.getBoundingBox().getCenter()));
-
-            invTransform = glm::inverse(glm::scale(glm::mat4(1.0), glm::vec3(2.0f/glm::max(glm::max(boxSize.x, boxSize.y), boxSize.z))) *
-                                            glm::translate(glm::mat4(1.0), -center));
-            SPDLOG_INFO("Center is {}, {}, {}", center.x, center.y, center.z);
         }
         
         // Load Sdf
         std::unique_ptr<SdfFunction> sdfUnique = SdfFunction::loadFromFile(mSdfPath);
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
-        std::shared_ptr<OctreeSdf> octreeSdf = std::dynamic_pointer_cast<OctreeSdf>(sdf);
+        std::shared_ptr<IOctreeSdf> octreeSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdf);
+        if(octreeSdf->hasSdfOnlyAtSurface())
+        {
+            std::cerr << "The octrees with the isosurface termination rule are not supported in this application" << std::endl;
+            exit(1);
+        }
 
         mOctreeLightShader = std::make_unique<SdfOctreeLightShader>(*octreeSdf);
 
@@ -97,6 +63,8 @@ public:
 			mModelRenderer->setIndexData(mesh.getIndices());
 			mModelRenderer->setShader(mOctreeLightShader.get());
             mModelRenderer->callDraw = false; // Disable the automatic call because we already call the function
+            mModelRenderer->callDrawGui = false;
+            mModelRenderer->systemName = "Mesh Model";
 			addSystem(mModelRenderer);
         }
 
@@ -123,22 +91,22 @@ public:
                                         glm::scale(glm::mat4(1.0f), glm::vec3(64.0f)));
             mPlaneRenderer->setShader(mOctreeLightShader.get());
             mPlaneRenderer->callDraw = false; // Disable the automatic call because we already call the function
+            mPlaneRenderer->callDrawGui = false;
+            mPlaneRenderer->systemName = "Mesh Plane";
             addSystem(mPlaneRenderer);
         }
 
         // Create camera
-        if (firstTime)
-		{
-			auto camera = std::make_shared<NavigationCamera>();
+        auto camera = std::make_shared<NavigationCamera>();
+        camera->callDrawGui = false;
         // Move camera in the z-axis to be able to see the whole model
-            BoundingBox BB = mesh.getBoundingBox();
-			float zMovement = 0.5f * glm::max(BB.getSize().x, BB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
-			camera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * BB.getSize().z + zMovement));
-            camera->start();
-			setMainCamera(camera);
-			addSystem(camera);
-            firstTime = false;
-		}
+        BoundingBox BB = mesh.getBoundingBox();
+        float zMovement = 0.5f * glm::max(BB.getSize().x, BB.getSize().y) / glm::tan(glm::radians(0.5f * camera->getFov()));
+        camera->setPosition(glm::vec3(0.0f, 0.0f, 0.1f * BB.getSize().z + zMovement));
+        camera->start();
+        setMainCamera(camera);
+        addSystem(camera);
+        mCamera = camera;
 
     }
 
@@ -175,48 +143,25 @@ public:
     {
         if (ImGui::BeginMainMenuBar()) 
         {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::MenuItem("Load Model"))
-                {
-                    mShowLoadSdfWindow = true;
-                }
-
-                ImGui::EndMenu();
-            }
             if (ImGui::BeginMenu("Scene")) 
             {
-                ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);	
-                ImGui::MenuItem("Show lighting settings", NULL, &mShowLightingGUI);
-                ImGui::MenuItem("Show algorithm settings", NULL, &mShowAlgorithmGUI);	
-                ImGui::MenuItem("Show model settings", NULL, &mShowSdfModelGUI);	
-                
+                ImGui::MenuItem("Show scene settings", NULL, &mShowSceneGUI);                
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Mesh")) 
-            {
-                ImGui::MenuItem("Show model settings", NULL, &mShowModelMeshGUI);
-                ImGui::MenuItem("Show plane settings", NULL, &mShowPlaneMeshGUI);
-                ImGui::EndMenu();
-            }
+
             ImGui::EndMenuBar();
         }
 
-        mModelRenderer->setShowGui(mShowModelMeshGUI);
-        mPlaneRenderer->setShowGui(mShowPlaneMeshGUI);
+        mCamera->drawGuiWindow();
 
         if (mShowSceneGUI) 
         {
             ImGui::Begin("Scene");
-            ImGui::Text("Scene Settings");
-            ImGui::Checkbox("AO", &mUseAO);
-            ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-            ImGui::End();
-        }
+            // Print light settings
+            ImGui::Spacing();
+		    ImGui::Separator();
 
-        if (mShowLightingGUI)
-        {
-            ImGui::Begin("Lighting settings");
+            ImGui::Text("Lighting settings");
             ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
             for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
@@ -231,50 +176,43 @@ public:
                 ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
             }
 
-            ImGui::End();
-        }
+            // Print meterial settings
+            ImGui::Spacing();
+		    ImGui::Separator();
 
-        if (mShowSdfModelGUI)
-        {
-            ImGui::Begin("Model Settings");
-            ImGui::Text("Material");
+            ImGui::Text("Material settings");
             ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
             ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
             ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
             ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
-            ImGui::End();
-        }
 
-        if (mShowAlgorithmGUI) 
-        {
-            ImGui::Begin("Algorithm Settings");
+            // Print algorithm settings
+            ImGui::Spacing();
+		    ImGui::Separator();
+
+            ImGui::Text("Algorithm Settings");
             ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
             ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
-            ImGui::End();
-        }
+            ImGui::Checkbox("AO", &mUseAO);
+            ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
 
-        if (mShowLoadSdfWindow) {
-            ImGui::Begin("Load Model");
-            ImGui::Combo("Model", &selectedItem, models, IM_ARRAYSIZE(models));
-            if (ImGui::Button("Load"))
-            {
-                mSdfPath = cubicPaths[selectedItem];
-                mModelPath = modelPaths[selectedItem];
-                start();
-                mShowLoadSdfWindow = false;
-            }
-            if (ImGui::Button("Cancel"))
-            {
-                mShowLoadSdfWindow = false;
-            }
+            // Print model GUI
+            ImGui::PushID(mModelRenderer->getSystemId());
+            mModelRenderer->drawGui();
+            ImGui::PopID();
+            ImGui::PushID(mPlaneRenderer->getSystemId());
+            mPlaneRenderer->drawGui();
+            ImGui::PopID();
+
             ImGui::End();
         }
     }
 
 private:
+    std::shared_ptr<NavigationCamera> mCamera;
     std::string mSdfPath;
     std::string mModelPath;
-    std::shared_ptr<RenderSdf> mRenderSdf;
+    bool mNormalizeModel;
     std::shared_ptr<RenderMesh> mModelRenderer;
     std::shared_ptr<RenderMesh> mPlaneRenderer;
     std::shared_ptr<RenderMesh> mLightRenderer;
@@ -283,8 +221,8 @@ private:
 
     //Options
     int mMaxShadowIterations = 512;
-    bool mUseAO = false;
-    bool mUseSoftShadows = false;
+    bool mUseAO = true;
+    bool mUseSoftShadows = true;
     float mOverRelaxation = 1.47f;
 
     //Lighting
@@ -329,15 +267,6 @@ private:
 
     //GUI
     bool mShowSceneGUI = false;
-    bool mShowLightingGUI = false;
-    bool mShowAlgorithmGUI = false;
-    bool mShowSdfModelGUI = false;
-    bool mShowModelMeshGUI = false;
-    bool mShowPlaneMeshGUI = false;
-    bool mShowLoadSdfWindow = false;
-    bool firstTime = true;
-    int selectedItem = 1;
-    
 };
 
 int main(int argc, char** argv)
@@ -348,9 +277,11 @@ int main(int argc, char** argv)
         spdlog::set_pattern("[%^%l%$] %v");
     #endif
 
-    args::ArgumentParser parser("UniformGridViwer reconstructs and draws a uniform grid sdf");
+    args::ArgumentParser parser("SdfLight app for rendering a model using its sdf");
+    args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Positional<std::string> modelPathArg(parser, "model_path", "The model path");
     args::Positional<std::string> sdfPathArg(parser, "sdf_path", "The sdf model path");
+    args::Flag normalizeBBArg(parser, "sdf_is_normalized", "Indicates that the sdf model is normalized", {'n', "normalize"});
     
     try
     {
@@ -362,8 +293,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    //MyScene scene(args::get(modelPathArg), args::get(sdfPathArg));
-    MyScene scene("C:/Users/juane/Documents/Github/SdfLib/models/bunny.ply", "C:/Users/juane/Documents/Github/SdfLib/output/sdfOctreeBunnyCub.bin");
+    MyScene scene(args::get(modelPathArg), args::get(sdfPathArg), (normalizeBBArg) ? true : false);
     MainLoop loop;
     loop.start(scene, "SdfLight");
 }
