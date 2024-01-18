@@ -15,20 +15,37 @@
 class RenderSdf : public System
 {
 public:
-    RenderSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
+    enum Algorithm
+    {
+        SPHERE_TRACING,
+        OCTREE_TRAVERSAL_SH,
+        OCTREE_TRAVERSAL_SOLVER,
+        SPHERE_TRACING_SOLVER
+    };
+
+    const char* algorithmsStr[4] = {
+        "Sphere tracing",
+        "Octree traversal with sphere tracing",
+        "Octree traversal with solver",
+        "Sphere tracing with solver"
+    };
+
+    RenderSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, Algorithm algorithm, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree = nullptr)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
+        mAlgorithm = algorithm;
     }
 
     ~RenderSdf();
 
     void restart();
 
-    void setSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree)
+    void setSdf(std::shared_ptr<sdflib::IOctreeSdf> inputOctree, Algorithm algorithm, std::shared_ptr<sdflib::IOctreeSdf> inputTricubicOctree = nullptr)
     {
         mInputOctree = inputOctree;
         mInputTricubicOctree = inputTricubicOctree;
+        mAlgorithm = algorithm;
         restart();
     }
 
@@ -54,37 +71,25 @@ private:
     unsigned int mDistanceScaleLocation;
     unsigned int mOctreeMinBorderValueLocation;
     
-    unsigned int mEpsilonLocation;
-    float mEpsilon = 0.0001f;
-    float mEpsilon10000 = 0.0001f * 10000;
-    
     //Options
     unsigned int mUseAOLocation;
     unsigned int mUseShadowsLocation;
     unsigned int mUseSoftShadowsLocation;
-    unsigned int mOverRelaxationLocation;
-    unsigned int mUseItColorModeLocation;
-    unsigned int mDrawLightsLocation;
-    unsigned int mRaymarchVersionLocation;
-    unsigned int mV1TriCubicLocation;
-    unsigned int mUseTricubicNormalsLocation;
     unsigned int mMaxIterationsLocation;
-    unsigned int mMaxColorIterationsLocation;
     unsigned int mMaxShadowIterationsLocation;
+    unsigned int mEpsilonLocation;
+
+    float mEpsilon = 0.0001f;
+    float mEpsilon10000 = 0.0001f * 10000;
 
     int mMaxIterations = 700;
-    int mMaxColorIterations = 64;
     int mMaxShadowIterations = 64;
 
     bool mUseAO = false;
     bool mUseShadows = false;
     bool mUseSoftShadows = false;
-    float mOverRelaxation = 1.47f;
-    bool mUseItColorMode = false;
-    bool mDrawLights = false;
-    int mRaymarchVersion = 3;
-    bool mV1TriCubic = true;
-    bool mUseTricubicNormals = true;
+
+    void sendAlgorithmOptionsValues();
 
     //Lighting
     unsigned int mLightNumberLocation;
@@ -126,6 +131,8 @@ private:
         0.1f
     };
 
+    void sendLightingValues();
+
     //Material
     unsigned int mMetallicLocation;
     unsigned int mRoughnessLocation;
@@ -137,6 +144,8 @@ private:
     glm::vec3 mAlbedo = glm::vec3(0.35f, 0.0f, 0.014f);
     glm::vec3 mF0 = glm::vec3(0.07f, 0.07f, 0.07f);
 
+    void sendMaterialValues();
+
     //GUI
     bool mShowSceneGUI = false;
 
@@ -147,6 +156,7 @@ private:
 
     std::shared_ptr<sdflib::IOctreeSdf> mInputOctree;
     std::shared_ptr<sdflib::IOctreeSdf> mInputTricubicOctree;
+    Algorithm mAlgorithm;
 
 };
 

@@ -35,12 +35,6 @@ public:
         std::shared_ptr<SdfFunction> sdf = std::move(sdfUnique);
         std::shared_ptr<IOctreeSdf> octreeSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdf);
 
-        if(octreeSdf->getFormat() != IOctreeSdf::SdfFormat::TRILINEAR_OCTREE)
-        {
-            std::cerr << "ERROR: The input octree sdf should use trilinar interpolation" << std::endl;
-            exit(1);
-        }
-
         // Load tricubic model
         std::shared_ptr<IOctreeSdf> octreeTriSdf(nullptr);
         if(mSdfTricubicPath.has_value())
@@ -50,25 +44,23 @@ public:
             octreeTriSdf = std::dynamic_pointer_cast<IOctreeSdf>(sdfTri);
         }
         
-        if(octreeTriSdf == nullptr)
-        {
-            std::cerr << "ERROR: The tricubic octree is mandatory" << std::endl;
-            exit(1);
-        }
-
-        if(octreeTriSdf->getFormat() != IOctreeSdf::SdfFormat::TRICUBIC_OCTREE)
-        {
-            std::cerr << "ERROR: The second octree sdf should use tricubic interpolation" << std::endl;
-            exit(1);
-        }       
-        
         sdfBB = octreeSdf->getGridBoundingBox();
         glm::vec3 center = sdfBB.getSize();
 
         SPDLOG_INFO("GridBoundingBox size is {}, {}, {}", center.x, center.y, center.z);
 
+        RenderSdf::Algorithm renderSdfAlgorithm;
+        if(!octreeSdf->hasSdfOnlyAtSurface())
+        {
+            // renderSdfAlgorithm = RenderSdf::Algorithm::SPHERE_TRACING;
+            renderSdfAlgorithm = RenderSdf::Algorithm::SPHERE_TRACING_SOLVER;
+        }
+        else
+        {
+            renderSdfAlgorithm = RenderSdf::Algorithm::OCTREE_TRAVERSAL_SOLVER;
+        }
 
-        mRenderSdf = std::make_shared<RenderSdf>(octreeSdf, octreeTriSdf);
+        mRenderSdf = std::make_shared<RenderSdf>(octreeSdf, renderSdfAlgorithm, octreeTriSdf);
         mRenderSdf->start();
         addSystem(mRenderSdf);
 
@@ -125,7 +117,7 @@ public:
                     std::shared_ptr<OctreeSdf> octreeTriSdf = std::dynamic_pointer_cast<OctreeSdf>(sdfTri);
                 }
 
-                mRenderSdf->setSdf(octreeSdf, octreeTriSdf);
+                mRenderSdf->setSdf(octreeSdf, RenderSdf::Algorithm::SPHERE_TRACING, octreeTriSdf);
                 mShowLoadSdfWindow = false;
             }
             if (ImGui::Button("Cancel")) 

@@ -1,9 +1,11 @@
-#version 460 core
-
 // Algorithm configuration
-// #define USE_TRILINAR_ISOSURFACE
-// #define USE_TRICUBIC
-// #define USE_TRILINAR
+// #define USE_TRILINEAR_INTERPOLATION
+// #define USE_TRICUBIC_INTERPOLATION
+// #define TRICUBIC_GRADIENTS
+// #define SPHERE_MARCHING
+// #define SPHERE_MARCHING_SOLVER
+// #define OCTREE_TRAVERSAL_AND_SH
+// #define OCTREE_TRAVERSAL_AND_SOLVER
 
 #define MAX_AO_ITERATIONS 8
 #define NEWTON_ITER 1
@@ -21,10 +23,12 @@ layout(std430, binding = 3) buffer octree
     uint octreeData[];
 };
 
-layout(std430, binding = 2) buffer octreeTricubic
-{
-    uint octreeTricubicData[];
-};
+// #ifdef TRICUBIC_GRADIENTS
+// layout(std430, binding = 2) buffer octreeTricubic
+// {
+//     uint octreeTricubicData[];
+// };
+// #endif
 
 const uint isLeafMask = 1 << 31;
 const uint isMarkedMask = 1 << 30;
@@ -41,23 +45,17 @@ uniform vec2 nearAndFarPlane;
 uniform mat4 invViewModelMatrix;
 uniform float distanceScale;
 uniform float minBorderValue;
-uniform float epsilon;
+uniform float epsilon; // Could be removed
 
 //Options
-uniform int maxIterations;
-uniform int maxColorIterations;
-uniform int maxShadowIterations;
+uniform int maxIterations; // Could be removed
+uniform int maxShadowIterations; // Could be removed
 
-uniform float overRelaxation;
 uniform bool useAO;
 
-uniform bool drawLights;
 uniform bool useShadows;
-uniform bool useSoftShadows;
-uniform bool useItColorMode;
-uniform int raymarchVersion;
-uniform bool v1TriCubic;
-uniform bool useTricubicNormals;
+uniform bool useSoftShadows; // Could be removed
+
 //Lighting
 uniform int lightNumber;
 uniform vec3 lightPos[4];
@@ -221,10 +219,19 @@ bool isOutsideGrid(vec3 point)
        arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z;
 }
 
-uint getLeaf(vec3 point, out vec3 leafPos, out float leafSize) 
+uint getLeaf(vec3 point, out vec3 leafPos, out float leafSize, out vec3 fracPart) 
 {
-    vec3 fracPart = point * startGridSize;
+    fracPart = point * startGridSize;
     ivec3 arrayPos = ivec3(floor(fracPart));
+
+    #ifdef SPHERE_MARCHING_SOLVER
+    if(arrayPos.x < 0 || arrayPos.y < 0 || arrayPos.z < 0 ||
+       arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
+    {
+        return 0;
+    }
+    #endif
+
     fracPart = fract(fracPart);
 
     int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
@@ -264,6 +271,33 @@ void getPolynomial(uint currentNode, out float array[8])
     return;
 }
 
+float evalNode(uint vIndex, vec3 fracPart)
+{
+#ifdef USE_TRILINEAR_INTERPOLATION
+    float d00 = uintBitsToFloat(octreeData[vIndex]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
+    float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
+    float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
+    float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
+                uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
+
+    float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
+    float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
+
+    return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
+#endif
+
+#ifdef USE_TRICUBIC_INTERPOLATION
+    return 0.0
+         + uintBitsToFloat(octreeData[vIndex + 0]) + uintBitsToFloat(octreeData[vIndex + 1]) * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 2]) * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 3]) * fracPart[0] * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeData[vIndex + 4]) * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 8]) * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 12]) * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+         + uintBitsToFloat(octreeData[vIndex + 16]) * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+         + uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+         + uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
+#endif
+}
+
 float getDistance(vec3 point)
 {
     vec3 fracPart = point * startGridSize;
@@ -273,7 +307,6 @@ float getDistance(vec3 point)
        arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
     {
             vec3 q = abs(point - vec3(0.5)) - 0.5;
-            point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
             return length(max(q, vec3(0.0)))/distanceScale + minBorderValue;
     }
 
@@ -296,19 +329,7 @@ float getDistance(vec3 point)
 
     uint vIndex = currentNode & childrenIndexMask;
 
-    float d00 = uintBitsToFloat(octreeData[vIndex]) * (1.0f - fracPart.x) +
-                uintBitsToFloat(octreeData[vIndex + 1]) * fracPart.x;
-    float d01 = uintBitsToFloat(octreeData[vIndex + 2]) * (1.0f - fracPart.x) +
-                uintBitsToFloat(octreeData[vIndex + 3]) * fracPart.x;
-    float d10 = uintBitsToFloat(octreeData[vIndex + 4]) * (1.0f - fracPart.x) +
-                uintBitsToFloat(octreeData[vIndex + 5]) * fracPart.x;
-    float d11 = uintBitsToFloat(octreeData[vIndex + 6]) * (1.0f - fracPart.x) +
-                uintBitsToFloat(octreeData[vIndex + 7]) * fracPart.x;
-
-    float d0 = d00 * (1.0f - fracPart.y) + d01 * fracPart.y;
-    float d1 = d10 * (1.0f - fracPart.y) + d11 * fracPart.y;
-
-    return d0 * (1.0f - fracPart.z) + d1 * fracPart.z;
+    return evalNode(vIndex, fracPart);
 }
 
 vec3 getGradient(vec3 point)
@@ -333,6 +354,7 @@ vec3 getGradient(vec3 point)
 
     uint vIndex = currentNode & childrenIndexMask;
 
+#ifdef USE_TRILINEAR_INTERPOLATION
     float gx = 0.0;
     {
         float d00 = uintBitsToFloat(octreeData[vIndex + 0]) * (1.0f - fracPart.y) +
@@ -378,83 +400,22 @@ vec3 getGradient(vec3 point)
     }
 
     return normalize(vec3(gx, gy, gz));
-}
+#endif
 
-float getDistanceTricubic(vec3 point) //tricubic interpolation
-{
-    vec3 fracPart = point * startGridSize;
-    ivec3 arrayPos = ivec3(floor(fracPart));
-
-    if(arrayPos.x < 0 || arrayPos.y < 0 || arrayPos.z < 0 ||
-       arrayPos.x >= startGridSize.x || arrayPos.y >= startGridSize.y || arrayPos.z >= startGridSize.z)
-    {
-            vec3 q = abs(point - vec3(0.5)) - 0.5;
-            //point = clamp(point, vec3(1e4, 1e4, 1e4), vec3(1.0 - 1e4, 1.0 - 1e4, 1.0 - 1e4));
-            return length(max(q, vec3(0.0)))/distanceScale + minBorderValue;
-            //return length(max(q, vec3(0.0)))/distanceScale + getDistance(clampCoord);
-    }
-
-    fracPart = fract(fracPart);
-
-    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
-                arrayPos.y * int(startGridSize.x) +
-                arrayPos.x;
-    uint currentNode = octreeTricubicData[index];
-
-    while(!bool(currentNode & isLeafMask))
-    {
-        uint childIdx = (roundFloat(fracPart.z) << 2) + 
-                        (roundFloat(fracPart.y) << 1) + 
-                         roundFloat(fracPart.x);
-
-        currentNode = octreeTricubicData[(currentNode & childrenIndexMask) + childIdx];
-        fracPart = fract(2.0 * fracPart);
-    }
-
-    uint vIndex = currentNode & childrenIndexMask;
-
-    return 0.0
-         + uintBitsToFloat(octreeTricubicData[vIndex + 0]) + uintBitsToFloat(octreeTricubicData[vIndex + 1]) * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 2]) * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 3]) * fracPart[0] * fracPart[0] * fracPart[0] + uintBitsToFloat(octreeTricubicData[vIndex + 4]) * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 8]) * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 12]) * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-         + uintBitsToFloat(octreeTricubicData[vIndex + 16]) * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-         + uintBitsToFloat(octreeTricubicData[vIndex + 32]) * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-         + uintBitsToFloat(octreeTricubicData[vIndex + 48]) * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2];
-}
-
-
-vec3 getGradientTricubic(vec3 point) //tricubic interpolation
-{
-    vec3 fracPart = point * startGridSize;
-    ivec3 arrayPos = ivec3(floor(fracPart));
-    fracPart = fract(fracPart);
-    int index = arrayPos.z * int(startGridSize.y * startGridSize.x) +
-                arrayPos.y * int(startGridSize.x) +
-                arrayPos.x;
-    uint currentNode = octreeTricubicData[index];
-
-    while(!bool(currentNode & isLeafMask))
-    {
-        uint childIdx = (roundFloat(fracPart.z) << 2) + 
-                        (roundFloat(fracPart.y) << 1) + 
-                         roundFloat(fracPart.x);
-
-        currentNode = octreeTricubicData[(currentNode & childrenIndexMask) + childIdx];
-        fracPart = fract(2.0 * fracPart);
-    }
-
-    uint vIndex = currentNode & childrenIndexMask;
-
-    return normalize(vec3((1 * uintBitsToFloat(octreeTricubicData[vIndex + 1]) + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 2]) * fracPart[0] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 3]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[1] * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
-        (1 * uintBitsToFloat(octreeTricubicData[vIndex + 4]) + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 5]) * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 6]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 8]) * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 9]) * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 12]) * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
-        + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
-        (1 * uintBitsToFloat(octreeTricubicData[vIndex + 16]) + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 17]) * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 18]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 20]) * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 21]) * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 24]) * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeTricubicData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
-        + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 32]) * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 33]) * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 36]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeTricubicData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
-        + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeTricubicData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
-    ));
+#ifdef USE_TRICUBIC_INTERPOLATION
+        return normalize(vec3((1 * uintBitsToFloat(octreeData[vIndex + 1]) + 2 * uintBitsToFloat(octreeData[vIndex + 2]) * fracPart[0] + 3 * uintBitsToFloat(octreeData[vIndex + 3]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[1] * fracPart[1] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
+            (1 * uintBitsToFloat(octreeData[vIndex + 4]) + 1 * uintBitsToFloat(octreeData[vIndex + 5]) * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 6]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 7]) * fracPart[0] * fracPart[0] * fracPart[0] + 2 * uintBitsToFloat(octreeData[vIndex + 8]) * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 9]) * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 10]) * fracPart[0] * fracPart[0] * fracPart[1] + 2 * uintBitsToFloat(octreeData[vIndex + 11]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 12]) * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 13]) * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 14]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 3 * uintBitsToFloat(octreeData[vIndex + 15]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2]
+            + 1 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 1 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] * fracPart[2]),
+            (1 * uintBitsToFloat(octreeData[vIndex + 16]) + 1 * uintBitsToFloat(octreeData[vIndex + 17]) * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 18]) * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 19]) * fracPart[0] * fracPart[0] * fracPart[0] + 1 * uintBitsToFloat(octreeData[vIndex + 20]) * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 21]) * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 22]) * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 23]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 24]) * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 25]) * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 26]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 27]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 28]) * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 29]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 30]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] + 1 * uintBitsToFloat(octreeData[vIndex + 31]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1]
+            + 2 * uintBitsToFloat(octreeData[vIndex + 32]) * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 33]) * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 34]) * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 35]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 36]) * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 37]) * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 38]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 39]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 40]) * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 41]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 42]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 43]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 44]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 45]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 46]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] + 2 * uintBitsToFloat(octreeData[vIndex + 47]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2]
+            + 3 * uintBitsToFloat(octreeData[vIndex + 48]) * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 49]) * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 50]) * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 51]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 52]) * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 53]) * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 54]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 55]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 56]) * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 57]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 58]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 59]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 60]) * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 61]) * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 62]) * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2] + 3 * uintBitsToFloat(octreeData[vIndex + 63]) * fracPart[0] * fracPart[0] * fracPart[0] * fracPart[1] * fracPart[1] * fracPart[1] * fracPart[2] * fracPart[2])
+        ));
+#endif
 }
 
 /// --- Scene --- ///
@@ -463,26 +424,11 @@ float map(vec3 pos)
     return distanceScale * getDistance(pos);
 }
 
-float mapTri(vec3 pos)
-{
-    return distanceScale * getDistanceTricubic(pos);
-}
-
-float mapLights(vec3 pos)
-{
-    float dist = distanceScale * sphereSDF(pos-lightPos[0], lightRadius[0]);
-    for (int i = 1; i < lightNumber; i++)
-    {
-        dist = min(dist, distanceScale * sphereSDF(pos-lightPos[i], lightRadius[i]));
-    }
-    return dist;
-}
-
 //Gradient of the scene
 vec3 mapGradient(vec3 pos)
 {
     // Get the exact gradient
-    return getGradientTricubic(pos);
+    return getGradient(pos);
 
     // Get an approximation of the gradient
     // float dist = mapTri(pos);
@@ -495,6 +441,7 @@ vec3 mapGradient(vec3 pos)
 
 /// --- Lighthing --- ///
 
+#ifdef SPHERE_MARCHING
 float getAO(vec3 pos, vec3 n)
 {
     float occ = 0.0;
@@ -502,115 +449,136 @@ float getAO(vec3 pos, vec3 n)
     for(int i=0; i < MAX_AO_ITERATIONS; i++)
     {
         float h = 0.002 + 0.1 * float(i)/8.0;
-        float d = mapTri(pos + n * h);
+        float d = map(pos + n * h);
         occ += max(h-d, 0.0);
         decay *= 0.8;
     }
 
     return min(1.0 - 1.5 * occ, 1.0);
 }
+#endif
 
-/// --- RAY MARCHING ALGORITHM --- ///
+// float hardshadow(in vec3 ro, in vec3 rd)
+// {
+//     vec3 result;
+//     if (raymarchV3(ro, rd, result)) return 0.0;
+//     return 1.0;
+// }
 
-//Original
-bool raycast(vec3 startPos, vec3 dir, out vec3 resultPos)
+// //Inigo Quilez improved soft shadow
+// float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
+// {
+//     float res = 1.0;
+//     float t = mint;
+//     for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+//     {
+//         float h = distanceScale * getDistanceTricubic(ro + t*rd);
+//         res = min( res, h/(w*t) );
+//         t += clamp(h, 0.005, 0.50);
+//         if( res<-1.0 || t>maxt ) break;
+//     }
+//     res = max(res,-1.0);
+//     return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
+// }
+
+float softshadowToPoint(vec3 startPos, vec3 dir, float tmax)
 {
     float accDistance = 0.0;
     vec3 pos = startPos;
     float lastDistance = 1e8;
     uint it = 0;
-    while (lastDistance > epsilon && accDistance < nearAndFarPlane.y && it < maxIterations)
+    float res = 1.0;
+    while (accDistance < tmax && it < maxIterations)
     {
-        resultPos = pos;
-        lastDistance = (v1TriCubic ? distanceScale * getDistanceTricubic(pos) : distanceScale * getDistance(pos));
+        lastDistance = map(pos);
+        if(lastDistance < epsilon) return 0.0;
         float dist = max(lastDistance, 0.0);
         accDistance += dist;
+        res = min(res, dist/accDistance);
         pos += dir * dist;
         it += 1;
     }
-    if (useItColorMode) resultPos.x = float(it);
-    return lastDistance < epsilon;
+
+    return res;
 }
 
-bool raymarchV1(vec3 startPos, vec3 dir, out vec3 resultPos, float tmax)
+bool raycast(vec3 ro, vec3 rd, float far);
+
+//hard shadows using v3
+float shadow(vec3 ro, vec3 rd, float far, float coneAngle)
 {
-    float accDistance = 0.0f;
-    vec3 pos = startPos;
-    float lastDistance = 1e8;
-    int it = 0;
-    while (lastDistance > epsilon && accDistance < tmax && it < maxIterations)
+    #ifdef SPHERE_MARCHING
+    return min(atan(softshadowToPoint(ro, rd, far)) / coneAngle, 1.0);
+    #else
+    return raycast(ro, rd, far) ? 0.0 : 1.0;
+    #endif
+}
+
+vec3 mapColor(vec3 pos, vec3 cameraPos)
+{
+    //Approximate normal
+    vec3 N = getGradient(pos);
+    //View vector
+    vec3 V = normalize(cameraPos - pos);
+
+    // Object material
+    float metallic, roughness;
+    vec3 albedo, F0;
+    metallic = matMetallic;
+    roughness = matRoughness;
+    albedo = matAlbedo;
+    F0 = mix(matF0, albedo, metallic);
+ 
+    vec3 Lo = vec3(0.0);
+
+    // Directional lights
+    for (int i = 0; i < lightNumber; i++) 
     {
-        resultPos = pos;
-        lastDistance = distanceScale * getDistance(pos);
-        float dist = max(lastDistance, 0.0f);
-        accDistance += dist;
-        pos += dir * dist;
-        it += 1;
-    }
-    return lastDistance < epsilon;
-}
+        float distToLight = length(lightPos[i] - pos);
+        vec3 L = normalize(lightPos[i] - pos);
+        vec3 H = normalize(V + L);
 
-//marches nodes until leaf with surface is found
-float marchNodes(vec3 o, float t_end, vec3 dir, vec3 d_inv, out vec3 leafPos, out float leafSize)
-{
-    float t = 0;
-    while (t < t_end) {
-        vec3 nodePos;
-        float nodeSize;
+        vec3 sunColor = lightIntensity[i] * lightColor[i];
 
-        //if (isOutsideGrid(o + dir * t)) return 1e8;
-
-        uint leafNode = getLeaf(o + dir * t, leafPos, leafSize); //problem is here maybe?
-
-        if (bool(leafNode & isMarkedMask))
-        {
-            return t;
-        }
-
-        vec3 leafBBmax;
-        vec3 leafBBmin;
-
-        leafBBmax = leafPos + leafSize;
-        leafBBmin = leafPos;
-
-
-        t += rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, d_inv);
-        t += epsilon;
-    }
-    return 1e8;
-}
-
-bool raymarchV2(vec3 o, vec3 dir, out vec3 result)
-{
-    vec3 dir_inv = vec3(1/dir.x, 1/dir.y, 1/dir.z);
-    float t_in;
-    float t_out;
-    bool intersect = raySlabIntersection(vec3(0), vec3(1), o, dir_inv, t_in, t_out);
-    if (t_out < 0) return false;
-    //intersect bounding box first, if no intersection return false automatically
-    if (!intersect) return false;
-    
-    //works until here
-    float t_end = t_out;
-
-    vec3 leafPos;
-    float leafSize;
-
-    float t = max(0, t_in) + epsilon;
-
-    while (t >= 0 && t <= t_end)
-    {
-        t += marchNodes(o + dir * t, t_end, dir, dir_inv, leafPos, leafSize);
-        vec3 leafBBmax = leafPos + leafSize;
-        vec3 leafBBmin = leafPos;
-        float t_int = rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, dir_inv);
-
-        if (raymarchV1(o + dir * t, dir, result, t_int)) return true;
-        t += t_int + epsilon;
+        float coneAngle = atan(lightRadius[i]/distToLight);
+        float solidAngle = M_PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
+        // float intensity = useShadows ? shadow(pos + epsilon * L, L, 0.005, distToLight, solidAngle) : 1.0f;
+        float intensity = useShadows ? shadow(pos + + 0.0004 * N, L, distToLight, coneAngle) : 1.0f;
+        vec3 radiance = sunColor * intensity;
+        
+        // Cook-torrance brdf
+        float NDF = DistributionGGX(N, H, roughness);        
+        float G = GeometrySmith(N, V, L, roughness);      
+        vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
+        
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;	  
+        
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
+        vec3 specular = numerator / denominator;  
+            
+        // Add to outgoing radiance Lo
+        float NdotL = max(dot(N, L), 0.0);                
+        Lo += (kD * albedo / M_PI + specular) * radiance * NdotL;
     }
 
-    return false;    
+    #if defined(SPHERE_MARCHING)
+    vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
+    #else
+    vec3 ambient = vec3(0.5) * albedo; // Ambient light estimation
+    #endif
+
+    vec3 color = ambient + Lo;
+
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));  
+   
+    return color;
 }
+
+/// --- RAY MARCHING ALGORITHM --- ///
 
 bool isInsideNode(vec3 p, vec3 cubeMin, vec3 cubeMax)
 {
@@ -622,12 +590,18 @@ bool isInsideNode(vec3 p, vec3 cubeMin, vec3 cubeMax)
 }
 
 // The degree of the polynomials for which we compute roots
+#ifdef USE_TRILINEAR_INTERPOLATION
 #define MAX_DEGREE 3
+#endif
+#ifdef USE_TRICUBIC_INTERPOLATION
+#define MAX_DEGREE 9
+#endif
 // When there are fewer intersections/roots than theoretically possible, some
 // array entries are set to this value
 #define NO_INTERSECTION 3.4e38
 
 
+#if defined(OCTREE_TRAVERSAL_AND_SOLVER) || defined(SPHERE_MARCHING_SOLVER) || defined(OCTREE_TRAVERSAL_AND_SH)
 // Searches a single root of a polynomial within a given interval.
 // \param out_root The location of the found root.
 // \param out_end_value The value of the given polynomial at end.
@@ -775,272 +749,315 @@ void find_roots(out float out_roots[MAX_DEGREE + 1], float poly[MAX_DEGREE + 1],
     out_roots[MAX_DEGREE] = NO_INTERSECTION;
 }
 
-bool solvePolynomialEquation(vec3 p, vec3 v, float[8] values, out float[4] results, out int resultNum, float t_in, float t_out)
+bool solvePolynomialEquation(vec3 o, vec3 dir, uint leafNode, vec3 leafPos, float leafSize, out vec3 result)
 {
-    float a, b, c, d, e, f, g, h;
-    a = -1.0 * values[0] + 1.0 * values[1] + 1.0 * values[2] - 1.0 * values[3] + 1.0 * values[4] - 1.0 * values[5] - 1.0 * values[6] + 1.0 * values[7];
-    b = 1.0 * values[0] - 1.0 * values[1] - 1.0 * values[2] + 1.0 * values[3];
-    c = 1.0 * values[0] - 1.0 * values[2] - 1.0 * values[4] + 1.0 * values[6];
-    d = 1.0 * values[0] - 1.0 * values[1] - 1.0 * values[4] + 1.0 * values[5];
-    e = -1.0 * values[0] + 1.0 * values[1];
-    f = -1.0 * values[0] + 1.0 * values[2];
-    g = -1.0 * values[0] + 1.0 * values[4];
-    h = 1.0 * values[0];
+    float t_res;
+    vec3 p = (o - leafPos) / leafSize;
+    vec3 v = dir / leafSize;
 
+    float leaf_t_in, leaf_t_out;
+    raySlabIntersection(vec3(0), vec3(1), p, 1/v, leaf_t_in, leaf_t_out);
+    leaf_t_in = max(leaf_t_in, 0.0);
+#ifdef USE_TRILINEAR_INTERPOLATION
+    float[8] values;
 
-    float c0, c1, c2, c3;
+    uint vIndex = leafNode & childrenIndexMask;
+    values[0] = uintBitsToFloat(octreeData[vIndex]); // S000
+    values[1] = uintBitsToFloat(octreeData[vIndex + 1]) - values[0]; // S100 - S000
+    values[2] = uintBitsToFloat(octreeData[vIndex + 2]); // S010
+    values[3] = uintBitsToFloat(octreeData[vIndex + 3]) - values[2] - values[1]; //S110 - S010 - values[1]
+    values[2] = values[2] - values[0]; // S010 - S000
+    values[4] = uintBitsToFloat(octreeData[vIndex + 4]); // S001
+    values[5] = uintBitsToFloat(octreeData[vIndex + 5]) - values[4]; // S101 - S001 (a)
+    values[6] = uintBitsToFloat(octreeData[vIndex + 6]); // S011
+    values[7] = values[3] - uintBitsToFloat(octreeData[vIndex + 7]) + values[6] + values[5];
+    values[6] = values[2] - values[6] + values[4];
+    values[5] = values[1] - values[5];
+    values[4] = values[0] - values[4];
 
-    c0 = p.x * p.y * p.z * a + p.x * p.y * b + p.x * p.z * d + p.x * e + p.y * p.z * c + p.y * f + p.z * g + h;
-    c1 = p.x * p.y * a * v.z + p.x * p.z * a * v.y + p.x * b * v.y + p.x * d * v.z + p.y * p.z * a * v.x + p.y * b * v.x + p.y * c * v.z + p.z * c * v.y + p.z * d * v.x + e * v.x + f * v.y + g * v.z;
-    c2 = p.x * a * v.y * v.z + p.y * a * v.x * v.z + p.z * a * v.x * v.y + b * v.x * v.y + c * v.y * v.z + d * v.x * v.z;
-    c3 = a * v.x * v.y * v.z;
+    float[6] m;
+    m[0] = p.x*p.y;
+    m[1] = v.x*v.y;
+    m[2] = p.x*v.y + p.y*v.x;
+    m[3] = values[5]*p.z - values[1];
+    m[4] = values[6]*p.z - values[2];
+    m[5] = values[7]*p.z - values[3];
 
     float[4] eq;
-    // eq[0] = c3;
-    // eq[1] = c2;
-    // eq[2] = c1;
-    // eq[3] = c0;
+    eq[0] = -(values[4]*p.z - values[0] + p.x * m[3] + p.y * m[4] + m[0] * m[5]);
+    eq[1] = -(v.x * m[3] + v.y * m[4] + m[2] * m[5] + v.z * (values[4] + values[5] * p.x + values[6] * p.y + values[7] * m[0]));
+    eq[2] = -(m[1] * m[5] + v.z * (values[5] * v.x + values[6] * v.y + values[7] * m[2]));
+    eq[3] = -values[7] * m[1] * v.z;
 
-    eq[3] = c3;
-    eq[2] = c2;
-    eq[1] = c1;
-    eq[0] = c0;
-    
-    
 
-    //solveCubic(eq, results, resultNum);
-    find_roots(results, eq, t_in, t_out);
-    for (int i = 0; i < 3; ++i)
-    {
-        if (results[i] != NO_INTERSECTION)
+#if defined(OCTREE_TRAVERSAL_AND_SOLVER) || defined(SPHERE_MARCHING_SOLVER)
+    // Unroll method
+    float derivative[3];
+    derivative[0] = eq[1];
+    derivative[1] = 2.0 * eq[2];
+    derivative[2] = 3.0 * eq[3];
+
+    float begin = leaf_t_in;
+    float end = leaf_t_out;
+
+    vec2 val = vec2(leaf_t_in, leaf_t_out);
+    val = eq[3] * val * val * val +  eq[2] * val * val + eq[1] * val + eq[0];
+
+    // Compute its two roots using the quadratic formula
+    float discriminant = derivative[1] * derivative[1] - 4.0 * derivative[0] * derivative[2];
+    if (discriminant >= 0.0) {
+        float sqrt_discriminant = sqrt(discriminant);
+        float scaled_root = derivative[1] + ((derivative[1] > 0.0) ? sqrt_discriminant : (-sqrt_discriminant));
+        float root_0 = clamp(-2.0 * derivative[0] / scaled_root, begin, end);
+        float root_1 = clamp(-0.5 * scaled_root / derivative[2], begin, end);
+
+        root_0 = min(root_0, root_1);
+        root_1 = max(root_0, root_1);
+
+        vec2 tval = vec2(root_0, root_1);
+        tval = eq[3] * tval * tval * tval +  eq[2] * tval * tval + eq[1] * tval + eq[0];
+
+        if(val.x * tval.x <= 0) 
         {
-            resultNum = 3;
+            end = root_0; val.y = tval.x;
+        }
+        else if(tval.x * tval.y <= 0)
+        {
+            begin = root_0; end = root_1; val = tval;
+        }
+        else if(tval.y * val.y <= 0)
+        {
+            begin = root_1; val.x = tval.y;
+        }
+        else return false;
+    }
+    else if(val.x * val.y > 0.0) return false;
+
+    float tolerance = (end - begin) * epsilon;
+    float t = 0.5 * (begin + end);
+    // float t = begin;
+    for (int i = 0; i != 90; ++i) {
+        // Evaluate the polynomial and its derivative
+        vec2 value = vec2(eq[3] * t + eq[2], eq[3]);
+
+        float aux = value.x;
+        value = value * t + vec2(eq[1], aux);
+
+        aux = value.x;
+        value = value * t + vec2(eq[0], aux);
+
+        // Shorten the interval
+        bool right = val.x * value.x > 0.0;
+        begin = right ? t : begin;
+        end = right ? end : t;
+
+        // Apply Newton's method
+        float guess = t - value.x / value.y;
+        // Pick a guess
+        float middle = 0.5 * (begin + end);
+        float next = (guess >= begin && guess <= end) ? guess : middle;
+        // Move along or terminate
+        bool done = abs(next - t) < tolerance;
+        t = next;
+
+        if (done || distanceScale * value.x < epsilon)
+            break;
+    }
+    
+    result = o + dir * t;
+    return true;
+#endif
+
+#if defined(OCTREE_TRAVERSAL_AND_SH)
+    float lastDistance = 1e8;
+    uint it = 0;
+    float t=leaf_t_in;
+    while (lastDistance > epsilon && t < leaf_t_out && it < 128)
+    {
+        float t2 = t * t;
+        lastDistance = distanceScale * (t * t2 * eq[3] + t2 * eq[2] + t * eq[1] + eq[0]);
+        float dist = max(lastDistance, 0.0);
+        t += dist;
+        it += 1;
+    }
+
+    result = o + dir * t;
+    return lastDistance < epsilon;
+#endif
+
+    // values[0] = uintBitsToFloat(octreeData[vIndex]); // S000
+    // values[1] = uintBitsToFloat(octreeData[vIndex + 1]); // S100 - S000
+    // values[2] = uintBitsToFloat(octreeData[vIndex + 2]); // S010
+    // values[3] = uintBitsToFloat(octreeData[vIndex + 3]); //S110 - S010 - values[1]
+    // values[4] = uintBitsToFloat(octreeData[vIndex + 4]); // S001
+    // values[5] = uintBitsToFloat(octreeData[vIndex + 5]); // S101 - S001 (a)
+    // values[6] = uintBitsToFloat(octreeData[vIndex + 6]); // S011
+    // values[7] = uintBitsToFloat(octreeData[vIndex + 7]);
+
+    // eq[0] = -p.x*p.y*p.z*values[0] + p.x*p.y*p.z*values[1] + p.x*p.y*p.z*values[2] - p.x*p.y*p.z*values[3] + p.x*p.y*p.z*values[4] - p.x*p.y*p.z*values[5] - p.x*p.y*p.z*values[6] + p.x*p.y*p.z*values[7] + 1.0*p.x*p.y*values[0] - 1.0*p.x*p.y*values[1] - 1.0*p.x*p.y*values[2] + 1.0*p.x*p.y*values[3] + 1.0*p.x*p.z*values[0] - 1.0*p.x*p.z*values[1] - 1.0*p.x*p.z*values[4] + 1.0*p.x*p.z*values[5] - 1.0*p.x*values[0] + 1.0*p.x*values[1] + 1.0*p.y*p.z*values[0] - 1.0*p.y*p.z*values[2] - 1.0*p.y*p.z*values[4] + 1.0*p.y*p.z*values[6] - 1.0*p.y*values[0] + 1.0*p.y*values[2] - 1.0*p.z*values[0] + 1.0*p.z*values[4] + 1.0*values[0];
+    // eq[1] = -p.x*p.y*v.z*values[0] + p.x*p.y*v.z*values[1] + p.x*p.y*v.z*values[2] - p.x*p.y*v.z*values[3] + p.x*p.y*v.z*values[4] - p.x*p.y*v.z*values[5] - p.x*p.y*v.z*values[6] + p.x*p.y*v.z*values[7] - p.x*p.z*v.y*values[0] + p.x*p.z*v.y*values[1] + p.x*p.z*v.y*values[2] - p.x*p.z*v.y*values[3] + p.x*p.z*v.y*values[4] - p.x*p.z*v.y*values[5] - p.x*p.z*v.y*values[6] + p.x*p.z*v.y*values[7] + 1.0*p.x*v.y*values[0] - 1.0*p.x*v.y*values[1] - 1.0*p.x*v.y*values[2] + 1.0*p.x*v.y*values[3] + 1.0*p.x*v.z*values[0] - 1.0*p.x*v.z*values[1] - 1.0*p.x*v.z*values[4] + 1.0*p.x*v.z*values[5] - p.y*p.z*v.x*values[0] + p.y*p.z*v.x*values[1] + p.y*p.z*v.x*values[2] - p.y*p.z*v.x*values[3] + p.y*p.z*v.x*values[4] - p.y*p.z*v.x*values[5] - p.y*p.z*v.x*values[6] + p.y*p.z*v.x*values[7] + 1.0*p.y*v.x*values[0] - 1.0*p.y*v.x*values[1] - 1.0*p.y*v.x*values[2] + 1.0*p.y*v.x*values[3] + 1.0*p.y*v.z*values[0] - 1.0*p.y*v.z*values[2] - 1.0*p.y*v.z*values[4] + 1.0*p.y*v.z*values[6] + 1.0*p.z*v.x*values[0] - 1.0*p.z*v.x*values[1] - 1.0*p.z*v.x*values[4] + 1.0*p.z*v.x*values[5] + 1.0*p.z*v.y*values[0] - 1.0*p.z*v.y*values[2] - 1.0*p.z*v.y*values[4] + 1.0*p.z*v.y*values[6] - 1.0*v.x*values[0] + 1.0*v.x*values[1] - 1.0*v.y*values[0] + 1.0*v.y*values[2] - 1.0*v.z*values[0] + 1.0*v.z*values[4];
+    // eq[2] = -p.x*v.y*v.z*values[0] + p.x*v.y*v.z*values[1] + p.x*v.y*v.z*values[2] - p.x*v.y*v.z*values[3] + p.x*v.y*v.z*values[4] - p.x*v.y*v.z*values[5] - p.x*v.y*v.z*values[6] + p.x*v.y*v.z*values[7] - p.y*v.x*v.z*values[0] + p.y*v.x*v.z*values[1] + p.y*v.x*v.z*values[2] - p.y*v.x*v.z*values[3] + p.y*v.x*v.z*values[4] - p.y*v.x*v.z*values[5] - p.y*v.x*v.z*values[6] + p.y*v.x*v.z*values[7] - p.z*v.x*v.y*values[0] + p.z*v.x*v.y*values[1] + p.z*v.x*v.y*values[2] - p.z*v.x*v.y*values[3] + p.z*v.x*v.y*values[4] - p.z*v.x*v.y*values[5] - p.z*v.x*v.y*values[6] + p.z*v.x*v.y*values[7] + 1.0*v.x*v.y*values[0] - 1.0*v.x*v.y*values[1] - 1.0*v.x*v.y*values[2] + 1.0*v.x*v.y*values[3] + 1.0*v.x*v.z*values[0] - 1.0*v.x*v.z*values[1] - 1.0*v.x*v.z*values[4] + 1.0*v.x*v.z*values[5] + 1.0*v.y*v.z*values[0] - 1.0*v.y*v.z*values[2] - 1.0*v.y*v.z*values[4] + 1.0*v.y*v.z*values[6];
+    // eq[3] = -v.x*v.y*v.z*values[0] + v.x*v.y*v.z*values[1] + v.x*v.y*v.z*values[2] - v.x*v.y*v.z*values[3] + v.x*v.y*v.z*values[4] - v.x*v.y*v.z*values[5] - v.x*v.y*v.z*values[6] + v.x*v.y*v.z*values[7];
+    
+#endif
+#ifdef USE_TRICUBIC_INTERPOLATION
+    float[64] values;
+    uint vIndex = leafNode & childrenIndexMask;
+    for(int i=0; i < 64; i++)
+    {
+        values[i] = uintBitsToFloat(octreeData[vIndex + i]);
+    }
+
+    float[10] eq;
+
+    eq[0] = pow(p.x, 3)*pow(p.y, 3)*pow(p.z, 3)*values[63] + pow(p.x, 3)*pow(p.y, 3)*pow(p.z, 2)*values[47] + pow(p.x, 3)*pow(p.y, 3)*p.z*values[31] + pow(p.x, 3)*pow(p.y, 3)*values[15] + pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 3)*values[59] + pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 2)*values[43] + pow(p.x, 3)*pow(p.y, 2)*p.z*values[27] + pow(p.x, 3)*pow(p.y, 2)*values[11] + pow(p.x, 3)*p.y*pow(p.z, 3)*values[55] + pow(p.x, 3)*p.y*pow(p.z, 2)*values[39] + pow(p.x, 3)*p.y*p.z*values[23] + pow(p.x, 3)*p.y*values[7] + pow(p.x, 3)*pow(p.z, 3)*values[51] + pow(p.x, 3)*pow(p.z, 2)*values[35] + pow(p.x, 3)*p.z*values[19] + pow(p.x, 3)*values[3] + pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 3)*values[62] + pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 2)*values[46] + pow(p.x, 2)*pow(p.y, 3)*p.z*values[30] + pow(p.x, 2)*pow(p.y, 3)*values[14] + pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 3)*values[58] + pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*values[42] + pow(p.x, 2)*pow(p.y, 2)*p.z*values[26] + pow(p.x, 2)*pow(p.y, 2)*values[10] + pow(p.x, 2)*p.y*pow(p.z, 3)*values[54] + pow(p.x, 2)*p.y*pow(p.z, 2)*values[38] + pow(p.x, 2)*p.y*p.z*values[22] + pow(p.x, 2)*p.y*values[6] + pow(p.x, 2)*pow(p.z, 3)*values[50] + pow(p.x, 2)*pow(p.z, 2)*values[34] + pow(p.x, 2)*p.z*values[18] + pow(p.x, 2)*values[2] + p.x*pow(p.y, 3)*pow(p.z, 3)*values[61] + p.x*pow(p.y, 3)*pow(p.z, 2)*values[45] + p.x*pow(p.y, 3)*p.z*values[29] + p.x*pow(p.y, 3)*values[13] + p.x*pow(p.y, 2)*pow(p.z, 3)*values[57] + p.x*pow(p.y, 2)*pow(p.z, 2)*values[41] + p.x*pow(p.y, 2)*p.z*values[25] + p.x*pow(p.y, 2)*values[9] + p.x*p.y*pow(p.z, 3)*values[53] + p.x*p.y*pow(p.z, 2)*values[37] + p.x*p.y*p.z*values[21] + p.x*p.y*values[5] + p.x*pow(p.z, 3)*values[49] + p.x*pow(p.z, 2)*values[33] + p.x*p.z*values[17] + p.x*values[1] + pow(p.y, 3)*pow(p.z, 3)*values[60] + pow(p.y, 3)*pow(p.z, 2)*values[44] + pow(p.y, 3)*p.z*values[28] + pow(p.y, 3)*values[12] + pow(p.y, 2)*pow(p.z, 3)*values[56] + pow(p.y, 2)*pow(p.z, 2)*values[40] + pow(p.y, 2)*p.z*values[24] + pow(p.y, 2)*values[8] + p.y*pow(p.z, 3)*values[52] + p.y*pow(p.z, 2)*values[36] + p.y*p.z*values[20] + p.y*values[4] + pow(p.z, 3)*values[48] + pow(p.z, 2)*values[32] + p.z*values[16] + values[0];
+    eq[1] = 3*pow(p.x, 3)*pow(p.y, 3)*pow(p.z, 2)*v.z*values[63] + 2*pow(p.x, 3)*pow(p.y, 3)*p.z*v.z*values[47] + pow(p.x, 3)*pow(p.y, 3)*v.z*values[31] + 3*pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 3)*v.y*values[63] + 3*pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 2)*v.y*values[47] + 3*pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 2)*v.z*values[59] + 3*pow(p.x, 3)*pow(p.y, 2)*p.z*v.y*values[31] + 2*pow(p.x, 3)*pow(p.y, 2)*p.z*v.z*values[43] + 3*pow(p.x, 3)*pow(p.y, 2)*v.y*values[15] + pow(p.x, 3)*pow(p.y, 2)*v.z*values[27] + 2*pow(p.x, 3)*p.y*pow(p.z, 3)*v.y*values[59] + 2*pow(p.x, 3)*p.y*pow(p.z, 2)*v.y*values[43] + 3*pow(p.x, 3)*p.y*pow(p.z, 2)*v.z*values[55] + 2*pow(p.x, 3)*p.y*p.z*v.y*values[27] + 2*pow(p.x, 3)*p.y*p.z*v.z*values[39] + 2*pow(p.x, 3)*p.y*v.y*values[11] + pow(p.x, 3)*p.y*v.z*values[23] + pow(p.x, 3)*pow(p.z, 3)*v.y*values[55] + pow(p.x, 3)*pow(p.z, 2)*v.y*values[39] + 3*pow(p.x, 3)*pow(p.z, 2)*v.z*values[51] + pow(p.x, 3)*p.z*v.y*values[23] + 2*pow(p.x, 3)*p.z*v.z*values[35] + pow(p.x, 3)*v.y*values[7] + pow(p.x, 3)*v.z*values[19] + 3*pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 3)*v.x*values[63] + 3*pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 2)*v.x*values[47] + 3*pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 2)*v.z*values[62] + 3*pow(p.x, 2)*pow(p.y, 3)*p.z*v.x*values[31] + 2*pow(p.x, 2)*pow(p.y, 3)*p.z*v.z*values[46] + 3*pow(p.x, 2)*pow(p.y, 3)*v.x*values[15] + pow(p.x, 2)*pow(p.y, 3)*v.z*values[30] + 3*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 3)*v.x*values[59] + 3*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 3)*v.y*values[62] + 3*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.x*values[43] + 3*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.y*values[46] + 3*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.z*values[58] + 3*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*values[27] + 3*pow(p.x, 2)*pow(p.y, 2)*p.z*v.y*values[30] + 2*pow(p.x, 2)*pow(p.y, 2)*p.z*v.z*values[42] + 3*pow(p.x, 2)*pow(p.y, 2)*v.x*values[11] + 3*pow(p.x, 2)*pow(p.y, 2)*v.y*values[14] + pow(p.x, 2)*pow(p.y, 2)*v.z*values[26] + 3*pow(p.x, 2)*p.y*pow(p.z, 3)*v.x*values[55] + 2*pow(p.x, 2)*p.y*pow(p.z, 3)*v.y*values[58] + 3*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*values[39] + 2*pow(p.x, 2)*p.y*pow(p.z, 2)*v.y*values[42] + 3*pow(p.x, 2)*p.y*pow(p.z, 2)*v.z*values[54] + 3*pow(p.x, 2)*p.y*p.z*v.x*values[23] + 2*pow(p.x, 2)*p.y*p.z*v.y*values[26] + 2*pow(p.x, 2)*p.y*p.z*v.z*values[38] + 3*pow(p.x, 2)*p.y*v.x*values[7] + 2*pow(p.x, 2)*p.y*v.y*values[10] + pow(p.x, 2)*p.y*v.z*values[22] + 3*pow(p.x, 2)*pow(p.z, 3)*v.x*values[51] + pow(p.x, 2)*pow(p.z, 3)*v.y*values[54] + 3*pow(p.x, 2)*pow(p.z, 2)*v.x*values[35] + pow(p.x, 2)*pow(p.z, 2)*v.y*values[38] + 3*pow(p.x, 2)*pow(p.z, 2)*v.z*values[50] + 3*pow(p.x, 2)*p.z*v.x*values[19] + pow(p.x, 2)*p.z*v.y*values[22] + 2*pow(p.x, 2)*p.z*v.z*values[34] + 3*pow(p.x, 2)*v.x*values[3] + pow(p.x, 2)*v.y*values[6] + pow(p.x, 2)*v.z*values[18] + 2*p.x*pow(p.y, 3)*pow(p.z, 3)*v.x*values[62] + 2*p.x*pow(p.y, 3)*pow(p.z, 2)*v.x*values[46] + 3*p.x*pow(p.y, 3)*pow(p.z, 2)*v.z*values[61] + 2*p.x*pow(p.y, 3)*p.z*v.x*values[30] + 2*p.x*pow(p.y, 3)*p.z*v.z*values[45] + 2*p.x*pow(p.y, 3)*v.x*values[14] + p.x*pow(p.y, 3)*v.z*values[29] + 2*p.x*pow(p.y, 2)*pow(p.z, 3)*v.x*values[58] + 3*p.x*pow(p.y, 2)*pow(p.z, 3)*v.y*values[61] + 2*p.x*pow(p.y, 2)*pow(p.z, 2)*v.x*values[42] + 3*p.x*pow(p.y, 2)*pow(p.z, 2)*v.y*values[45] + 3*p.x*pow(p.y, 2)*pow(p.z, 2)*v.z*values[57] + 2*p.x*pow(p.y, 2)*p.z*v.x*values[26] + 3*p.x*pow(p.y, 2)*p.z*v.y*values[29] + 2*p.x*pow(p.y, 2)*p.z*v.z*values[41] + 2*p.x*pow(p.y, 2)*v.x*values[10] + 3*p.x*pow(p.y, 2)*v.y*values[13] + p.x*pow(p.y, 2)*v.z*values[25] + 2*p.x*p.y*pow(p.z, 3)*v.x*values[54] + 2*p.x*p.y*pow(p.z, 3)*v.y*values[57] + 2*p.x*p.y*pow(p.z, 2)*v.x*values[38] + 2*p.x*p.y*pow(p.z, 2)*v.y*values[41] + 3*p.x*p.y*pow(p.z, 2)*v.z*values[53] + 2*p.x*p.y*p.z*v.x*values[22] + 2*p.x*p.y*p.z*v.y*values[25] + 2*p.x*p.y*p.z*v.z*values[37] + 2*p.x*p.y*v.x*values[6] + 2*p.x*p.y*v.y*values[9] + p.x*p.y*v.z*values[21] + 2*p.x*pow(p.z, 3)*v.x*values[50] + p.x*pow(p.z, 3)*v.y*values[53] + 2*p.x*pow(p.z, 2)*v.x*values[34] + p.x*pow(p.z, 2)*v.y*values[37] + 3*p.x*pow(p.z, 2)*v.z*values[49] + 2*p.x*p.z*v.x*values[18] + p.x*p.z*v.y*values[21] + 2*p.x*p.z*v.z*values[33] + 2*p.x*v.x*values[2] + p.x*v.y*values[5] + p.x*v.z*values[17] + pow(p.y, 3)*pow(p.z, 3)*v.x*values[61] + pow(p.y, 3)*pow(p.z, 2)*v.x*values[45] + 3*pow(p.y, 3)*pow(p.z, 2)*v.z*values[60] + pow(p.y, 3)*p.z*v.x*values[29] + 2*pow(p.y, 3)*p.z*v.z*values[44] + pow(p.y, 3)*v.x*values[13] + pow(p.y, 3)*v.z*values[28] + pow(p.y, 2)*pow(p.z, 3)*v.x*values[57] + 3*pow(p.y, 2)*pow(p.z, 3)*v.y*values[60] + pow(p.y, 2)*pow(p.z, 2)*v.x*values[41] + 3*pow(p.y, 2)*pow(p.z, 2)*v.y*values[44] + 3*pow(p.y, 2)*pow(p.z, 2)*v.z*values[56] + pow(p.y, 2)*p.z*v.x*values[25] + 3*pow(p.y, 2)*p.z*v.y*values[28] + 2*pow(p.y, 2)*p.z*v.z*values[40] + pow(p.y, 2)*v.x*values[9] + 3*pow(p.y, 2)*v.y*values[12] + pow(p.y, 2)*v.z*values[24] + p.y*pow(p.z, 3)*v.x*values[53] + 2*p.y*pow(p.z, 3)*v.y*values[56] + p.y*pow(p.z, 2)*v.x*values[37] + 2*p.y*pow(p.z, 2)*v.y*values[40] + 3*p.y*pow(p.z, 2)*v.z*values[52] + p.y*p.z*v.x*values[21] + 2*p.y*p.z*v.y*values[24] + 2*p.y*p.z*v.z*values[36] + p.y*v.x*values[5] + 2*p.y*v.y*values[8] + p.y*v.z*values[20] + pow(p.z, 3)*v.x*values[49] + pow(p.z, 3)*v.y*values[52] + pow(p.z, 2)*v.x*values[33] + pow(p.z, 2)*v.y*values[36] + 3*pow(p.z, 2)*v.z*values[48] + p.z*v.x*values[17] + p.z*v.y*values[20] + 2*p.z*v.z*values[32] + v.x*values[1] + v.y*values[4] + v.z*values[16];
+    eq[2] = 3*pow(p.x, 3)*pow(p.y, 3)*p.z*pow(v.z, 2)*values[63] + pow(p.x, 3)*pow(p.y, 3)*pow(v.z, 2)*values[47] + 9*pow(p.x, 3)*pow(p.y, 2)*pow(p.z, 2)*v.y*v.z*values[63] + 6*pow(p.x, 3)*pow(p.y, 2)*p.z*v.y*v.z*values[47] + 3*pow(p.x, 3)*pow(p.y, 2)*p.z*pow(v.z, 2)*values[59] + 3*pow(p.x, 3)*pow(p.y, 2)*v.y*v.z*values[31] + pow(p.x, 3)*pow(p.y, 2)*pow(v.z, 2)*values[43] + 3*pow(p.x, 3)*p.y*pow(p.z, 3)*pow(v.y, 2)*values[63] + 3*pow(p.x, 3)*p.y*pow(p.z, 2)*pow(v.y, 2)*values[47] + 6*pow(p.x, 3)*p.y*pow(p.z, 2)*v.y*v.z*values[59] + 3*pow(p.x, 3)*p.y*p.z*pow(v.y, 2)*values[31] + 4*pow(p.x, 3)*p.y*p.z*v.y*v.z*values[43] + 3*pow(p.x, 3)*p.y*p.z*pow(v.z, 2)*values[55] + 3*pow(p.x, 3)*p.y*pow(v.y, 2)*values[15] + 2*pow(p.x, 3)*p.y*v.y*v.z*values[27] + pow(p.x, 3)*p.y*pow(v.z, 2)*values[39] + pow(p.x, 3)*pow(p.z, 3)*pow(v.y, 2)*values[59] + pow(p.x, 3)*pow(p.z, 2)*pow(v.y, 2)*values[43] + 3*pow(p.x, 3)*pow(p.z, 2)*v.y*v.z*values[55] + pow(p.x, 3)*p.z*pow(v.y, 2)*values[27] + 2*pow(p.x, 3)*p.z*v.y*v.z*values[39] + 3*pow(p.x, 3)*p.z*pow(v.z, 2)*values[51] + pow(p.x, 3)*pow(v.y, 2)*values[11] + pow(p.x, 3)*v.y*v.z*values[23] + pow(p.x, 3)*pow(v.z, 2)*values[35] + 9*pow(p.x, 2)*pow(p.y, 3)*pow(p.z, 2)*v.x*v.z*values[63] + 6*pow(p.x, 2)*pow(p.y, 3)*p.z*v.x*v.z*values[47] + 3*pow(p.x, 2)*pow(p.y, 3)*p.z*pow(v.z, 2)*values[62] + 3*pow(p.x, 2)*pow(p.y, 3)*v.x*v.z*values[31] + pow(p.x, 2)*pow(p.y, 3)*pow(v.z, 2)*values[46] + 9*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 3)*v.x*v.y*values[63] + 9*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*values[47] + 9*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.x*v.z*values[59] + 9*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.y*v.z*values[62] + 9*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*v.y*values[31] + 6*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*v.z*values[43] + 6*pow(p.x, 2)*pow(p.y, 2)*p.z*v.y*v.z*values[46] + 3*pow(p.x, 2)*pow(p.y, 2)*p.z*pow(v.z, 2)*values[58] + 9*pow(p.x, 2)*pow(p.y, 2)*v.x*v.y*values[15] + 3*pow(p.x, 2)*pow(p.y, 2)*v.x*v.z*values[27] + 3*pow(p.x, 2)*pow(p.y, 2)*v.y*v.z*values[30] + pow(p.x, 2)*pow(p.y, 2)*pow(v.z, 2)*values[42] + 6*pow(p.x, 2)*p.y*pow(p.z, 3)*v.x*v.y*values[59] + 3*pow(p.x, 2)*p.y*pow(p.z, 3)*pow(v.y, 2)*values[62] + 6*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*v.y*values[43] + 9*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*v.z*values[55] + 3*pow(p.x, 2)*p.y*pow(p.z, 2)*pow(v.y, 2)*values[46] + 6*pow(p.x, 2)*p.y*pow(p.z, 2)*v.y*v.z*values[58] + 6*pow(p.x, 2)*p.y*p.z*v.x*v.y*values[27] + 6*pow(p.x, 2)*p.y*p.z*v.x*v.z*values[39] + 3*pow(p.x, 2)*p.y*p.z*pow(v.y, 2)*values[30] + 4*pow(p.x, 2)*p.y*p.z*v.y*v.z*values[42] + 3*pow(p.x, 2)*p.y*p.z*pow(v.z, 2)*values[54] + 6*pow(p.x, 2)*p.y*v.x*v.y*values[11] + 3*pow(p.x, 2)*p.y*v.x*v.z*values[23] + 3*pow(p.x, 2)*p.y*pow(v.y, 2)*values[14] + 2*pow(p.x, 2)*p.y*v.y*v.z*values[26] + pow(p.x, 2)*p.y*pow(v.z, 2)*values[38] + 3*pow(p.x, 2)*pow(p.z, 3)*v.x*v.y*values[55] + pow(p.x, 2)*pow(p.z, 3)*pow(v.y, 2)*values[58] + 3*pow(p.x, 2)*pow(p.z, 2)*v.x*v.y*values[39] + 9*pow(p.x, 2)*pow(p.z, 2)*v.x*v.z*values[51] + pow(p.x, 2)*pow(p.z, 2)*pow(v.y, 2)*values[42] + 3*pow(p.x, 2)*pow(p.z, 2)*v.y*v.z*values[54] + 3*pow(p.x, 2)*p.z*v.x*v.y*values[23] + 6*pow(p.x, 2)*p.z*v.x*v.z*values[35] + pow(p.x, 2)*p.z*pow(v.y, 2)*values[26] + 2*pow(p.x, 2)*p.z*v.y*v.z*values[38] + 3*pow(p.x, 2)*p.z*pow(v.z, 2)*values[50] + 3*pow(p.x, 2)*v.x*v.y*values[7] + 3*pow(p.x, 2)*v.x*v.z*values[19] + pow(p.x, 2)*pow(v.y, 2)*values[10] + pow(p.x, 2)*v.y*v.z*values[22] + pow(p.x, 2)*pow(v.z, 2)*values[34] + 3*p.x*pow(p.y, 3)*pow(p.z, 3)*pow(v.x, 2)*values[63] + 3*p.x*pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 2)*values[47] + 6*p.x*pow(p.y, 3)*pow(p.z, 2)*v.x*v.z*values[62] + 3*p.x*pow(p.y, 3)*p.z*pow(v.x, 2)*values[31] + 4*p.x*pow(p.y, 3)*p.z*v.x*v.z*values[46] + 3*p.x*pow(p.y, 3)*p.z*pow(v.z, 2)*values[61] + 3*p.x*pow(p.y, 3)*pow(v.x, 2)*values[15] + 2*p.x*pow(p.y, 3)*v.x*v.z*values[30] + p.x*pow(p.y, 3)*pow(v.z, 2)*values[45] + 3*p.x*pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 2)*values[59] + 6*p.x*pow(p.y, 2)*pow(p.z, 3)*v.x*v.y*values[62] + 3*p.x*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*values[43] + 6*p.x*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*values[46] + 6*p.x*pow(p.y, 2)*pow(p.z, 2)*v.x*v.z*values[58] + 9*p.x*pow(p.y, 2)*pow(p.z, 2)*v.y*v.z*values[61] + 3*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*values[27] + 6*p.x*pow(p.y, 2)*p.z*v.x*v.y*values[30] + 4*p.x*pow(p.y, 2)*p.z*v.x*v.z*values[42] + 6*p.x*pow(p.y, 2)*p.z*v.y*v.z*values[45] + 3*p.x*pow(p.y, 2)*p.z*pow(v.z, 2)*values[57] + 3*p.x*pow(p.y, 2)*pow(v.x, 2)*values[11] + 6*p.x*pow(p.y, 2)*v.x*v.y*values[14] + 2*p.x*pow(p.y, 2)*v.x*v.z*values[26] + 3*p.x*pow(p.y, 2)*v.y*v.z*values[29] + p.x*pow(p.y, 2)*pow(v.z, 2)*values[41] + 3*p.x*p.y*pow(p.z, 3)*pow(v.x, 2)*values[55] + 4*p.x*p.y*pow(p.z, 3)*v.x*v.y*values[58] + 3*p.x*p.y*pow(p.z, 3)*pow(v.y, 2)*values[61] + 3*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*values[39] + 4*p.x*p.y*pow(p.z, 2)*v.x*v.y*values[42] + 6*p.x*p.y*pow(p.z, 2)*v.x*v.z*values[54] + 3*p.x*p.y*pow(p.z, 2)*pow(v.y, 2)*values[45] + 6*p.x*p.y*pow(p.z, 2)*v.y*v.z*values[57] + 3*p.x*p.y*p.z*pow(v.x, 2)*values[23] + 4*p.x*p.y*p.z*v.x*v.y*values[26] + 4*p.x*p.y*p.z*v.x*v.z*values[38] + 3*p.x*p.y*p.z*pow(v.y, 2)*values[29] + 4*p.x*p.y*p.z*v.y*v.z*values[41] + 3*p.x*p.y*p.z*pow(v.z, 2)*values[53] + 3*p.x*p.y*pow(v.x, 2)*values[7] + 4*p.x*p.y*v.x*v.y*values[10] + 2*p.x*p.y*v.x*v.z*values[22] + 3*p.x*p.y*pow(v.y, 2)*values[13] + 2*p.x*p.y*v.y*v.z*values[25] + p.x*p.y*pow(v.z, 2)*values[37] + 3*p.x*pow(p.z, 3)*pow(v.x, 2)*values[51] + 2*p.x*pow(p.z, 3)*v.x*v.y*values[54] + p.x*pow(p.z, 3)*pow(v.y, 2)*values[57] + 3*p.x*pow(p.z, 2)*pow(v.x, 2)*values[35] + 2*p.x*pow(p.z, 2)*v.x*v.y*values[38] + 6*p.x*pow(p.z, 2)*v.x*v.z*values[50] + p.x*pow(p.z, 2)*pow(v.y, 2)*values[41] + 3*p.x*pow(p.z, 2)*v.y*v.z*values[53] + 3*p.x*p.z*pow(v.x, 2)*values[19] + 2*p.x*p.z*v.x*v.y*values[22] + 4*p.x*p.z*v.x*v.z*values[34] + p.x*p.z*pow(v.y, 2)*values[25] + 2*p.x*p.z*v.y*v.z*values[37] + 3*p.x*p.z*pow(v.z, 2)*values[49] + 3*p.x*pow(v.x, 2)*values[3] + 2*p.x*v.x*v.y*values[6] + 2*p.x*v.x*v.z*values[18] + p.x*pow(v.y, 2)*values[9] + p.x*v.y*v.z*values[21] + p.x*pow(v.z, 2)*values[33] + pow(p.y, 3)*pow(p.z, 3)*pow(v.x, 2)*values[62] + pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 2)*values[46] + 3*pow(p.y, 3)*pow(p.z, 2)*v.x*v.z*values[61] + pow(p.y, 3)*p.z*pow(v.x, 2)*values[30] + 2*pow(p.y, 3)*p.z*v.x*v.z*values[45] + 3*pow(p.y, 3)*p.z*pow(v.z, 2)*values[60] + pow(p.y, 3)*pow(v.x, 2)*values[14] + pow(p.y, 3)*v.x*v.z*values[29] + pow(p.y, 3)*pow(v.z, 2)*values[44] + pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 2)*values[58] + 3*pow(p.y, 2)*pow(p.z, 3)*v.x*v.y*values[61] + pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*values[42] + 3*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*values[45] + 3*pow(p.y, 2)*pow(p.z, 2)*v.x*v.z*values[57] + 9*pow(p.y, 2)*pow(p.z, 2)*v.y*v.z*values[60] + pow(p.y, 2)*p.z*pow(v.x, 2)*values[26] + 3*pow(p.y, 2)*p.z*v.x*v.y*values[29] + 2*pow(p.y, 2)*p.z*v.x*v.z*values[41] + 6*pow(p.y, 2)*p.z*v.y*v.z*values[44] + 3*pow(p.y, 2)*p.z*pow(v.z, 2)*values[56] + pow(p.y, 2)*pow(v.x, 2)*values[10] + 3*pow(p.y, 2)*v.x*v.y*values[13] + pow(p.y, 2)*v.x*v.z*values[25] + 3*pow(p.y, 2)*v.y*v.z*values[28] + pow(p.y, 2)*pow(v.z, 2)*values[40] + p.y*pow(p.z, 3)*pow(v.x, 2)*values[54] + 2*p.y*pow(p.z, 3)*v.x*v.y*values[57] + 3*p.y*pow(p.z, 3)*pow(v.y, 2)*values[60] + p.y*pow(p.z, 2)*pow(v.x, 2)*values[38] + 2*p.y*pow(p.z, 2)*v.x*v.y*values[41] + 3*p.y*pow(p.z, 2)*v.x*v.z*values[53] + 3*p.y*pow(p.z, 2)*pow(v.y, 2)*values[44] + 6*p.y*pow(p.z, 2)*v.y*v.z*values[56] + p.y*p.z*pow(v.x, 2)*values[22] + 2*p.y*p.z*v.x*v.y*values[25] + 2*p.y*p.z*v.x*v.z*values[37] + 3*p.y*p.z*pow(v.y, 2)*values[28] + 4*p.y*p.z*v.y*v.z*values[40] + 3*p.y*p.z*pow(v.z, 2)*values[52] + p.y*pow(v.x, 2)*values[6] + 2*p.y*v.x*v.y*values[9] + p.y*v.x*v.z*values[21] + 3*p.y*pow(v.y, 2)*values[12] + 2*p.y*v.y*v.z*values[24] + p.y*pow(v.z, 2)*values[36] + pow(p.z, 3)*pow(v.x, 2)*values[50] + pow(p.z, 3)*v.x*v.y*values[53] + pow(p.z, 3)*pow(v.y, 2)*values[56] + pow(p.z, 2)*pow(v.x, 2)*values[34] + pow(p.z, 2)*v.x*v.y*values[37] + 3*pow(p.z, 2)*v.x*v.z*values[49] + pow(p.z, 2)*pow(v.y, 2)*values[40] + 3*pow(p.z, 2)*v.y*v.z*values[52] + p.z*pow(v.x, 2)*values[18] + p.z*v.x*v.y*values[21] + 2*p.z*v.x*v.z*values[33] + p.z*pow(v.y, 2)*values[24] + 2*p.z*v.y*v.z*values[36] + 3*p.z*pow(v.z, 2)*values[48] + pow(v.x, 2)*values[2] + v.x*v.y*values[5] + v.x*v.z*values[17] + pow(v.y, 2)*values[8] + v.y*v.z*values[20] + pow(v.z, 2)*values[32];
+    eq[3] = pow(p.x, 3)*pow(p.y, 3)*pow(v.z, 3)*values[63] + 9*pow(p.x, 3)*pow(p.y, 2)*p.z*v.y*pow(v.z, 2)*values[63] + 3*pow(p.x, 3)*pow(p.y, 2)*v.y*pow(v.z, 2)*values[47] + pow(p.x, 3)*pow(p.y, 2)*pow(v.z, 3)*values[59] + 9*pow(p.x, 3)*p.y*pow(p.z, 2)*pow(v.y, 2)*v.z*values[63] + 6*pow(p.x, 3)*p.y*p.z*pow(v.y, 2)*v.z*values[47] + 6*pow(p.x, 3)*p.y*p.z*v.y*pow(v.z, 2)*values[59] + 3*pow(p.x, 3)*p.y*pow(v.y, 2)*v.z*values[31] + 2*pow(p.x, 3)*p.y*v.y*pow(v.z, 2)*values[43] + pow(p.x, 3)*p.y*pow(v.z, 3)*values[55] + pow(p.x, 3)*pow(p.z, 3)*pow(v.y, 3)*values[63] + pow(p.x, 3)*pow(p.z, 2)*pow(v.y, 3)*values[47] + 3*pow(p.x, 3)*pow(p.z, 2)*pow(v.y, 2)*v.z*values[59] + pow(p.x, 3)*p.z*pow(v.y, 3)*values[31] + 2*pow(p.x, 3)*p.z*pow(v.y, 2)*v.z*values[43] + 3*pow(p.x, 3)*p.z*v.y*pow(v.z, 2)*values[55] + pow(p.x, 3)*pow(v.y, 3)*values[15] + pow(p.x, 3)*pow(v.y, 2)*v.z*values[27] + pow(p.x, 3)*v.y*pow(v.z, 2)*values[39] + pow(p.x, 3)*pow(v.z, 3)*values[51] + 9*pow(p.x, 2)*pow(p.y, 3)*p.z*v.x*pow(v.z, 2)*values[63] + 3*pow(p.x, 2)*pow(p.y, 3)*v.x*pow(v.z, 2)*values[47] + pow(p.x, 2)*pow(p.y, 3)*pow(v.z, 3)*values[62] + 27*pow(p.x, 2)*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*v.z*values[63] + 18*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*v.y*v.z*values[47] + 9*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*pow(v.z, 2)*values[59] + 9*pow(p.x, 2)*pow(p.y, 2)*p.z*v.y*pow(v.z, 2)*values[62] + 9*pow(p.x, 2)*pow(p.y, 2)*v.x*v.y*v.z*values[31] + 3*pow(p.x, 2)*pow(p.y, 2)*v.x*pow(v.z, 2)*values[43] + 3*pow(p.x, 2)*pow(p.y, 2)*v.y*pow(v.z, 2)*values[46] + pow(p.x, 2)*pow(p.y, 2)*pow(v.z, 3)*values[58] + 9*pow(p.x, 2)*p.y*pow(p.z, 3)*v.x*pow(v.y, 2)*values[63] + 9*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*values[47] + 18*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*v.y*v.z*values[59] + 9*pow(p.x, 2)*p.y*pow(p.z, 2)*pow(v.y, 2)*v.z*values[62] + 9*pow(p.x, 2)*p.y*p.z*v.x*pow(v.y, 2)*values[31] + 12*pow(p.x, 2)*p.y*p.z*v.x*v.y*v.z*values[43] + 9*pow(p.x, 2)*p.y*p.z*v.x*pow(v.z, 2)*values[55] + 6*pow(p.x, 2)*p.y*p.z*pow(v.y, 2)*v.z*values[46] + 6*pow(p.x, 2)*p.y*p.z*v.y*pow(v.z, 2)*values[58] + 9*pow(p.x, 2)*p.y*v.x*pow(v.y, 2)*values[15] + 6*pow(p.x, 2)*p.y*v.x*v.y*v.z*values[27] + 3*pow(p.x, 2)*p.y*v.x*pow(v.z, 2)*values[39] + 3*pow(p.x, 2)*p.y*pow(v.y, 2)*v.z*values[30] + 2*pow(p.x, 2)*p.y*v.y*pow(v.z, 2)*values[42] + pow(p.x, 2)*p.y*pow(v.z, 3)*values[54] + 3*pow(p.x, 2)*pow(p.z, 3)*v.x*pow(v.y, 2)*values[59] + pow(p.x, 2)*pow(p.z, 3)*pow(v.y, 3)*values[62] + 3*pow(p.x, 2)*pow(p.z, 2)*v.x*pow(v.y, 2)*values[43] + 9*pow(p.x, 2)*pow(p.z, 2)*v.x*v.y*v.z*values[55] + pow(p.x, 2)*pow(p.z, 2)*pow(v.y, 3)*values[46] + 3*pow(p.x, 2)*pow(p.z, 2)*pow(v.y, 2)*v.z*values[58] + 3*pow(p.x, 2)*p.z*v.x*pow(v.y, 2)*values[27] + 6*pow(p.x, 2)*p.z*v.x*v.y*v.z*values[39] + 9*pow(p.x, 2)*p.z*v.x*pow(v.z, 2)*values[51] + pow(p.x, 2)*p.z*pow(v.y, 3)*values[30] + 2*pow(p.x, 2)*p.z*pow(v.y, 2)*v.z*values[42] + 3*pow(p.x, 2)*p.z*v.y*pow(v.z, 2)*values[54] + 3*pow(p.x, 2)*v.x*pow(v.y, 2)*values[11] + 3*pow(p.x, 2)*v.x*v.y*v.z*values[23] + 3*pow(p.x, 2)*v.x*pow(v.z, 2)*values[35] + pow(p.x, 2)*pow(v.y, 3)*values[14] + pow(p.x, 2)*pow(v.y, 2)*v.z*values[26] + pow(p.x, 2)*v.y*pow(v.z, 2)*values[38] + pow(p.x, 2)*pow(v.z, 3)*values[50] + 9*p.x*pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 2)*v.z*values[63] + 6*p.x*pow(p.y, 3)*p.z*pow(v.x, 2)*v.z*values[47] + 6*p.x*pow(p.y, 3)*p.z*v.x*pow(v.z, 2)*values[62] + 3*p.x*pow(p.y, 3)*pow(v.x, 2)*v.z*values[31] + 2*p.x*pow(p.y, 3)*v.x*pow(v.z, 2)*values[46] + p.x*pow(p.y, 3)*pow(v.z, 3)*values[61] + 9*p.x*pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 2)*v.y*values[63] + 9*p.x*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.y*values[47] + 9*p.x*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.z*values[59] + 18*p.x*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*v.z*values[62] + 9*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*values[31] + 6*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*v.z*values[43] + 12*p.x*pow(p.y, 2)*p.z*v.x*v.y*v.z*values[46] + 6*p.x*pow(p.y, 2)*p.z*v.x*pow(v.z, 2)*values[58] + 9*p.x*pow(p.y, 2)*p.z*v.y*pow(v.z, 2)*values[61] + 9*p.x*pow(p.y, 2)*pow(v.x, 2)*v.y*values[15] + 3*p.x*pow(p.y, 2)*pow(v.x, 2)*v.z*values[27] + 6*p.x*pow(p.y, 2)*v.x*v.y*v.z*values[30] + 2*p.x*pow(p.y, 2)*v.x*pow(v.z, 2)*values[42] + 3*p.x*pow(p.y, 2)*v.y*pow(v.z, 2)*values[45] + p.x*pow(p.y, 2)*pow(v.z, 3)*values[57] + 6*p.x*p.y*pow(p.z, 3)*pow(v.x, 2)*v.y*values[59] + 6*p.x*p.y*pow(p.z, 3)*v.x*pow(v.y, 2)*values[62] + 6*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*v.y*values[43] + 9*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*v.z*values[55] + 6*p.x*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*values[46] + 12*p.x*p.y*pow(p.z, 2)*v.x*v.y*v.z*values[58] + 9*p.x*p.y*pow(p.z, 2)*pow(v.y, 2)*v.z*values[61] + 6*p.x*p.y*p.z*pow(v.x, 2)*v.y*values[27] + 6*p.x*p.y*p.z*pow(v.x, 2)*v.z*values[39] + 6*p.x*p.y*p.z*v.x*pow(v.y, 2)*values[30] + 8*p.x*p.y*p.z*v.x*v.y*v.z*values[42] + 6*p.x*p.y*p.z*v.x*pow(v.z, 2)*values[54] + 6*p.x*p.y*p.z*pow(v.y, 2)*v.z*values[45] + 6*p.x*p.y*p.z*v.y*pow(v.z, 2)*values[57] + 6*p.x*p.y*pow(v.x, 2)*v.y*values[11] + 3*p.x*p.y*pow(v.x, 2)*v.z*values[23] + 6*p.x*p.y*v.x*pow(v.y, 2)*values[14] + 4*p.x*p.y*v.x*v.y*v.z*values[26] + 2*p.x*p.y*v.x*pow(v.z, 2)*values[38] + 3*p.x*p.y*pow(v.y, 2)*v.z*values[29] + 2*p.x*p.y*v.y*pow(v.z, 2)*values[41] + p.x*p.y*pow(v.z, 3)*values[53] + 3*p.x*pow(p.z, 3)*pow(v.x, 2)*v.y*values[55] + 2*p.x*pow(p.z, 3)*v.x*pow(v.y, 2)*values[58] + p.x*pow(p.z, 3)*pow(v.y, 3)*values[61] + 3*p.x*pow(p.z, 2)*pow(v.x, 2)*v.y*values[39] + 9*p.x*pow(p.z, 2)*pow(v.x, 2)*v.z*values[51] + 2*p.x*pow(p.z, 2)*v.x*pow(v.y, 2)*values[42] + 6*p.x*pow(p.z, 2)*v.x*v.y*v.z*values[54] + p.x*pow(p.z, 2)*pow(v.y, 3)*values[45] + 3*p.x*pow(p.z, 2)*pow(v.y, 2)*v.z*values[57] + 3*p.x*p.z*pow(v.x, 2)*v.y*values[23] + 6*p.x*p.z*pow(v.x, 2)*v.z*values[35] + 2*p.x*p.z*v.x*pow(v.y, 2)*values[26] + 4*p.x*p.z*v.x*v.y*v.z*values[38] + 6*p.x*p.z*v.x*pow(v.z, 2)*values[50] + p.x*p.z*pow(v.y, 3)*values[29] + 2*p.x*p.z*pow(v.y, 2)*v.z*values[41] + 3*p.x*p.z*v.y*pow(v.z, 2)*values[53] + 3*p.x*pow(v.x, 2)*v.y*values[7] + 3*p.x*pow(v.x, 2)*v.z*values[19] + 2*p.x*v.x*pow(v.y, 2)*values[10] + 2*p.x*v.x*v.y*v.z*values[22] + 2*p.x*v.x*pow(v.z, 2)*values[34] + p.x*pow(v.y, 3)*values[13] + p.x*pow(v.y, 2)*v.z*values[25] + p.x*v.y*pow(v.z, 2)*values[37] + p.x*pow(v.z, 3)*values[49] + pow(p.y, 3)*pow(p.z, 3)*pow(v.x, 3)*values[63] + pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 3)*values[47] + 3*pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 2)*v.z*values[62] + pow(p.y, 3)*p.z*pow(v.x, 3)*values[31] + 2*pow(p.y, 3)*p.z*pow(v.x, 2)*v.z*values[46] + 3*pow(p.y, 3)*p.z*v.x*pow(v.z, 2)*values[61] + pow(p.y, 3)*pow(v.x, 3)*values[15] + pow(p.y, 3)*pow(v.x, 2)*v.z*values[30] + pow(p.y, 3)*v.x*pow(v.z, 2)*values[45] + pow(p.y, 3)*pow(v.z, 3)*values[60] + pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 3)*values[59] + 3*pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 2)*v.y*values[62] + pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 3)*values[43] + 3*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.y*values[46] + 3*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.z*values[58] + 9*pow(p.y, 2)*pow(p.z, 2)*v.x*v.y*v.z*values[61] + pow(p.y, 2)*p.z*pow(v.x, 3)*values[27] + 3*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*values[30] + 2*pow(p.y, 2)*p.z*pow(v.x, 2)*v.z*values[42] + 6*pow(p.y, 2)*p.z*v.x*v.y*v.z*values[45] + 3*pow(p.y, 2)*p.z*v.x*pow(v.z, 2)*values[57] + 9*pow(p.y, 2)*p.z*v.y*pow(v.z, 2)*values[60] + pow(p.y, 2)*pow(v.x, 3)*values[11] + 3*pow(p.y, 2)*pow(v.x, 2)*v.y*values[14] + pow(p.y, 2)*pow(v.x, 2)*v.z*values[26] + 3*pow(p.y, 2)*v.x*v.y*v.z*values[29] + pow(p.y, 2)*v.x*pow(v.z, 2)*values[41] + 3*pow(p.y, 2)*v.y*pow(v.z, 2)*values[44] + pow(p.y, 2)*pow(v.z, 3)*values[56] + p.y*pow(p.z, 3)*pow(v.x, 3)*values[55] + 2*p.y*pow(p.z, 3)*pow(v.x, 2)*v.y*values[58] + 3*p.y*pow(p.z, 3)*v.x*pow(v.y, 2)*values[61] + p.y*pow(p.z, 2)*pow(v.x, 3)*values[39] + 2*p.y*pow(p.z, 2)*pow(v.x, 2)*v.y*values[42] + 3*p.y*pow(p.z, 2)*pow(v.x, 2)*v.z*values[54] + 3*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*values[45] + 6*p.y*pow(p.z, 2)*v.x*v.y*v.z*values[57] + 9*p.y*pow(p.z, 2)*pow(v.y, 2)*v.z*values[60] + p.y*p.z*pow(v.x, 3)*values[23] + 2*p.y*p.z*pow(v.x, 2)*v.y*values[26] + 2*p.y*p.z*pow(v.x, 2)*v.z*values[38] + 3*p.y*p.z*v.x*pow(v.y, 2)*values[29] + 4*p.y*p.z*v.x*v.y*v.z*values[41] + 3*p.y*p.z*v.x*pow(v.z, 2)*values[53] + 6*p.y*p.z*pow(v.y, 2)*v.z*values[44] + 6*p.y*p.z*v.y*pow(v.z, 2)*values[56] + p.y*pow(v.x, 3)*values[7] + 2*p.y*pow(v.x, 2)*v.y*values[10] + p.y*pow(v.x, 2)*v.z*values[22] + 3*p.y*v.x*pow(v.y, 2)*values[13] + 2*p.y*v.x*v.y*v.z*values[25] + p.y*v.x*pow(v.z, 2)*values[37] + 3*p.y*pow(v.y, 2)*v.z*values[28] + 2*p.y*v.y*pow(v.z, 2)*values[40] + p.y*pow(v.z, 3)*values[52] + pow(p.z, 3)*pow(v.x, 3)*values[51] + pow(p.z, 3)*pow(v.x, 2)*v.y*values[54] + pow(p.z, 3)*v.x*pow(v.y, 2)*values[57] + pow(p.z, 3)*pow(v.y, 3)*values[60] + pow(p.z, 2)*pow(v.x, 3)*values[35] + pow(p.z, 2)*pow(v.x, 2)*v.y*values[38] + 3*pow(p.z, 2)*pow(v.x, 2)*v.z*values[50] + pow(p.z, 2)*v.x*pow(v.y, 2)*values[41] + 3*pow(p.z, 2)*v.x*v.y*v.z*values[53] + pow(p.z, 2)*pow(v.y, 3)*values[44] + 3*pow(p.z, 2)*pow(v.y, 2)*v.z*values[56] + p.z*pow(v.x, 3)*values[19] + p.z*pow(v.x, 2)*v.y*values[22] + 2*p.z*pow(v.x, 2)*v.z*values[34] + p.z*v.x*pow(v.y, 2)*values[25] + 2*p.z*v.x*v.y*v.z*values[37] + 3*p.z*v.x*pow(v.z, 2)*values[49] + p.z*pow(v.y, 3)*values[28] + 2*p.z*pow(v.y, 2)*v.z*values[40] + 3*p.z*v.y*pow(v.z, 2)*values[52] + pow(v.x, 3)*values[3] + pow(v.x, 2)*v.y*values[6] + pow(v.x, 2)*v.z*values[18] + v.x*pow(v.y, 2)*values[9] + v.x*v.y*v.z*values[21] + v.x*pow(v.z, 2)*values[33] + pow(v.y, 3)*values[12] + pow(v.y, 2)*v.z*values[24] + v.y*pow(v.z, 2)*values[36] + pow(v.z, 3)*values[48];
+    eq[4] = 3*pow(p.x, 3)*pow(p.y, 2)*v.y*pow(v.z, 3)*values[63] + 9*pow(p.x, 3)*p.y*p.z*pow(v.y, 2)*pow(v.z, 2)*values[63] + 3*pow(p.x, 3)*p.y*pow(v.y, 2)*pow(v.z, 2)*values[47] + 2*pow(p.x, 3)*p.y*v.y*pow(v.z, 3)*values[59] + 3*pow(p.x, 3)*pow(p.z, 2)*pow(v.y, 3)*v.z*values[63] + 2*pow(p.x, 3)*p.z*pow(v.y, 3)*v.z*values[47] + 3*pow(p.x, 3)*p.z*pow(v.y, 2)*pow(v.z, 2)*values[59] + pow(p.x, 3)*pow(v.y, 3)*v.z*values[31] + pow(p.x, 3)*pow(v.y, 2)*pow(v.z, 2)*values[43] + pow(p.x, 3)*v.y*pow(v.z, 3)*values[55] + 3*pow(p.x, 2)*pow(p.y, 3)*v.x*pow(v.z, 3)*values[63] + 27*pow(p.x, 2)*pow(p.y, 2)*p.z*v.x*v.y*pow(v.z, 2)*values[63] + 9*pow(p.x, 2)*pow(p.y, 2)*v.x*v.y*pow(v.z, 2)*values[47] + 3*pow(p.x, 2)*pow(p.y, 2)*v.x*pow(v.z, 3)*values[59] + 3*pow(p.x, 2)*pow(p.y, 2)*v.y*pow(v.z, 3)*values[62] + 27*pow(p.x, 2)*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[63] + 18*pow(p.x, 2)*p.y*p.z*v.x*pow(v.y, 2)*v.z*values[47] + 18*pow(p.x, 2)*p.y*p.z*v.x*v.y*pow(v.z, 2)*values[59] + 9*pow(p.x, 2)*p.y*p.z*pow(v.y, 2)*pow(v.z, 2)*values[62] + 9*pow(p.x, 2)*p.y*v.x*pow(v.y, 2)*v.z*values[31] + 6*pow(p.x, 2)*p.y*v.x*v.y*pow(v.z, 2)*values[43] + 3*pow(p.x, 2)*p.y*v.x*pow(v.z, 3)*values[55] + 3*pow(p.x, 2)*p.y*pow(v.y, 2)*pow(v.z, 2)*values[46] + 2*pow(p.x, 2)*p.y*v.y*pow(v.z, 3)*values[58] + 3*pow(p.x, 2)*pow(p.z, 3)*v.x*pow(v.y, 3)*values[63] + 3*pow(p.x, 2)*pow(p.z, 2)*v.x*pow(v.y, 3)*values[47] + 9*pow(p.x, 2)*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[59] + 3*pow(p.x, 2)*pow(p.z, 2)*pow(v.y, 3)*v.z*values[62] + 3*pow(p.x, 2)*p.z*v.x*pow(v.y, 3)*values[31] + 6*pow(p.x, 2)*p.z*v.x*pow(v.y, 2)*v.z*values[43] + 9*pow(p.x, 2)*p.z*v.x*v.y*pow(v.z, 2)*values[55] + 2*pow(p.x, 2)*p.z*pow(v.y, 3)*v.z*values[46] + 3*pow(p.x, 2)*p.z*pow(v.y, 2)*pow(v.z, 2)*values[58] + 3*pow(p.x, 2)*v.x*pow(v.y, 3)*values[15] + 3*pow(p.x, 2)*v.x*pow(v.y, 2)*v.z*values[27] + 3*pow(p.x, 2)*v.x*v.y*pow(v.z, 2)*values[39] + 3*pow(p.x, 2)*v.x*pow(v.z, 3)*values[51] + pow(p.x, 2)*pow(v.y, 3)*v.z*values[30] + pow(p.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[42] + pow(p.x, 2)*v.y*pow(v.z, 3)*values[54] + 9*p.x*pow(p.y, 3)*p.z*pow(v.x, 2)*pow(v.z, 2)*values[63] + 3*p.x*pow(p.y, 3)*pow(v.x, 2)*pow(v.z, 2)*values[47] + 2*p.x*pow(p.y, 3)*v.x*pow(v.z, 3)*values[62] + 27*p.x*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[63] + 18*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*v.z*values[47] + 9*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*pow(v.z, 2)*values[59] + 18*p.x*pow(p.y, 2)*p.z*v.x*v.y*pow(v.z, 2)*values[62] + 9*p.x*pow(p.y, 2)*pow(v.x, 2)*v.y*v.z*values[31] + 3*p.x*pow(p.y, 2)*pow(v.x, 2)*pow(v.z, 2)*values[43] + 6*p.x*pow(p.y, 2)*v.x*v.y*pow(v.z, 2)*values[46] + 2*p.x*pow(p.y, 2)*v.x*pow(v.z, 3)*values[58] + 3*p.x*pow(p.y, 2)*v.y*pow(v.z, 3)*values[61] + 9*p.x*p.y*pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 2)*values[63] + 9*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*values[47] + 18*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[59] + 18*p.x*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[62] + 9*p.x*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*values[31] + 12*p.x*p.y*p.z*pow(v.x, 2)*v.y*v.z*values[43] + 9*p.x*p.y*p.z*pow(v.x, 2)*pow(v.z, 2)*values[55] + 12*p.x*p.y*p.z*v.x*pow(v.y, 2)*v.z*values[46] + 12*p.x*p.y*p.z*v.x*v.y*pow(v.z, 2)*values[58] + 9*p.x*p.y*p.z*pow(v.y, 2)*pow(v.z, 2)*values[61] + 9*p.x*p.y*pow(v.x, 2)*pow(v.y, 2)*values[15] + 6*p.x*p.y*pow(v.x, 2)*v.y*v.z*values[27] + 3*p.x*p.y*pow(v.x, 2)*pow(v.z, 2)*values[39] + 6*p.x*p.y*v.x*pow(v.y, 2)*v.z*values[30] + 4*p.x*p.y*v.x*v.y*pow(v.z, 2)*values[42] + 2*p.x*p.y*v.x*pow(v.z, 3)*values[54] + 3*p.x*p.y*pow(v.y, 2)*pow(v.z, 2)*values[45] + 2*p.x*p.y*v.y*pow(v.z, 3)*values[57] + 3*p.x*pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 2)*values[59] + 2*p.x*pow(p.z, 3)*v.x*pow(v.y, 3)*values[62] + 3*p.x*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*values[43] + 9*p.x*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[55] + 2*p.x*pow(p.z, 2)*v.x*pow(v.y, 3)*values[46] + 6*p.x*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[58] + 3*p.x*pow(p.z, 2)*pow(v.y, 3)*v.z*values[61] + 3*p.x*p.z*pow(v.x, 2)*pow(v.y, 2)*values[27] + 6*p.x*p.z*pow(v.x, 2)*v.y*v.z*values[39] + 9*p.x*p.z*pow(v.x, 2)*pow(v.z, 2)*values[51] + 2*p.x*p.z*v.x*pow(v.y, 3)*values[30] + 4*p.x*p.z*v.x*pow(v.y, 2)*v.z*values[42] + 6*p.x*p.z*v.x*v.y*pow(v.z, 2)*values[54] + 2*p.x*p.z*pow(v.y, 3)*v.z*values[45] + 3*p.x*p.z*pow(v.y, 2)*pow(v.z, 2)*values[57] + 3*p.x*pow(v.x, 2)*pow(v.y, 2)*values[11] + 3*p.x*pow(v.x, 2)*v.y*v.z*values[23] + 3*p.x*pow(v.x, 2)*pow(v.z, 2)*values[35] + 2*p.x*v.x*pow(v.y, 3)*values[14] + 2*p.x*v.x*pow(v.y, 2)*v.z*values[26] + 2*p.x*v.x*v.y*pow(v.z, 2)*values[38] + 2*p.x*v.x*pow(v.z, 3)*values[50] + p.x*pow(v.y, 3)*v.z*values[29] + p.x*pow(v.y, 2)*pow(v.z, 2)*values[41] + p.x*v.y*pow(v.z, 3)*values[53] + 3*pow(p.y, 3)*pow(p.z, 2)*pow(v.x, 3)*v.z*values[63] + 2*pow(p.y, 3)*p.z*pow(v.x, 3)*v.z*values[47] + 3*pow(p.y, 3)*p.z*pow(v.x, 2)*pow(v.z, 2)*values[62] + pow(p.y, 3)*pow(v.x, 3)*v.z*values[31] + pow(p.y, 3)*pow(v.x, 2)*pow(v.z, 2)*values[46] + pow(p.y, 3)*v.x*pow(v.z, 3)*values[61] + 3*pow(p.y, 2)*pow(p.z, 3)*pow(v.x, 3)*v.y*values[63] + 3*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 3)*v.y*values[47] + 3*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 3)*v.z*values[59] + 9*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[62] + 3*pow(p.y, 2)*p.z*pow(v.x, 3)*v.y*values[31] + 2*pow(p.y, 2)*p.z*pow(v.x, 3)*v.z*values[43] + 6*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*v.z*values[46] + 3*pow(p.y, 2)*p.z*pow(v.x, 2)*pow(v.z, 2)*values[58] + 9*pow(p.y, 2)*p.z*v.x*v.y*pow(v.z, 2)*values[61] + 3*pow(p.y, 2)*pow(v.x, 3)*v.y*values[15] + pow(p.y, 2)*pow(v.x, 3)*v.z*values[27] + 3*pow(p.y, 2)*pow(v.x, 2)*v.y*v.z*values[30] + pow(p.y, 2)*pow(v.x, 2)*pow(v.z, 2)*values[42] + 3*pow(p.y, 2)*v.x*v.y*pow(v.z, 2)*values[45] + pow(p.y, 2)*v.x*pow(v.z, 3)*values[57] + 3*pow(p.y, 2)*v.y*pow(v.z, 3)*values[60] + 2*p.y*pow(p.z, 3)*pow(v.x, 3)*v.y*values[59] + 3*p.y*pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 2)*values[62] + 2*p.y*pow(p.z, 2)*pow(v.x, 3)*v.y*values[43] + 3*p.y*pow(p.z, 2)*pow(v.x, 3)*v.z*values[55] + 3*p.y*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*values[46] + 6*p.y*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[58] + 9*p.y*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[61] + 2*p.y*p.z*pow(v.x, 3)*v.y*values[27] + 2*p.y*p.z*pow(v.x, 3)*v.z*values[39] + 3*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*values[30] + 4*p.y*p.z*pow(v.x, 2)*v.y*v.z*values[42] + 3*p.y*p.z*pow(v.x, 2)*pow(v.z, 2)*values[54] + 6*p.y*p.z*v.x*pow(v.y, 2)*v.z*values[45] + 6*p.y*p.z*v.x*v.y*pow(v.z, 2)*values[57] + 9*p.y*p.z*pow(v.y, 2)*pow(v.z, 2)*values[60] + 2*p.y*pow(v.x, 3)*v.y*values[11] + p.y*pow(v.x, 3)*v.z*values[23] + 3*p.y*pow(v.x, 2)*pow(v.y, 2)*values[14] + 2*p.y*pow(v.x, 2)*v.y*v.z*values[26] + p.y*pow(v.x, 2)*pow(v.z, 2)*values[38] + 3*p.y*v.x*pow(v.y, 2)*v.z*values[29] + 2*p.y*v.x*v.y*pow(v.z, 2)*values[41] + p.y*v.x*pow(v.z, 3)*values[53] + 3*p.y*pow(v.y, 2)*pow(v.z, 2)*values[44] + 2*p.y*v.y*pow(v.z, 3)*values[56] + pow(p.z, 3)*pow(v.x, 3)*v.y*values[55] + pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 2)*values[58] + pow(p.z, 3)*v.x*pow(v.y, 3)*values[61] + pow(p.z, 2)*pow(v.x, 3)*v.y*values[39] + 3*pow(p.z, 2)*pow(v.x, 3)*v.z*values[51] + pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*values[42] + 3*pow(p.z, 2)*pow(v.x, 2)*v.y*v.z*values[54] + pow(p.z, 2)*v.x*pow(v.y, 3)*values[45] + 3*pow(p.z, 2)*v.x*pow(v.y, 2)*v.z*values[57] + 3*pow(p.z, 2)*pow(v.y, 3)*v.z*values[60] + p.z*pow(v.x, 3)*v.y*values[23] + 2*p.z*pow(v.x, 3)*v.z*values[35] + p.z*pow(v.x, 2)*pow(v.y, 2)*values[26] + 2*p.z*pow(v.x, 2)*v.y*v.z*values[38] + 3*p.z*pow(v.x, 2)*pow(v.z, 2)*values[50] + p.z*v.x*pow(v.y, 3)*values[29] + 2*p.z*v.x*pow(v.y, 2)*v.z*values[41] + 3*p.z*v.x*v.y*pow(v.z, 2)*values[53] + 2*p.z*pow(v.y, 3)*v.z*values[44] + 3*p.z*pow(v.y, 2)*pow(v.z, 2)*values[56] + pow(v.x, 3)*v.y*values[7] + pow(v.x, 3)*v.z*values[19] + pow(v.x, 2)*pow(v.y, 2)*values[10] + pow(v.x, 2)*v.y*v.z*values[22] + pow(v.x, 2)*pow(v.z, 2)*values[34] + v.x*pow(v.y, 3)*values[13] + v.x*pow(v.y, 2)*v.z*values[25] + v.x*v.y*pow(v.z, 2)*values[37] + v.x*pow(v.z, 3)*values[49] + pow(v.y, 3)*v.z*values[28] + pow(v.y, 2)*pow(v.z, 2)*values[40] + v.y*pow(v.z, 3)*values[52];
+    eq[5] = 3*pow(p.x, 3)*p.y*pow(v.y, 2)*pow(v.z, 3)*values[63] + 3*pow(p.x, 3)*p.z*pow(v.y, 3)*pow(v.z, 2)*values[63] + pow(p.x, 3)*pow(v.y, 3)*pow(v.z, 2)*values[47] + pow(p.x, 3)*pow(v.y, 2)*pow(v.z, 3)*values[59] + 9*pow(p.x, 2)*pow(p.y, 2)*v.x*v.y*pow(v.z, 3)*values[63] + 27*pow(p.x, 2)*p.y*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[63] + 9*pow(p.x, 2)*p.y*v.x*pow(v.y, 2)*pow(v.z, 2)*values[47] + 6*pow(p.x, 2)*p.y*v.x*v.y*pow(v.z, 3)*values[59] + 3*pow(p.x, 2)*p.y*pow(v.y, 2)*pow(v.z, 3)*values[62] + 9*pow(p.x, 2)*pow(p.z, 2)*v.x*pow(v.y, 3)*v.z*values[63] + 6*pow(p.x, 2)*p.z*v.x*pow(v.y, 3)*v.z*values[47] + 9*pow(p.x, 2)*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[59] + 3*pow(p.x, 2)*p.z*pow(v.y, 3)*pow(v.z, 2)*values[62] + 3*pow(p.x, 2)*v.x*pow(v.y, 3)*v.z*values[31] + 3*pow(p.x, 2)*v.x*pow(v.y, 2)*pow(v.z, 2)*values[43] + 3*pow(p.x, 2)*v.x*v.y*pow(v.z, 3)*values[55] + pow(p.x, 2)*pow(v.y, 3)*pow(v.z, 2)*values[46] + pow(p.x, 2)*pow(v.y, 2)*pow(v.z, 3)*values[58] + 3*p.x*pow(p.y, 3)*pow(v.x, 2)*pow(v.z, 3)*values[63] + 27*p.x*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[63] + 9*p.x*pow(p.y, 2)*pow(v.x, 2)*v.y*pow(v.z, 2)*values[47] + 3*p.x*pow(p.y, 2)*pow(v.x, 2)*pow(v.z, 3)*values[59] + 6*p.x*pow(p.y, 2)*v.x*v.y*pow(v.z, 3)*values[62] + 27*p.x*p.y*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*v.z*values[63] + 18*p.x*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*v.z*values[47] + 18*p.x*p.y*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[59] + 18*p.x*p.y*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[62] + 9*p.x*p.y*pow(v.x, 2)*pow(v.y, 2)*v.z*values[31] + 6*p.x*p.y*pow(v.x, 2)*v.y*pow(v.z, 2)*values[43] + 3*p.x*p.y*pow(v.x, 2)*pow(v.z, 3)*values[55] + 6*p.x*p.y*v.x*pow(v.y, 2)*pow(v.z, 2)*values[46] + 4*p.x*p.y*v.x*v.y*pow(v.z, 3)*values[58] + 3*p.x*p.y*pow(v.y, 2)*pow(v.z, 3)*values[61] + 3*p.x*pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 3)*values[63] + 3*p.x*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 3)*values[47] + 9*p.x*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*v.z*values[59] + 6*p.x*pow(p.z, 2)*v.x*pow(v.y, 3)*v.z*values[62] + 3*p.x*p.z*pow(v.x, 2)*pow(v.y, 3)*values[31] + 6*p.x*p.z*pow(v.x, 2)*pow(v.y, 2)*v.z*values[43] + 9*p.x*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[55] + 4*p.x*p.z*v.x*pow(v.y, 3)*v.z*values[46] + 6*p.x*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[58] + 3*p.x*p.z*pow(v.y, 3)*pow(v.z, 2)*values[61] + 3*p.x*pow(v.x, 2)*pow(v.y, 3)*values[15] + 3*p.x*pow(v.x, 2)*pow(v.y, 2)*v.z*values[27] + 3*p.x*pow(v.x, 2)*v.y*pow(v.z, 2)*values[39] + 3*p.x*pow(v.x, 2)*pow(v.z, 3)*values[51] + 2*p.x*v.x*pow(v.y, 3)*v.z*values[30] + 2*p.x*v.x*pow(v.y, 2)*pow(v.z, 2)*values[42] + 2*p.x*v.x*v.y*pow(v.z, 3)*values[54] + p.x*pow(v.y, 3)*pow(v.z, 2)*values[45] + p.x*pow(v.y, 2)*pow(v.z, 3)*values[57] + 3*pow(p.y, 3)*p.z*pow(v.x, 3)*pow(v.z, 2)*values[63] + pow(p.y, 3)*pow(v.x, 3)*pow(v.z, 2)*values[47] + pow(p.y, 3)*pow(v.x, 2)*pow(v.z, 3)*values[62] + 9*pow(p.y, 2)*pow(p.z, 2)*pow(v.x, 3)*v.y*v.z*values[63] + 6*pow(p.y, 2)*p.z*pow(v.x, 3)*v.y*v.z*values[47] + 3*pow(p.y, 2)*p.z*pow(v.x, 3)*pow(v.z, 2)*values[59] + 9*pow(p.y, 2)*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[62] + 3*pow(p.y, 2)*pow(v.x, 3)*v.y*v.z*values[31] + pow(p.y, 2)*pow(v.x, 3)*pow(v.z, 2)*values[43] + 3*pow(p.y, 2)*pow(v.x, 2)*v.y*pow(v.z, 2)*values[46] + pow(p.y, 2)*pow(v.x, 2)*pow(v.z, 3)*values[58] + 3*pow(p.y, 2)*v.x*v.y*pow(v.z, 3)*values[61] + 3*p.y*pow(p.z, 3)*pow(v.x, 3)*pow(v.y, 2)*values[63] + 3*p.y*pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 2)*values[47] + 6*p.y*pow(p.z, 2)*pow(v.x, 3)*v.y*v.z*values[59] + 9*p.y*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*v.z*values[62] + 3*p.y*p.z*pow(v.x, 3)*pow(v.y, 2)*values[31] + 4*p.y*p.z*pow(v.x, 3)*v.y*v.z*values[43] + 3*p.y*p.z*pow(v.x, 3)*pow(v.z, 2)*values[55] + 6*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*v.z*values[46] + 6*p.y*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[58] + 9*p.y*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[61] + 3*p.y*pow(v.x, 3)*pow(v.y, 2)*values[15] + 2*p.y*pow(v.x, 3)*v.y*v.z*values[27] + p.y*pow(v.x, 3)*pow(v.z, 2)*values[39] + 3*p.y*pow(v.x, 2)*pow(v.y, 2)*v.z*values[30] + 2*p.y*pow(v.x, 2)*v.y*pow(v.z, 2)*values[42] + p.y*pow(v.x, 2)*pow(v.z, 3)*values[54] + 3*p.y*v.x*pow(v.y, 2)*pow(v.z, 2)*values[45] + 2*p.y*v.x*v.y*pow(v.z, 3)*values[57] + 3*p.y*pow(v.y, 2)*pow(v.z, 3)*values[60] + pow(p.z, 3)*pow(v.x, 3)*pow(v.y, 2)*values[59] + pow(p.z, 3)*pow(v.x, 2)*pow(v.y, 3)*values[62] + pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 2)*values[43] + 3*pow(p.z, 2)*pow(v.x, 3)*v.y*v.z*values[55] + pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 3)*values[46] + 3*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 2)*v.z*values[58] + 3*pow(p.z, 2)*v.x*pow(v.y, 3)*v.z*values[61] + p.z*pow(v.x, 3)*pow(v.y, 2)*values[27] + 2*p.z*pow(v.x, 3)*v.y*v.z*values[39] + 3*p.z*pow(v.x, 3)*pow(v.z, 2)*values[51] + p.z*pow(v.x, 2)*pow(v.y, 3)*values[30] + 2*p.z*pow(v.x, 2)*pow(v.y, 2)*v.z*values[42] + 3*p.z*pow(v.x, 2)*v.y*pow(v.z, 2)*values[54] + 2*p.z*v.x*pow(v.y, 3)*v.z*values[45] + 3*p.z*v.x*pow(v.y, 2)*pow(v.z, 2)*values[57] + 3*p.z*pow(v.y, 3)*pow(v.z, 2)*values[60] + pow(v.x, 3)*pow(v.y, 2)*values[11] + pow(v.x, 3)*v.y*v.z*values[23] + pow(v.x, 3)*pow(v.z, 2)*values[35] + pow(v.x, 2)*pow(v.y, 3)*values[14] + pow(v.x, 2)*pow(v.y, 2)*v.z*values[26] + pow(v.x, 2)*v.y*pow(v.z, 2)*values[38] + pow(v.x, 2)*pow(v.z, 3)*values[50] + v.x*pow(v.y, 3)*v.z*values[29] + v.x*pow(v.y, 2)*pow(v.z, 2)*values[41] + v.x*v.y*pow(v.z, 3)*values[53] + pow(v.y, 3)*pow(v.z, 2)*values[44] + pow(v.y, 2)*pow(v.z, 3)*values[56];
+    eq[6] = pow(p.x, 3)*pow(v.y, 3)*pow(v.z, 3)*values[63] + 9*pow(p.x, 2)*p.y*v.x*pow(v.y, 2)*pow(v.z, 3)*values[63] + 9*pow(p.x, 2)*p.z*v.x*pow(v.y, 3)*pow(v.z, 2)*values[63] + 3*pow(p.x, 2)*v.x*pow(v.y, 3)*pow(v.z, 2)*values[47] + 3*pow(p.x, 2)*v.x*pow(v.y, 2)*pow(v.z, 3)*values[59] + pow(p.x, 2)*pow(v.y, 3)*pow(v.z, 3)*values[62] + 9*p.x*pow(p.y, 2)*pow(v.x, 2)*v.y*pow(v.z, 3)*values[63] + 27*p.x*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[63] + 9*p.x*p.y*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[47] + 6*p.x*p.y*pow(v.x, 2)*v.y*pow(v.z, 3)*values[59] + 6*p.x*p.y*v.x*pow(v.y, 2)*pow(v.z, 3)*values[62] + 9*p.x*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 3)*v.z*values[63] + 6*p.x*p.z*pow(v.x, 2)*pow(v.y, 3)*v.z*values[47] + 9*p.x*p.z*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[59] + 6*p.x*p.z*v.x*pow(v.y, 3)*pow(v.z, 2)*values[62] + 3*p.x*pow(v.x, 2)*pow(v.y, 3)*v.z*values[31] + 3*p.x*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[43] + 3*p.x*pow(v.x, 2)*v.y*pow(v.z, 3)*values[55] + 2*p.x*v.x*pow(v.y, 3)*pow(v.z, 2)*values[46] + 2*p.x*v.x*pow(v.y, 2)*pow(v.z, 3)*values[58] + p.x*pow(v.y, 3)*pow(v.z, 3)*values[61] + pow(p.y, 3)*pow(v.x, 3)*pow(v.z, 3)*values[63] + 9*pow(p.y, 2)*p.z*pow(v.x, 3)*v.y*pow(v.z, 2)*values[63] + 3*pow(p.y, 2)*pow(v.x, 3)*v.y*pow(v.z, 2)*values[47] + pow(p.y, 2)*pow(v.x, 3)*pow(v.z, 3)*values[59] + 3*pow(p.y, 2)*pow(v.x, 2)*v.y*pow(v.z, 3)*values[62] + 9*p.y*pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 2)*v.z*values[63] + 6*p.y*p.z*pow(v.x, 3)*pow(v.y, 2)*v.z*values[47] + 6*p.y*p.z*pow(v.x, 3)*v.y*pow(v.z, 2)*values[59] + 9*p.y*p.z*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[62] + 3*p.y*pow(v.x, 3)*pow(v.y, 2)*v.z*values[31] + 2*p.y*pow(v.x, 3)*v.y*pow(v.z, 2)*values[43] + p.y*pow(v.x, 3)*pow(v.z, 3)*values[55] + 3*p.y*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[46] + 2*p.y*pow(v.x, 2)*v.y*pow(v.z, 3)*values[58] + 3*p.y*v.x*pow(v.y, 2)*pow(v.z, 3)*values[61] + pow(p.z, 3)*pow(v.x, 3)*pow(v.y, 3)*values[63] + pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 3)*values[47] + 3*pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 2)*v.z*values[59] + 3*pow(p.z, 2)*pow(v.x, 2)*pow(v.y, 3)*v.z*values[62] + p.z*pow(v.x, 3)*pow(v.y, 3)*values[31] + 2*p.z*pow(v.x, 3)*pow(v.y, 2)*v.z*values[43] + 3*p.z*pow(v.x, 3)*v.y*pow(v.z, 2)*values[55] + 2*p.z*pow(v.x, 2)*pow(v.y, 3)*v.z*values[46] + 3*p.z*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[58] + 3*p.z*v.x*pow(v.y, 3)*pow(v.z, 2)*values[61] + pow(v.x, 3)*pow(v.y, 3)*values[15] + pow(v.x, 3)*pow(v.y, 2)*v.z*values[27] + pow(v.x, 3)*v.y*pow(v.z, 2)*values[39] + pow(v.x, 3)*pow(v.z, 3)*values[51] + pow(v.x, 2)*pow(v.y, 3)*v.z*values[30] + pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 2)*values[42] + pow(v.x, 2)*v.y*pow(v.z, 3)*values[54] + v.x*pow(v.y, 3)*pow(v.z, 2)*values[45] + v.x*pow(v.y, 2)*pow(v.z, 3)*values[57] + pow(v.y, 3)*pow(v.z, 3)*values[60];
+    eq[7] = 3*pow(p.x, 2)*v.x*pow(v.y, 3)*pow(v.z, 3)*values[63] + 9*p.x*p.y*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 3)*values[63] + 9*p.x*p.z*pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 2)*values[63] + 3*p.x*pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 2)*values[47] + 3*p.x*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 3)*values[59] + 2*p.x*v.x*pow(v.y, 3)*pow(v.z, 3)*values[62] + 3*pow(p.y, 2)*pow(v.x, 3)*v.y*pow(v.z, 3)*values[63] + 9*p.y*p.z*pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 2)*values[63] + 3*p.y*pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 2)*values[47] + 2*p.y*pow(v.x, 3)*v.y*pow(v.z, 3)*values[59] + 3*p.y*pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 3)*values[62] + 3*pow(p.z, 2)*pow(v.x, 3)*pow(v.y, 3)*v.z*values[63] + 2*p.z*pow(v.x, 3)*pow(v.y, 3)*v.z*values[47] + 3*p.z*pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 2)*values[59] + 3*p.z*pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 2)*values[62] + pow(v.x, 3)*pow(v.y, 3)*v.z*values[31] + pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 2)*values[43] + pow(v.x, 3)*v.y*pow(v.z, 3)*values[55] + pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 2)*values[46] + pow(v.x, 2)*pow(v.y, 2)*pow(v.z, 3)*values[58] + v.x*pow(v.y, 3)*pow(v.z, 3)*values[61];
+    eq[8] = 3*p.x*pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 3)*values[63] + 3*p.y*pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 3)*values[63] + 3*p.z*pow(v.x, 3)*pow(v.y, 3)*pow(v.z, 2)*values[63] + pow(v.x, 3)*pow(v.y, 3)*pow(v.z, 2)*values[47] + pow(v.x, 3)*pow(v.y, 2)*pow(v.z, 3)*values[59] + pow(v.x, 2)*pow(v.y, 3)*pow(v.z, 3)*values[62];
+    eq[9] = pow(v.x, 3)*pow(v.y, 3)*pow(v.z, 3)*values[63];
+
+    float[MAX_DEGREE+1] results;
+    find_roots(results, eq, leaf_t_in, leaf_t_out);
+    for (int i = 0; i < MAX_DEGREE; ++i)
+    {
+        vec3 intersectionPoint = p + v * results[i];
+        if (isInsideNode(intersectionPoint, vec3(0.0), vec3(1.0))) {
+            result = o + dir * results[i];
             return true;
         }
     }
+
     return false;
+#endif
 }
+#endif
 
-bool raymarchV3(vec3 o, vec3 dir, out vec3 result)
+#if defined(SPHERE_MARCHING)
+// Raycast using ray marching
+bool sphereMarching(vec3 startPos, vec3 dir, float tmax, out vec3 resultPos)
 {
-    float nodeCounter = 0.0;
-    vec3 d_inv = vec3(1 / dir.x, 1 / dir.y, 1 / dir.z);
+    float accDistance = 0.0;
+    vec3 pos = startPos;
+    float lastDistance = 1e8;
+    uint it = 0;
+    while (lastDistance > epsilon && accDistance < tmax && it < maxIterations)
+    {
+        resultPos = pos;
+        lastDistance = map(pos);
+        float dist = max(lastDistance, 0.0);
+        accDistance += dist;
+        pos += dir * dist;
+        it += 1;
+    }
+    return lastDistance < epsilon;
+}
+#endif
 
+#ifdef SPHERE_MARCHING_SOLVER
+bool sphereMarching(vec3 startPos, vec3 dir, float tmax, out vec3 resultPos)
+{
+    float accDistance = 0.0;
+    vec3 pos = startPos;
+    float lastDistance = 1e8;
+    uint it = 0;
+
+    vec3 leafPos;
+    float leafSize;
+    vec3 fracPart;
+
+    while (lastDistance > epsilon && accDistance < tmax && it < maxIterations)
+    {
+        resultPos = pos;
+
+        uint leafNode = getLeaf(pos, leafPos, leafSize, fracPart);
+        if(bool(leafNode & isMarkedMask))
+        {
+            vec3 solverPos;
+            float t_int = rayLeafIntersection(leafPos + leafSize, leafPos, pos, -1.0/dir);
+            if(solvePolynomialEquation(pos - dir * 1e-4, dir, leafNode, leafPos, leafSize, solverPos))
+            {
+                resultPos = solverPos;
+                return true;
+            }
+        }
+
+        if(bool(leafNode & isLeafMask))
+        {
+            lastDistance = distanceScale * evalNode(leafNode & childrenIndexMask, fracPart);
+            float t_int = rayLeafIntersection(leafPos + leafSize, leafPos, pos, 1.0/dir);
+            if(lastDistance > 0) lastDistance = max(lastDistance, t_int + epsilon);
+        }
+        else
+        {
+            vec3 q = abs(pos - vec3(0.5)) - 0.5;
+            lastDistance =  distanceScale * (length(max(q, vec3(0.0)))/distanceScale + minBorderValue);
+        }
+
+        float dist = max(lastDistance, 0.0);
+        accDistance += dist;
+        pos += dir * dist;
+        it += 1;
+    }
+    return lastDistance < epsilon;
+}
+#endif
+
+#if defined(OCTREE_TRAVERSAL_AND_SH) || defined(OCTREE_TRAVERSAL_AND_SOLVER)
+bool octreeRayCast(vec3 o, vec3 dir, float far, out vec3 result)
+{
+    vec3 dir_inv = vec3(1/dir.x, 1/dir.y, 1/dir.z);
     float t_in;
     float t_out;
-    bool intersect = raySlabIntersection(vec3(0), vec3(1), o, d_inv, t_in, t_out);
+    bool intersect = raySlabIntersection(vec3(0), vec3(1), o, dir_inv, t_in, t_out);
     if (t_out < 0) return false;
     //intersect bounding box first, if no intersection return false automatically
     if (!intersect) return false;
+    
+    //works until here
+    float t_end = min(t_out, far);
 
-    float t_end = t_out;
+    vec3 leafPos;
+    float leafSize;
+    vec3 fracPart;
 
     float t = max(0, t_in) + epsilon;
 
-    while (t >= 0 && t <= t_end) {
-        vec3 leafPos; 
-        float leafSize;
-
-        if (isOutsideGrid(o + dir * t)) return false;
-
-        uint leafNode = getLeaf(o + dir * t, leafPos, leafSize);
-        nodeCounter += 1.0;
-        vec3 leafBBmax;
-        vec3 leafBBmin;
-
-        leafBBmax = leafPos + leafSize;
-        leafBBmin = leafPos;
-
-        float t_int = rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, d_inv);
-
-        if (bool(leafNode & isMarkedMask))
-        {
-            float t_res;
-            float[8] values;
-            getPolynomial(leafNode, values);
-
-            vec3 p = o + dir * t;
-            vec3 v = dir;
-
-            p = (p - leafPos) / leafSize;
-            v = v / leafSize;
-
-            float leaf_t_in, leaf_t_out;
-            raySlabIntersection(vec3(0), vec3(1), p, 1/v, leaf_t_in, leaf_t_out); 
-            
-            if (t == epsilon) leaf_t_in = t;
-
-            float[4] results;
-            int resultNum;
-            if (solvePolynomialEquation(p, v, values, results, resultNum, leaf_t_in, leaf_t_out))
-            {
-                for (int i = 0; i < resultNum; ++i) {
-                    float t_res = float(results[i]);
-                    float t_aux = t + t_res;
-                    vec3 intersectionPoint = o + dir * t_aux;
-                    if (isInsideNode(intersectionPoint, leafBBmin, leafBBmax)) {
-                        t += t_res;
-                        result = o + dir * t;
-                        if (useItColorMode) result.x = nodeCounter;
-                        return true;
-                    }
-                }
-            }
-        }
-        t += t_int;
-        t += epsilon;
-    }
-    return false;
-}
-
-float hardshadow(in vec3 ro, in vec3 rd)
-{
-    vec3 result;
-    if (raymarchV3(ro, rd, result)) return 0.0;
-    return 1.0;
-}
-
-//Inigo Quilez improved soft shadow
-float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float w )
-{
-    float res = 1.0;
-    float t = mint;
-    for( int i=0; i<maxShadowIterations && t<maxt; i++ )
+    while (t >= 0 && t <= t_end)
     {
-        float h = distanceScale * getDistanceTricubic(ro + t*rd);
-        res = min( res, h/(w*t) );
-        t += clamp(h, 0.005, 0.50);
-        if( res<-1.0 || t>maxt ) break;
-    }
-    res = max(res,-1.0);
-    return 0.25*(1.0+res)*(1.0+res)*(2.0-res);
-}
+        // Get leaf
+        uint leafNode = getLeaf(o + dir * t, leafPos, leafSize, fracPart); //problem is here maybe?
 
-//hard shadows using v3
-float shadow(in vec3 ro, in vec3 rd, float mint, float maxt, float w )
-{
-    return useSoftShadows ? softshadow(ro, rd, mint, maxt, w) : hardshadow(ro+mint*rd, rd);
-}
-
-vec3 mapColor(vec3 pos, vec3 cameraPos)
-{
-    //Approximate normal
-    vec3 N = (useTricubicNormals) ? getGradientTricubic(pos) : getGradient(pos);
-    //View vector
-    vec3 V = normalize(cameraPos - pos);
-
-    // Object material
-    float metallic, roughness;
-    vec3 albedo, F0;
-
-        metallic = matMetallic;
-        roughness = matRoughness;
-        albedo = matAlbedo;
-        F0 = mix(matF0, albedo, metallic);
-    //} 
- 
-    vec3 Lo = vec3(0.0);
-
-    // Directional lights
-    for (int i = 0; i < lightNumber; i++) 
-    {
-        float distToLight = length(lightPos[i] - pos);
-        vec3 L = normalize(lightPos[i] - pos);
-        vec3 H = normalize(V + L);
-
-        vec3 sunColor = lightIntensity[i] * lightColor[i];
-
-        float coneAngle = atan(lightRadius[i]/distToLight);
-        float solidAngle = M_PI * sin(coneAngle) * pow((lightRadius[i]/distToLight), 2.0);
-        float intensity = useShadows ? shadow(pos + epsilon * L, L, 0.005, distToLight, solidAngle) : 1.0f;
-        vec3 radiance = sunColor * intensity;
+        vec3 leafBBmax = leafPos + leafSize;
+        vec3 leafBBmin = leafPos;
         
-        // Cook-torrance brdf
-        float NDF = DistributionGGX(N, H, roughness);        
-        float G = GeometrySmith(N, V, L, roughness);      
-        vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);       
-        
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;	  
-        
-        vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + epsilon;
-        vec3 specular = numerator / denominator;  
-            
-        // Add to outgoing radiance Lo
-        float NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / M_PI + specular) * radiance * NdotL;
-    }
+        float t_int = rayLeafIntersection(leafBBmax, leafBBmin, o + dir * t, dir_inv);
 
-    vec3 ambient = useAO ? vec3(0.5) * albedo * getAO(pos, N) : vec3(0.5) * albedo; // Ambient light estimation
-    vec3 color = ambient + Lo;
-
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));  
-   
-    return color;
-}
-
-float rayMarchLights(vec3 o, vec3 d, float omega, float t_min, float t_max) 
-{
-    float t = t_min;
-    float previousDist = 0.0;
-    float stepLength = 0.0;
-
-    for (int i = 0; i <  maxIterations; i++) 
-    {
-        float dist = mapLights(o + d * t);
-
-        //if sum of distance to current point and previous point is less than step length, we could have hit something so we have to backtrack
-        bool fail = omega > 1.0 && (dist + previousDist) < stepLength;
-        if (fail)
+        if (bool(leafNode & isMarkedMask)) // Is a leaf node
         {
-            //backtrack
-            stepLength -= omega * stepLength;
-            omega = 1.0;
-        }
-        else 
-        {
-            //advance using overrelaxation parameter
-            stepLength = dist * omega;
+            if(solvePolynomialEquation(o + dir * (t - epsilon), dir, leafNode, leafPos, leafSize, result)) return true;
         }
 
-        //update previous distance
-        previousDist = dist;
-
-        //if we hit something, return the distance
-        if (!fail && dist < epsilon)
-        {
-            return t;
-        }
-        
-        if ( !fail && t > t_max) 
-        {
-            return nearAndFarPlane.y;
-        } 
-
-        t += stepLength; 
-        
-        //if we are too far away, return the far plane
+        t += t_int + epsilon; // Ensure to move to the next node
     }
-    
-    //if we didn't hit anything, return the far plane
-    return nearAndFarPlane.y;
+
+    return false;    
 }
+#endif
 
-const vec3 black = vec3(0,0,0);
-const vec3 white = vec3(1,1,1);
-const vec3 magenta  = vec3(1,0,1);
-const vec3 red   = vec3(1,0,0);
-
-vec3 gradientColor(float it)
-{   
-    float itColor = it / maxColorIterations;
-
-    if (itColor < 0.25) return mix(black, red, itColor * 4.0); 
-    if (itColor < 0.5) return mix(red, magenta, (itColor - 0.25) * 4.0); 
-    return mix(magenta, white, (itColor - 0.5) * 4.0); 
+bool raycast(vec3 ro, vec3 rd, float far)
+{
+    vec3 hitPoint;
+    #if defined(SPHERE_MARCHING) || defined(SPHERE_MARCHING_SOLVER)
+    return sphereMarching(ro, rd, far, hitPoint);
+    #endif
+    #if defined(OCTREE_TRAVERSAL_AND_SH) || defined(OCTREE_TRAVERSAL_AND_SOLVER)
+    return octreeRayCast(ro, rd, far, hitPoint);
+    #endif
 }
 
 //New main
@@ -1057,34 +1074,15 @@ void main()
     //Background colour
     vec3 outColor = vec3(0.9);
 
-    if (drawLights) 
+    vec3 hitPoint;
+    #if defined(SPHERE_MARCHING) || defined(SPHERE_MARCHING_SOLVER)
+    if(sphereMarching(worldPos, worldDir, nearAndFarPlane.y, hitPoint))
+    #endif
+    #if defined(OCTREE_TRAVERSAL_AND_SH) || defined(OCTREE_TRAVERSAL_AND_SOLVER)
+    if(octreeRayCast(worldPos, worldDir, nearAndFarPlane.y, hitPoint))
+    #endif
     {
-        float dist = rayMarchLights(worldPos, worldDir, overRelaxation, nearAndFarPlane.x, nearAndFarPlane.y);
-        if (dist < nearAndFarPlane.y-epsilon)
-        {
-            outColor = vec3(1.0);
-        }
-        else {
-            vec3 hitPoint;
-            if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
-               (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
-               (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
-            {
-                if (useItColorMode) outColor = gradientColor(hitPoint.x);
-                else outColor = mapColor(hitPoint, worldPos);
-            }
-        }
-    }
-    else 
-    {
-        vec3 hitPoint;
-        if((raymarchVersion == 3 && raymarchV3(worldPos, worldDir, hitPoint)) || 
-           (raymarchVersion == 2 && raymarchV2(worldPos, worldDir, hitPoint)) || 
-           (raymarchVersion == 1 && raycast(worldPos, worldDir, hitPoint)))
-        {
-            if (useItColorMode) outColor = gradientColor(hitPoint.x);
-            else outColor = mapColor(hitPoint, worldPos);
-        }
+        outColor = mapColor(hitPoint, worldPos);
     }
 
     //Store the rendered image to output texture to later display in a quad

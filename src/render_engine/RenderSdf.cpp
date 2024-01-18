@@ -22,7 +22,10 @@ RenderSdf::~RenderSdf()
 
 void RenderSdf::restart()
 {
+    glDeleteBuffers(1, &mOctreeSSBO);
     glDeleteProgram(mRenderProgramId);
+    glDeleteTextures(1, &mRenderTexture);
+
     start();
 }
 
@@ -68,8 +71,40 @@ void RenderSdf::start()
             if (fileShader == nullptr)
                 std::cout << "File " << "sdfOctreeRender.comp" << " not found" << std::endl;
         }
+        
+        // Add headers
+        std::string computeShader;
+        computeShader.append("#version 460 core\n\n");
+        if(mInputOctree->getFormat() == IOctreeSdf::TRILINEAR_OCTREE)
+        {
+            computeShader.append("#define USE_TRILINEAR_INTERPOLATION\n");
+        }
+        else if(mInputOctree->getFormat() == IOctreeSdf::TRICUBIC_OCTREE)
+        {
+            computeShader.append("#define USE_TRICUBIC_INTERPOLATION\n");
+        }
 
-        glShaderSource(computeShaderId, 1, &fileShader, NULL);
+        switch(mAlgorithm)
+        {
+            case Algorithm::SPHERE_TRACING:
+                computeShader.append("#define SPHERE_MARCHING\n");
+                break;
+            case Algorithm::OCTREE_TRAVERSAL_SH:
+                computeShader.append("#define OCTREE_TRAVERSAL_AND_SH\n");
+                break;
+            case Algorithm::OCTREE_TRAVERSAL_SOLVER:
+                computeShader.append("#define OCTREE_TRAVERSAL_AND_SOLVER\n");
+                break;
+            case Algorithm::SPHERE_TRACING_SOLVER:
+                computeShader.append("#define SPHERE_MARCHING_SOLVER\n");
+                break;
+        }
+
+        computeShader.append(fileShader);
+        
+        const char* computeShaderText = computeShader.c_str();
+
+        glShaderSource(computeShaderId, 1, &computeShaderText, NULL);
         glCompileShader(computeShaderId);
 
         int success;
@@ -107,15 +142,9 @@ void RenderSdf::start()
         mUseAOLocation = glGetUniformLocation(mRenderProgramId, "useAO");
         mUseShadowsLocation = glGetUniformLocation(mRenderProgramId, "useShadows");
         mUseSoftShadowsLocation = glGetUniformLocation(mRenderProgramId, "useSoftShadows");
-        mOverRelaxationLocation = glGetUniformLocation(mRenderProgramId, "overRelaxation");
-        mUseItColorModeLocation = glGetUniformLocation(mRenderProgramId, "useItColorMode");
-        mMaxColorIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxColorIterations");
         mMaxIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxIterations");
         mMaxShadowIterationsLocation = glGetUniformLocation(mRenderProgramId, "maxShadowIterations");
-        mDrawLightsLocation =  glGetUniformLocation(mRenderProgramId, "drawLights");
-        mRaymarchVersionLocation = glGetUniformLocation(mRenderProgramId, "raymarchVersion");
-        mV1TriCubicLocation = glGetUniformLocation(mRenderProgramId, "v1TriCubic");
-        mUseTricubicNormalsLocation = glGetUniformLocation(mRenderProgramId, "useTricubicNormals");
+
         //Lighting
         mLightNumberLocation = glGetUniformLocation(mRenderProgramId, "lightNumber");
         mLightPosLocation = glGetUniformLocation(mRenderProgramId, "lightPos");
@@ -163,17 +192,6 @@ void RenderSdf::start()
         mOctreeMinBorderValue = mInputOctree->getOctreeMinBorderValue();
     }
 
-    // Set octree tricubic data
-    {
-        // Set octree data
-        glGenBuffers(1, &mOctreeTricubicSSBO);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeTricubicSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputTricubicOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputTricubicOctree->getOctreeData().data(), GL_STATIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mOctreeTricubicSSBO);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    }
-
-
 
     if (mFirstLoad) {
         // Set plane render
@@ -194,8 +212,10 @@ void RenderSdf::start()
     float minNodeSize = mInputOctree->getSampleArea().getSize().x / float(1 << mInputOctree->getOctreeMaxDepth());
     mEpsilon = minNodeSize / 2048.0f;
     mEpsilon10000 = mEpsilon * 10000;
-    mInputOctree = nullptr; // We do not need the octree in the CPU any more
-    mInputTricubicOctree = nullptr;
+
+    sendAlgorithmOptionsValues();
+    sendLightingValues();
+    sendMaterialValues();
 }
 
 void RenderSdf::draw(Camera* camera)
@@ -234,41 +254,45 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mDistanceScaleLocation, mOctreeDistanceScale);
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
 
-    //mEpsilon = 0.5f*(2.0f/mRenderTextureSize.x); //radius of a pixel in screen space
-    //mEpsilon = 0.0001f;
-    if (mEpsilon != mEpsilon10000/10000) mEpsilon = mEpsilon10000/10000;
-    glUniform1f(mEpsilonLocation, mEpsilon);
-    //Options
-    glUniform1i(mUseAOLocation, mUseAO);
-    glUniform1i(mUseShadowsLocation, mUseShadows);
-    glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
-    glUniform1f(mOverRelaxationLocation, mOverRelaxation);
-    glUniform1i(mUseItColorModeLocation, mUseItColorMode);
-    glUniform1i(mMaxIterationsLocation, mMaxIterations);
-    glUniform1i(mMaxColorIterationsLocation, mMaxColorIterations);
-    glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
-    glUniform1i(mDrawLightsLocation, mDrawLights);
-    glUniform1i(mRaymarchVersionLocation, mRaymarchVersion);
-    glUniform1i(mV1TriCubicLocation, mV1TriCubic);
-    glUniform1i(mUseTricubicNormalsLocation, mUseTricubicNormals);
-    //Lighting
-    glUniform1i(mLightNumberLocation, mLightNumber);
-    glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
-    glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
-    glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
-    glUniform1fv(mLightRadiusLocation, 4, &mLightRadius[0]);
-
-    //Material
-    glUniform1f(mMetallicLocation, mMetallic);
-    glUniform1f(mRoughnessLocation, mRoughness);
-    glUniform3f(mAlbedoLocation, mAlbedo.x, mAlbedo.y, mAlbedo.z);
-    glUniform3f(mF0Location, mF0.x, mF0.y, mF0.z);
-
     glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
     mRenderMesh.draw(camera);
+}
+
+void RenderSdf::sendAlgorithmOptionsValues()
+{
+    //Options
+    glUseProgram(mRenderProgramId);
+    glUniform1i(mUseAOLocation, mUseAO);
+    glUniform1i(mUseShadowsLocation, mUseShadows);
+    glUniform1i(mUseSoftShadowsLocation, mUseSoftShadows);
+    glUniform1i(mMaxIterationsLocation, mMaxIterations);
+    glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
+    if (mEpsilon != mEpsilon10000/10000) mEpsilon = mEpsilon10000/10000;
+    glUniform1f(mEpsilonLocation, mEpsilon);
+}
+
+void RenderSdf::sendLightingValues()
+{
+    //Lighting
+    glUseProgram(mRenderProgramId);
+    glUniform1i(mLightNumberLocation, mLightNumber);
+    glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
+    glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
+    glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
+    glUniform1fv(mLightRadiusLocation, 4, &mLightRadius[0]);
+}
+
+void RenderSdf::sendMaterialValues()
+{
+    //Material
+    glUseProgram(mRenderProgramId);
+    glUniform1f(mMetallicLocation, mMetallic);
+    glUniform1f(mRoughnessLocation, mRoughness);
+    glUniform3f(mAlbedoLocation, mAlbedo.x, mAlbedo.y, mAlbedo.z);
+    glUniform3f(mF0Location, mF0.x, mF0.y, mF0.z);
 }
 
 void RenderSdf::drawGui()
@@ -288,59 +312,100 @@ void RenderSdf::drawGui()
     {
         ImGui::Begin("Scene");
         // Light settings
-        ImGui::Spacing();
-        ImGui::Separator();
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
+            
+            ImGui::Text("Lighting settings");
+            bool hasChg = false;
 
-        ImGui::Text("Lighting settings");
-        ImGui::Checkbox("Draw Lights", &mDrawLights);
-        ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
+            hasChg = hasChg || ImGui::SliderInt("Lights", &mLightNumber, 1, 4);
 
-        for (int i = 0; i < mLightNumber; ++i) { //DOES NOT WORK, PROBLEM WITH REFERENCES
-            ImGui::Text("Light %d", i);
-            std::string pos = "Position##"+std::to_string(i+48);
-            std::string col = "Color##"+std::to_string(i+48);
-            std::string intens = "Intensity##"+std::to_string(i+48);
-            std::string radius = "Radius##"+std::to_string(i+48);
-            ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
-            ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
-            ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
-            ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
+            for (int i = 0; i < mLightNumber; ++i) {
+                ImGui::Text("Light %d", i);
+                std::string pos = "Position##"+std::to_string(i+48);
+                std::string col = "Color##"+std::to_string(i+48);
+                std::string intens = "Intensity##"+std::to_string(i+48);
+                std::string radius = "Radius##"+std::to_string(i+48);
+                hasChg = hasChg || ImGui::InputFloat3(pos.c_str(), reinterpret_cast<float*>(&mLightPosition[i]));
+                hasChg = hasChg || ImGui::ColorEdit3(col.c_str(), reinterpret_cast<float*>(&mLightColor[i]));
+                hasChg = hasChg || ImGui::SliderFloat(intens.c_str(), &mLightIntensity[i], 0.0f, 20.0f);
+                hasChg = hasChg || ImGui::SliderFloat(radius.c_str(), &mLightRadius[i], 0.01f, 1.0f);
+            }
+
+            if(hasChg) sendLightingValues();
         }
 
         // Material settings
-        ImGui::Spacing();
-        ImGui::Separator();
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
 
-        //ImGui::Text("Transform");
-        //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
-        //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
-        //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
-        //ImGui::Spacing();
-        //ImGui::Separator();
-        ImGui::Text("Material settings");
-        ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
-        ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
-        ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
-        ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
+            //ImGui::Text("Transform");
+            //ImGui::InputFloat3("Position", reinterpret_cast<float*>(&mPosition));
+            //ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&mRotation));
+            //ImGui::InputFloat3("Scale", reinterpret_cast<float*>(&mScale));
+            //ImGui::Spacing();
+            //ImGui::Separator();
+            ImGui::Text("Material settings");
+            bool hasChg = false;
+
+            hasChg = hasChg || ImGui::SliderFloat("Metallic", &mMetallic, 0.0f, 1.0f);
+            hasChg = hasChg || ImGui::SliderFloat("Roughness", &mRoughness, 0.0f, 1.0f);
+            hasChg = hasChg || ImGui::ColorEdit3("Albedo", reinterpret_cast<float*>(&mAlbedo));
+            hasChg = hasChg || ImGui::ColorEdit3("F0", reinterpret_cast<float*>(&mF0));
+
+            if(hasChg) sendMaterialValues();
+        }
 
         // Algorithm settings
-        ImGui::Spacing();
-        ImGui::Separator();
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
 
-        ImGui::Text("Algorithm Settings");
-        ImGui::SliderInt("Version", &mRaymarchVersion, 1, 3);
-        if (mRaymarchVersion == 1) ImGui::Checkbox("V1 Tricubic", &mV1TriCubic);
-        if (mRaymarchVersion != 1 || mRaymarchVersion == 1 && !mV1TriCubic) ImGui::Checkbox("Use Tricubic Normals", &mUseTricubicNormals);
-        if (mRaymarchVersion == 1 && mV1TriCubic && !mUseTricubicNormals) mUseTricubicNormals = true;
-        ImGui::InputInt("Max Iterations", &mMaxIterations);
-        ImGui::Checkbox("Shadows", &mUseShadows);
-        if (mUseShadows) ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
-        if (mUseShadows) ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
-        ImGui::Checkbox("AO", &mUseAO);
-        ImGui::Checkbox("Iteration Based Color", &mUseItColorMode);
-        if (mUseItColorMode) ImGui::InputInt("Max Color Iterations", &mMaxColorIterations);
-        ImGui::SliderFloat("Over Relaxation", &mOverRelaxation, 1.0f, 2.0f);
-        ImGui::SliderFloat("Epsilon * 10000", &mEpsilon10000, 0.001f, 21.0f);
+            ImGui::Text("Algorithm Settings");
+            if(ImGui::BeginCombo("Algorithm", algorithmsStr[static_cast<uint32_t>(mAlgorithm)]))
+            {
+                const Algorithm oldAlgoirthm = mAlgorithm;
+                for (int n = 0; n < IM_ARRAYSIZE(algorithmsStr); n++)
+                {
+                    switch(static_cast<Algorithm>(n))
+                    {
+                        case SPHERE_TRACING:
+                            if(mInputOctree->hasSdfOnlyAtSurface()) continue;
+                            break;
+                        case OCTREE_TRAVERSAL_SOLVER:
+                            break;
+                        case SPHERE_TRACING_SOLVER:
+                            if(mInputOctree->hasSdfOnlyAtSurface()) continue;
+                            break;
+                    }
+
+                    bool is_selected = mAlgorithm == static_cast<Algorithm>(n);
+                    if (ImGui::Selectable(algorithmsStr[n], is_selected))
+                        mAlgorithm = static_cast<Algorithm>(n);
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+
+                if(oldAlgoirthm != mAlgorithm)
+                {
+                    restart();
+                }
+            }
+
+            bool hasChg = false;
+            hasChg = hasChg || ImGui::InputInt("Max Iterations", &mMaxIterations);
+            hasChg = hasChg || ImGui::Checkbox("Shadows", &mUseShadows);
+            if (mUseShadows) hasChg = hasChg || ImGui::Checkbox("Soft Shadows", &mUseSoftShadows);
+            if (mUseShadows) hasChg = hasChg || ImGui::InputInt("Max Shadow Iterations", &mMaxShadowIterations);
+            hasChg = hasChg || ImGui::Checkbox("AO", &mUseAO);
+            hasChg = hasChg || ImGui::SliderFloat("Epsilon * 10000", &mEpsilon10000, 0.001f, 21.0f);
+
+            if(hasChg) sendAlgorithmOptionsValues();
+        }
+
         ImGui::End();
     }
 }
