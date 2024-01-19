@@ -64,12 +64,13 @@ void RenderSdf::start()
         };
 
         unsigned long length;
-        char* fileShader = loadShaderFromFile("./shaders/sdfOctreeRender.comp", &length);
+        const char* fileName = "./shaders/sdfOctreeRender.comp";
+        char* fileShader = loadShaderFromFile(fileName, &length);
         if (fileShader == nullptr) {
-            std::filesystem::path p("sdfOctreeRender.comp");
+            std::filesystem::path p(fileName);
             fileShader = loadShaderFromFile("../src/render_engine/shaders/" + p.filename().string(), &length);
             if (fileShader == nullptr)
-                std::cout << "File " << "sdfOctreeRender.comp" << " not found" << std::endl;
+                std::cout << "File " << p.filename().string() << " not found" << std::endl;
         }
         
         // Add headers
