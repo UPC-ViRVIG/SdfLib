@@ -672,16 +672,18 @@ public:
 						SPDLOG_INFO("MC RMSE: {}", glm::sqrt(sdfRMSE / static_cast<double>(64)));
 						SPDLOG_INFO("MC MAE: {}", sdfMAE / static_cast<double>(64));
 
+						MeshSvhSdf meshSdf(mMesh.value());
+
 						std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 8> vertexValues; 
 						for(uint32_t s=0; s < 8; s++)
 						{
 							const glm::vec3 p = centerPoint + childrens[s] * 0.5f * size;
-							TriCubicInterpolation::calculatePointValues(p, getNearestTriangle(p), mMesh.value(), trianglesInfo, vertexValues[s]);
+							TriCubicInterpolation::calculatePointValues(p, meshSdf, vertexValues[s]);
 						}
 
 						const std::vector<uint32_t> emptyArray;
 						std::array<float, TriCubicInterpolation::NUM_COEFFICIENTS> coefficients;
-						TriCubicInterpolation::calculateCoefficients(vertexValues, size, emptyArray, mMesh.value(), trianglesInfo, coefficients);
+						TriCubicInterpolation::calculateCoefficients(vertexValues, size, meshSdf, coefficients);
 
 						std::array<std::array<float, TriCubicInterpolation::VALUES_PER_VERTEX>, 19> middlePoints;
 						for(uint32_t s=0; s < 19; s++)
@@ -696,7 +698,7 @@ public:
 
 					// Serach triangles influencing the zone
 					if(false) {
-						typedef TriLinearInterpolation Inter;
+						typedef NoneInterpolation Inter;
 
 						std::vector<uint32_t> inTriangles(indices.size()/3);
 						for(uint32_t i=0; i < indices.size()/3; i++)

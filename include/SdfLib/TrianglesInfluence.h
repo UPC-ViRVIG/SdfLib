@@ -1011,6 +1011,72 @@ struct VHQueries
     }
 };
 
+template<typename T>
+struct SdfEvaluator
+{
+    typedef T InterpolationMethod;
+
+    // struct {} VertexInfo;
+    typedef uint32_t VertexInfo;
+    struct {} NodeInfo;
+
+    const uint32_t CACHE_AXIS_POWER = 5;
+    const uint32_t CACHE_AXIS_MASK = (1 << CACHE_AXIS_POWER) - 1;
+    const uint32_t CACHE_AXIS_SIZE = 1 << CACHE_AXIS_POWER;
+    std::vector<std::pair<glm::uvec3, std::array<float, InterpolationMethod::VALUES_PER_VERTEX>>> vertexInfoCache;
+    glm::vec3 coordToId;
+    glm::vec3 minPoint;
+
+    void initCaches(BoundingBox box, uint32_t maxDepth)
+    {
+        std::array<float, InterpolationMethod::VALUES_PER_VERTEX> emptyVec;
+        vertexInfoCache.resize(CACHE_AXIS_SIZE * CACHE_AXIS_SIZE * CACHE_AXIS_SIZE,
+                               std::make_pair(glm::uvec3((1 << maxDepth) + 1), emptyVec));
+        coordToId = glm::vec3(static_cast<float>((1 << maxDepth)) / box.getSize());
+        minPoint = box.min;
+    }
+    
+    template<size_t N>
+    inline void calculateVerticesInfo(const glm::vec3 nodeCenter, const float nodeHalfSize,
+                                      const std::vector<uint32_t>& triangles,
+                                      const std::array<glm::vec3, N>& pointsRelPos,
+                                      const uint32_t pointToInterpolateMask,
+                                      const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>& interpolationCoeff,
+                                      std::array<std::array<float, InterpolationMethod::VALUES_PER_VERTEX>, N>& outPointsValues,
+                                      std::array<VertexInfo, N>& outPointsInfo,
+                                      const SdfFunction& sdfFunc)
+    {
+        std::array<glm::vec3, N> inPoints;
+        for(uint32_t i=0; i < N; i++)
+        {
+            if(pointToInterpolateMask & (1 << (N-i-1)))
+            {
+                InterpolationMethod::interpolateVertexValues(interpolationCoeff, 0.5f * pointsRelPos[i] + 0.5f, 2.0f * nodeHalfSize, outPointsValues[i]);
+            }
+            else
+            {
+                inPoints[i] = nodeCenter + pointsRelPos[i] * nodeHalfSize;
+                const glm::uvec3 pointId = glm::uvec3(glm::round((inPoints[i] - minPoint) * coordToId));
+
+                const uint32_t cacheId = ((pointId.z & CACHE_AXIS_MASK) << (2*CACHE_AXIS_POWER)) | 
+                                        ((pointId.y & CACHE_AXIS_MASK) << CACHE_AXIS_POWER) | 
+                                        (pointId.x & CACHE_AXIS_MASK);
+
+                if(vertexInfoCache[cacheId].first == pointId)
+                {
+                    outPointsValues[i] = vertexInfoCache[cacheId].second;
+                }
+                else
+                {
+                    InterpolationMethod::calculatePointValues(inPoints[i], sdfFunc, outPointsValues[i]);
+
+                    vertexInfoCache[cacheId] = std::make_pair(pointId, outPointsValues[i]);
+                }
+            }
+        }
+    }
+};
+
 #ifdef ENOKI_AVAILABLE
 template<typename T>
 struct FCPWQueries

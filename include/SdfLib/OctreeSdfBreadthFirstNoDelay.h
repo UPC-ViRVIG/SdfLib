@@ -48,7 +48,7 @@ struct BreadthFirstNoDelayNodeInfo
 
 template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const SdfFunction& mesh, uint32_t startDepth, uint32_t maxDepth,
                                                                       TerminationRule terminationRule,
                                                                       TerminationRuleParams terminationRuleParams,
                                                                       uint32_t numThreads)
@@ -61,7 +61,7 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
     // Line for using the error regadring the voxel diagonal
     // sqTerminationThreshold *= glm::length(mesh.getBoundingBox().getSize()) * glm::length(mesh.getBoundingBox().getSize());
 
-    std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
+    // std::vector<TriangleUtils::TriangleData> trianglesData(TriangleUtils::calculateMeshTriangleData(mesh));
     
     const uint32_t startOctreeDepth = glm::min(startDepth, START_OCTREE_DEPTH);
 
@@ -148,12 +148,12 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
 	// nodesBuffer.fill(std::vector<NodeInfo>());
     std::vector<std::vector<NodeInfo>> nodesBuffer(maxDepth+1);
 
-    const uint32_t numTriangles = trianglesData.size();
-    std::vector<uint32_t> startTriangles(numTriangles);
-    for(uint32_t i=0; i < numTriangles; i++)
-    {
-        startTriangles[i] = i;
-    }
+    std::vector<uint32_t> startTriangles;
+    // const uint32_t numTriangles = trianglesData.size();
+    // for(uint32_t i=0; i < numTriangles; i++)
+    // {
+    //     startTriangles[i] = i;
+    // }
 
     TrianglesInfluenceStrategy trianglesInfluence;
     trianglesInfluence.initCaches(mBox, maxDepth);
@@ -185,18 +185,16 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
                     trianglesInfluence.calculateVerticesInfo(n.center, n.size, startTriangles, childrens,
                                                               0u, nullArray,
                                                               n.verticesValues, n.verticesInfo,
-                                                              mesh, trianglesData);
+                                                              mesh);
                 }
             }
         }
     }
 
-    const std::vector<glm::vec3>& vertices = mesh.getVertices();
-    const std::vector<uint32_t>& indices = mesh.getIndices();
     std::array<glm::vec3, 3> triangle;
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(0), 1u);
 
     std::vector<uint32_t> nodesToSubdivide;
     std::map<uint32_t, std::pair<uint32_t, uint32_t>> leavesData;
@@ -254,10 +252,6 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
                     octreeNode = &mOctreeData[nodeStartIndex];
                 }
 
-                threadTrianglesInfluence[tId].filterTriangles(node.center, node.size, *node.parentTriangles, 
-                                                   node.triangles, node.verticesValues, node.verticesInfo,
-                                                   mesh, trianglesData);
-
                 // Get current neighbours
                 if(currentDepth > startDepth)
                 {
@@ -298,13 +292,13 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
 
                 if(currentDepth >= startDepth)
                 {
-                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
+                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, mesh, node.interpolationCoeff);
                 }
                 
                 threadTrianglesInfluence[tId].calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
                                                                     0u, node.interpolationCoeff,
                                                                     node.midPointsValues, node.midPointsInfo,
-                                                                    mesh, trianglesData);
+                                                                    mesh);
 
                 bool generateTerminalNodes = false;
                 if(currentDepth >= startDepth)
@@ -688,7 +682,7 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
 
                 if(currentDepth >= maxDepth)
                 {
-                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
+                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, mesh, node.interpolationCoeff);
                 }
 
                 for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
@@ -886,11 +880,11 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
                     const bool recycleMidPointsValues = firstIteration && !node.ignoreNode;
                     if(!recycleMidPointsValues)
                     {
-                        InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
+                        InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, mesh, node.interpolationCoeff);
                         trianglesInfluence.calculateVerticesInfo(node.center, node.size, node.triangles, nodeSamplePoints,
                                                                 samplesMask, node.interpolationCoeff,
                                                                 node.midPointsValues, node.midPointsInfo,
-                                                                mesh, trianglesData);
+                                                                mesh);
                     }
 
                     for(uint32_t i=0; i < 19; i++)
@@ -1129,7 +1123,7 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
                         recycledOldCoefficients = true;
                     }
 
-                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, node.triangles, mesh, trianglesData, node.interpolationCoeff);
+                    InterpolationMethod::calculateCoefficients(node.verticesValues, 2.0f * node.size, mesh, node.interpolationCoeff);
 
                     for(uint32_t i=0; i < InterpolationMethod::NUM_COEFFICIENTS; i++)
                     {

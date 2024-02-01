@@ -4,6 +4,7 @@
 #include <array>
 
 #include "utils/TriangleUtils.h"
+#include "SdfFunction.h"
 
 #ifdef ENOKI_AVAILABLE
 #include "enoki/array.h"
@@ -58,21 +59,17 @@ struct TriLinearInterpolation
 
     inline static void calculateCoefficients(const std::array<std::array<float, VALUES_PER_VERTEX>, 8>& valuesPerVertex,
                                              float nodeSize,
-                                             const std::vector<uint32_t>& triangles,
-                                             const Mesh& mesh,
-                                             const std::vector<TriangleUtils::TriangleData>& trianglesData,
+                                             const SdfFunction& sdfFunc,
                                              std::array<float, NUM_COEFFICIENTS>& outCoefficients) 
     {
         outCoefficients = *reinterpret_cast<const std::array<float, NUM_COEFFICIENTS>*>(&valuesPerVertex);
     }
 
     inline static void calculatePointValues(glm::vec3 point,
-                                      uint32_t nearestTriangleIndex,
-                                      const Mesh& mesh,
-                                      const std::vector<TriangleUtils::TriangleData>& trianglesData, 
+                                      const SdfFunction& sdfFunc,
                                       std::array<float, VALUES_PER_VERTEX>& outValues)
     { 
-        outValues[0] = TriangleUtils::getSignedDistPointAndTriangle(point, trianglesData[nearestTriangleIndex]);
+        outValues[0] = sdfFunc.getDistance(point);
     }
 
     inline static float interpolateValue(const std::array<float, NUM_COEFFICIENTS>& values, glm::vec3 fracPart) 
@@ -289,29 +286,18 @@ struct TriCubicInterpolation
     static constexpr uint32_t NUM_COEFFICIENTS = 64;
 
     inline static void calculatePointValues(glm::vec3 point,
-                                      uint32_t nearestTriangleIndex,
-                                      const Mesh& mesh,
-                                      const std::vector<TriangleUtils::TriangleData>& trianglesData, 
+                                      const SdfFunction& sdfFunc,
                                       std::array<float, VALUES_PER_VERTEX>& outValues)
     {
-        const std::vector<uint32_t>& indices = mesh.getIndices();
-        const std::vector<glm::vec3>& vertices = mesh.getVertices();
         glm::vec3 gradient;
-        outValues[0] = TriangleUtils::getSignedDistPointAndTriangle(point, trianglesData[nearestTriangleIndex], 
-                                                                    vertices[indices[3 * nearestTriangleIndex]],
-                                                                    vertices[indices[3 * nearestTriangleIndex + 1]],
-                                                                    vertices[indices[3 * nearestTriangleIndex + 2]],
-                                                                    gradient);
-
+        outValues[0] = sdfFunc.getDistance(point, gradient);
         outValues[1] = gradient.x; outValues[2] = gradient.y; outValues[3] = gradient.z;
         outValues[4] = 0.0f; outValues[5] = 0.0f; outValues[6] = 0.0f; outValues[7] = 0.0f;
     }
 
     inline static void calculateCoefficients(const std::array<std::array<float, VALUES_PER_VERTEX>, 8>& inputInValues,
                                             float nodeSize,
-                                            const std::vector<uint32_t>& triangles,
-                                            const Mesh& mesh,
-                                            const std::vector<TriangleUtils::TriangleData>& trianglesData,
+                                            const SdfFunction& sdfFunc,
                                             std::array<float, NUM_COEFFICIENTS>& outCoeff) 
     {
         std::array<std::array<float, VALUES_PER_VERTEX>, 8> inValues = inputInValues;

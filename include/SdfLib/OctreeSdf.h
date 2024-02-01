@@ -42,7 +42,8 @@ public:
               InitAlgorithm initAlgorithm = InitAlgorithm::NO_CONTINUITY,
               uint32_t numThreads = 1)
     {
-        buildOctree(mesh, box, depth, startDepth, 
+        MeshSvhSdf sdfFunc(mesh);
+        buildOctree(sdfFunc, box, depth, startDepth, 
                 TOctreeSdf::TerminationRule::TRAPEZOIDAL_RULE, 
                 TerminationRuleParams::setTrapezoidalRuleParams(maxError),
                 initAlgorithm, numThreads);
@@ -61,7 +62,24 @@ public:
               TerminationRule terminationRule, TerminationRuleParams params,
               InitAlgorithm initAlgorithm, uint32_t numThreads = 1)
     {
-        buildOctree(mesh, box, depth, startDepth, terminationRule, params, initAlgorithm, numThreads);
+        MeshSvhSdf sdfFunc(mesh);
+        buildOctree(sdfFunc, box, depth, startDepth, terminationRule, params, initAlgorithm, numThreads);
+    }
+
+    /**
+     * @param sdfFunc The input SDF.
+     * @param box The area that the structure must cover.
+     * @param maxDepth The maximum octree depth.
+     * @param startDepth The start depth of the octree.
+     * @param terminationRule The algorithm termination rule
+     * @param params The parameters of the termination rule chosen
+     * @param initAlgorithm The building algorithm.
+     **/
+    TOctreeSdf(const SdfFunction& sdfFun, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+              TerminationRule terminationRule, TerminationRuleParams params,
+              InitAlgorithm initAlgorithm, uint32_t numThreads = 1)
+    {
+        buildOctree(sdfFun, box, depth, startDepth, terminationRule, params, initAlgorithm, numThreads);
     }
 
     float getDistance(glm::vec3 sample) const override;
@@ -97,7 +115,7 @@ private:
     // The depth in which the process start the subdivision
     static constexpr uint32_t START_OCTREE_DEPTH = 1;
 
-    void buildOctree(const Mesh& mesh, BoundingBox box, uint32_t depth, uint32_t startDepth, 
+    void buildOctree(const SdfFunction& sdfFun, BoundingBox box, uint32_t depth, uint32_t startDepth, 
                      TerminationRule terminationRule, TerminationRuleParams params,
                      InitAlgorithm initAlgorithm, uint32_t numThreads = 1)
     {
@@ -122,16 +140,16 @@ private:
                 std::cerr << "ERROR: Uniform algoirthm not currently supported" << std::endl;
                 break;
             case TOctreeSdf::InitAlgorithm::NO_CONTINUITY:
-                initOctree<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationRule, params, numThreads);
+                initOctree<SdfEvaluator<InterpolationMethod>>(sdfFun, startDepth, depth, terminationRule, params, numThreads);
                 break;
             case TOctreeSdf::InitAlgorithm::CONTINUITY:
                 if(DELAY_NODE_TERMINATION)
                 {
-                    initOctreeWithContinuity<VHQueries<InterpolationMethod>>(mesh, startDepth, depth,terminationRule, params);
+                    initOctreeWithContinuity<SdfEvaluator<InterpolationMethod>>(sdfFun, startDepth, depth,terminationRule, params);
                 }
                 else
                 {
-                    initOctreeWithContinuityNoDelay<VHQueries<InterpolationMethod>>(mesh, startDepth, depth, terminationRule, params, numThreads);
+                    initOctreeWithContinuityNoDelay<SdfEvaluator<InterpolationMethod>>(sdfFun, startDepth, depth, terminationRule, params, numThreads);
                 }
                 break;
             // case TOctreeSdf::InitAlgorithm::GPU_IMPLEMENTATION:
@@ -148,18 +166,18 @@ private:
 
     // Functions to construct the structure with different strategies
     template<typename TrianglesInfluenceStrategy>
-    void initOctree(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+    void initOctree(const SdfFunction& sdfFun, uint32_t startDepth, uint32_t maxDepth,
                     TerminationRule terminationRule,
                     TerminationRuleParams terminationRuleParams,
                     uint32_t numThreads = 1);
 
     template<typename TrianglesInfluenceStrategy>
-    void initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+    void initOctreeWithContinuity(const SdfFunction& sdfFun, uint32_t startDepth, uint32_t maxDepth,
                                   TerminationRule terminationRule,
                                   TerminationRuleParams terminationRuleParams);
 
     template<typename TrianglesInfluenceStrategy>
-    void initOctreeWithContinuityNoDelay(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+    void initOctreeWithContinuityNoDelay(const SdfFunction& sdfFun, uint32_t startDepth, uint32_t maxDepth,
                                          TOctreeSdf::TerminationRule terminationRule,
                                          TerminationRuleParams terminationRuleParams,
                                          uint32_t numThreads = 1);
