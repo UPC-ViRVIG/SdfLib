@@ -320,13 +320,15 @@ void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuityNoDelay(const Mesh
                             value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             break;
                         case TerminationRule::ISOSURFACE:
-                            value = isIsosurfaceInside<InterpolationMethod>(node.midPointsValues, node.size)
-                                        ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues)
-                                        : 0;
+                            // value = InterpolationMethod::isIsosurfaceInside(node.interpolationCoeff)
+                            //             ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues)
+                            //             : 0;
+                            value = estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues);
                             generateTerminalNodes = value < sqTerminationThreshold;
                             break;
                         case TerminationRule::BY_DISTANCE_RULE:
-                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues, terminationRuleParams[1]);
+                            value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(node.interpolationCoeff, node.midPointsValues, 
+                                        InterpolationMethod::isIsosurfaceInside(node.interpolationCoeff) ? 0.0 : terminationRuleParams[1]);
                             generateTerminalNodes = value < sqTerminationThreshold;
                             break;
                         case TerminationRule::NONE:
