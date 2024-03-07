@@ -51,7 +51,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
 	triangles[0].resize(numTriangles);
     for(uint32_t i=0; i < numTriangles; i++)
     {
-        triangles[0][i] = std::make_pair(0.0, i);
+        triangles[0][i] = std::make_pair(0.0f, i);
     }
 
     std::array<glm::vec3, 8> childrens = 
@@ -95,7 +95,7 @@ void UniformGridSdf::octreeInit(const Mesh& mesh, const std::vector<TriangleUtil
     const float voxelDiagonal = glm::sqrt(3.0f); // Voxel diagonal when the voxels has size one
 
     std::vector<std::pair<uint32_t, uint32_t>> verticesStatistics(maxDepth, std::make_pair(0, 0));
-    verticesStatistics[0] = std::make_pair(trianglesData.size(), 1);
+    verticesStatistics[0] = std::make_pair(static_cast<uint32_t>(trianglesData.size()), 1u);
 
     std::vector<float> elapsedTime(maxDepth);
     std::vector<uint32_t> numTrianglesEvaluated(maxDepth, 0);
