@@ -200,10 +200,11 @@ void TOctreeSdf<InterpolationMethod>::initOctree(const SdfFunction& mesh, uint32
                         value = estimateErrorFunctionIntegralBySimpsonsRule<InterpolationMethod>(interpolationCoeff, midPointsValues);
                         break;
                     case TerminationRule::BY_DISTANCE_RULE:
-                        value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, tContext.terminationRuleParams[1]);
+                        value = estimateDecayErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues, 
+                                    InterpolationMethod::isIsosurfaceInside(interpolationCoeff) ? 0.0 : tContext.terminationRuleParams[1]);
                         break;
                     case TerminationRule::ISOSURFACE:
-                        value = isIsosurfaceInside<InterpolationMethod>(midPointsValues, node.size)
+                        value = InterpolationMethod::isIsosurfaceInside(interpolationCoeff)
                                     ? estimateErrorFunctionIntegralByTrapezoidRule<InterpolationMethod>(interpolationCoeff, midPointsValues)
                                     : 0;
                         break;

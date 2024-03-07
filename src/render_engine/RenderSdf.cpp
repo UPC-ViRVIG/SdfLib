@@ -22,11 +22,158 @@ RenderSdf::~RenderSdf()
 
 void RenderSdf::restart()
 {
+    auto checkForOpenGLErrors = []() -> GLenum
+    {
+        GLenum errorCode;
+        while((errorCode = glGetError()) != GL_NO_ERROR)
+        {
+            SPDLOG_ERROR("OpenGL error with code {}", errorCode);
+            return errorCode;
+        }
+
+        return GL_NO_ERROR;
+    };
+    
     glDeleteBuffers(1, &mOctreeSSBO);
-    glDeleteProgram(mRenderProgramId);
+    glDeleteBuffers(1, &mOctreeValuesSSBO);
     glDeleteTextures(1, &mRenderTexture);
+    glDeleteProgram(mRenderProgramId);
 
     start();
+}
+
+namespace
+{
+    template<typename InterpolationMethod>
+    void splitOctree(IOctreeSdf& octree, std::vector<IOctreeSdf::OctreeNode>& outputOctree, std::vector<float>& outputValues)
+    {
+        uint32_t nextLeaf = 0;
+        auto octreeData = octree.getOctreeData();
+
+        outputOctree = octreeData;
+        const uint32_t startGridSize = octree.getStartGridSize().x;
+        uint32_t currentIndex = startGridSize * startGridSize * startGridSize;
+
+        std::function<void(sdflib::IOctreeSdf::OctreeNode&, uint32_t)> vistNode;
+        vistNode = [&](sdflib::IOctreeSdf::OctreeNode& node, uint32_t nodeIndex)
+        {
+            // Iterate children
+            if(!node.isLeaf())
+            {
+                uint32_t childrenIndices = currentIndex;
+                currentIndex += 8;
+                for(uint32_t i = 0; i < 8; i++)
+                {
+                    vistNode(octreeData[node.getChildrenIndex() + i], childrenIndices + i);
+                }
+
+                outputOctree[nodeIndex].setValues(false, childrenIndices);
+            }
+            else
+            {
+                if(node.isMarked() || !octree.hasSdfOnlyAtSurface())
+                {
+                    auto& nodeValues = *reinterpret_cast<const std::array<float, InterpolationMethod::NUM_COEFFICIENTS>*>(&octreeData[node.getChildrenIndex()]);
+                    const uint32_t startValueIndex = outputValues.size() / 4;
+                    if(typeid(InterpolationMethod) == typeid(TriCubicInterpolation))
+                    {
+                        for(uint32_t it=0; it < InterpolationMethod::NUM_COEFFICIENTS; it++)
+                        {
+                            uint32_t k = 3 - (it % 4);
+                            uint32_t j = 3 - ((it/4) % 4);
+                            uint32_t i = 3 - ((it/16) % 4);
+                            outputValues.push_back(nodeValues[16 * k + 4 * j + i]);
+                            // outputValues.push_back(nodeValues[it]);
+                        }
+                    }
+                    else if(typeid(InterpolationMethod) == typeid(TriLinearInterpolation))
+                    {
+                        outputValues.push_back(1.0*nodeValues[0]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[2]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[4]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[2] - 1.0*nodeValues[4] + 1.0*nodeValues[6]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[2] + 1.0*nodeValues[3]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[4] + 1.0*nodeValues[5]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1] + 1.0*nodeValues[2] - 1.0*nodeValues[3] + 1.0*nodeValues[4] - 1.0*nodeValues[5] - 1.0*nodeValues[6] + 1.0*nodeValues[7]);
+
+                        // for(uint32_t it=0; it < InterpolationMethod::NUM_COEFFICIENTS; it++)
+                        // {
+                        //     outputValues.push_back(nodeValues[it]);
+                        // }
+                    }
+                    else if(typeid(InterpolationMethod) == typeid(TriLinearWithTriCubicInterpolation))
+                    {
+                        outputValues.push_back(1.0*nodeValues[0]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[2]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[4]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[2] - 1.0*nodeValues[4] + 1.0*nodeValues[6]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[2] + 1.0*nodeValues[3]);
+                        outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[4] + 1.0*nodeValues[5]);
+                        outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1] + 1.0*nodeValues[2] - 1.0*nodeValues[3] + 1.0*nodeValues[4] - 1.0*nodeValues[5] - 1.0*nodeValues[6] + 1.0*nodeValues[7]);                        
+
+                        if(node.isMarked())
+                        {
+                            for(uint32_t it=0; it < 64; it++)
+                            {
+                                uint32_t k = 3 - (it % 4);
+                                uint32_t j = 3 - ((it/4) % 4);
+                                uint32_t i = 3 - ((it/16) % 4);
+                                outputValues.push_back(nodeValues[8 + 16 * k + 4 * j + i]);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if(node.isMarked())
+                        {
+                            for(uint32_t it=0; it < 64; it++)
+                            {
+                                uint32_t k = 3 - (it % 4);
+                                uint32_t j = 3 - ((it/4) % 4);
+                                uint32_t i = 3 - ((it/16) % 4);
+                                outputValues.push_back(nodeValues[8 + 16 * k + 4 * j + i]);
+                            }
+                        }
+                        else
+                        {
+                            outputValues.push_back(1.0*nodeValues[0]);
+                            outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[2]);
+                            outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[4]);
+                            outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[2] - 1.0*nodeValues[4] + 1.0*nodeValues[6]);
+                            outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1]);
+                            outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[2] + 1.0*nodeValues[3]);
+                            outputValues.push_back(1.0*nodeValues[0] - 1.0*nodeValues[1] - 1.0*nodeValues[4] + 1.0*nodeValues[5]);
+                            outputValues.push_back(-1.0*nodeValues[0] + 1.0*nodeValues[1] + 1.0*nodeValues[2] - 1.0*nodeValues[3] + 1.0*nodeValues[4] - 1.0*nodeValues[5] - 1.0*nodeValues[6] + 1.0*nodeValues[7]);
+                        }
+                    }
+
+                    outputOctree[nodeIndex].setValues(true, startValueIndex);
+                    if(node.isMarked()) outputOctree[nodeIndex].markNode();
+                    else outputOctree[nodeIndex].removeMark();
+                    nextLeaf++;
+                }
+                else
+                {
+                    outputOctree[nodeIndex].setValues(true, std::numeric_limits<uint32_t>::max());
+                    outputOctree[nodeIndex].removeMark();
+                }
+            }
+        };
+
+        for(uint32_t k=0; k < startGridSize; k++)
+        {
+            for(uint32_t j=0; j < startGridSize; j++)
+            {
+                for(uint32_t i=0; i < startGridSize; i++)
+                {
+                    const uint32_t nodeStartIndex = k * startGridSize * startGridSize + j * startGridSize + i;
+                    vistNode(octreeData[nodeStartIndex], nodeStartIndex);
+                }
+            }
+        }
+    }
 }
 
 void RenderSdf::start()
@@ -83,6 +230,16 @@ void RenderSdf::start()
         else if(mInputOctree->getFormat() == IOctreeSdf::TRICUBIC_OCTREE)
         {
             computeShader.append("#define USE_TRICUBIC_INTERPOLATION\n");
+        }
+        else if(mInputOctree->getFormat() == IOctreeSdf::TRILINEAR_OCTREE2)
+        {
+            computeShader.append("#define USE_TRILINEAR_INTERPOLATION\n");
+            computeShader.append("#define TRICUBIC_NORMALS\n");
+        }
+        else if(mInputOctree->getFormat() == IOctreeSdf::HYBRID_OCTREE)
+        {
+            computeShader.append("#define USE_TRILINEAR_INTERPOLATION\n");
+            computeShader.append("#define USE_TRICUBIC_IN_ISOSURFACE\n");
         }
 
         switch(mAlgorithm)
@@ -181,11 +338,28 @@ void RenderSdf::start()
 
     // Set octree data
     {
+        std::vector<IOctreeSdf::OctreeNode> octree;
+        std::vector<float> octreeValues;
+        if(mInputOctree->getFormat() == IOctreeSdf::TRILINEAR_OCTREE)
+            splitOctree<sdflib::TriLinearInterpolation>(*mInputOctree, octree, octreeValues);
+        else if(mInputOctree->getFormat() == IOctreeSdf::TRICUBIC_OCTREE)
+            splitOctree<sdflib::TriCubicInterpolation>(*mInputOctree, octree, octreeValues);
+        else if(mInputOctree->getFormat() == IOctreeSdf::TRILINEAR_OCTREE2)
+            splitOctree<sdflib::TriLinearWithTriCubicInterpolation>(*mInputOctree, octree, octreeValues);
+        else if(mInputOctree->getFormat() == IOctreeSdf::HYBRID_OCTREE)
+            splitOctree<sdflib::TriLinearAndTriCubicInterpolation>(*mInputOctree, octree, octreeValues);
+
         // Set octree trilinear data
         glGenBuffers(1, &mOctreeSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, mInputOctree->getOctreeData().size() * sizeof(IOctreeSdf::OctreeNode), mInputOctree->getOctreeData().data(), GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, octree.size() * sizeof(IOctreeSdf::OctreeNode), octree.data(), GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mOctreeSSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+        glGenBuffers(1, &mOctreeValuesSSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeValuesSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, octreeValues.size() * sizeof(float), octreeValues.data(), GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, mOctreeValuesSSBO);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         mOctreeMatrix = glm::scale(glm::mat4(1.0f), 1.0f / mInputOctree->getGridBoundingBox().getSize()) * glm::translate(glm::mat4(1.0f), -mInputOctree->getGridBoundingBox().min);
@@ -221,6 +395,18 @@ void RenderSdf::start()
 
 void RenderSdf::draw(Camera* camera)
 {
+    auto checkForOpenGLErrors = []() -> GLenum
+    {
+        GLenum errorCode;
+        while((errorCode = glGetError()) != GL_NO_ERROR)
+        {
+            SPDLOG_ERROR("OpenGL error with code {}", errorCode);
+            return errorCode;
+        }
+
+        return GL_NO_ERROR;
+    };
+
     glm::ivec2 currentScreenSize = Window::getCurrentWindow().getWindowSize();
 
     if( currentScreenSize.x != mRenderTextureSize.x ||
@@ -236,6 +422,7 @@ void RenderSdf::draw(Camera* camera)
     glBindTexture(GL_TEXTURE_2D, mRenderTexture);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, mOctreeValuesSSBO);
 
     glUseProgram(mRenderProgramId);
 
@@ -244,6 +431,15 @@ void RenderSdf::draw(Camera* camera)
     float screenHalfSize = 0.5f * glm::tan(glm::radians(camera->getFov())) * nearAndFarPlane.x;
     float screenHalfSizeAspectRatio = screenHalfSize * camera->getRatio();
     glm::vec2 nearPlaneHalfSize = glm::vec2(screenHalfSizeAspectRatio, screenHalfSize);
+    // float halfPixelHeight = screenHalfSize / Window::getCurrentWindow().getWindowSize().y;
+    // // std::cout << std::endl << std::endl;
+    // // std::cout << Window::getCurrentWindow().getWindowSize().y << std::endl;
+    // // std::cout << halfPixelHeight << " // " << nearAndFarPlane.x << std::endl;
+    // double auxN = static_cast<double>(nearAndFarPlane.x);
+    // double auxW = static_cast<double>(screenHalfSizeAspectRatio - halfPixelHeight);
+    // double epsilon = glm::sin(glm::atan(static_cast<double>(screenHalfSizeAspectRatio) / static_cast<double>(nearAndFarPlane.x)) - glm::atan(static_cast<double>(screenHalfSizeAspectRatio - halfPixelHeight) / static_cast<double>(nearAndFarPlane.x)));
+    // std::cout << epsilon << std::endl;
+
 
     // Set camera configuration
     glUniform2f(mPixelToViewLocation, 2.0f * nearPlaneHalfSize.x / static_cast<float>(mRenderTextureSize.x), 
@@ -255,7 +451,8 @@ void RenderSdf::draw(Camera* camera)
     glUniform1f(mDistanceScaleLocation, mOctreeDistanceScale);
     glUniform1f(mOctreeMinBorderValueLocation, mOctreeMinBorderValue);
 
-    glDispatchCompute(mRenderTextureSize.x/16, mRenderTextureSize.y/16, 1);
+    const int local_size = 16;
+    glDispatchCompute(mRenderTextureSize.x/local_size, mRenderTextureSize.y/local_size, 1);
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
@@ -272,7 +469,7 @@ void RenderSdf::sendAlgorithmOptionsValues()
     glUniform1i(mMaxIterationsLocation, mMaxIterations);
     glUniform1i(mMaxShadowIterationsLocation, mMaxShadowIterations);
     if (mEpsilon != mEpsilon10000/10000) mEpsilon = mEpsilon10000/10000;
-    glUniform1f(mEpsilonLocation, mEpsilon);
+    glUniform1f(mEpsilonLocation, 0.85e-4);
 }
 
 void RenderSdf::sendLightingValues()
@@ -280,7 +477,9 @@ void RenderSdf::sendLightingValues()
     //Lighting
     glUseProgram(mRenderProgramId);
     glUniform1i(mLightNumberLocation, mLightNumber);
-    glUniform3fv(mLightPosLocation, 4, glm::value_ptr(mLightPosition[0]));
+    std::array<glm::vec3, 4> lightPos;
+    for(uint32_t i=0; i < 4; i++) lightPos[i] = 0.5f * (mLightPosition[i] + glm::vec3(1.0f));
+    glUniform3fv(mLightPosLocation, 4, glm::value_ptr(lightPos[0]));
     glUniform3fv(mLightColorLocation, 4, glm::value_ptr(mLightColor[0]));
     glUniform1fv(mLightIntensityLocation, 4, &mLightIntensity[0]);
     glUniform1fv(mLightRadiusLocation, 4, &mLightRadius[0]);

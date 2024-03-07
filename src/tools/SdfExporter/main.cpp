@@ -15,6 +15,8 @@
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "SdfLib/TestSdfFunction.h"
+
 using namespace sdflib;
 
 std::optional<IOctreeSdf::TerminationRule> parseTerminationRule(const std::string& terminationRuleStr)
@@ -77,14 +79,28 @@ SdfFunction* createOctreeSdf(const std::string& interpolationMethod,
     std::optional<IOctreeSdf::InitAlgorithm> initAlgorithm = parseInitAlgorithm(initAlgorithmStr);
     if(!terminationRule || !initAlgorithm) return nullptr;
     IOctreeSdf::TerminationRuleParams terminationRuleParams = parseParameters(terminationRule.value(), p1, p2);
+
+    TestSdfFunction sdf;
+    const BoundingBox mBox(glm::vec3(-1.0), glm::vec3(1.0)); 
     if(interpolationMethod == "trilinear")
     {
-        typedef TOctreeSdf<TriLinearInterpolation> MyOctree;    
+        typedef TOctreeSdf<TriLinearInterpolation> MyOctree;
+        // return new MyOctree(sdf, mBox, depth, startDepth, terminationRule.value(), terminationRuleParams, initAlgorithm.value(), numThreads);
         return new MyOctree(mesh, box, depth, startDepth, terminationRule.value(), terminationRuleParams, initAlgorithm.value(), numThreads);
     }
     else if(interpolationMethod == "tricubic")
     {
         typedef TOctreeSdf<TriCubicInterpolation> MyOctree;
+        return new MyOctree(mesh, box, depth, startDepth, terminationRule.value(), terminationRuleParams, initAlgorithm.value(), numThreads);
+    }
+    else if(interpolationMethod == "trilinear1")
+    {
+        typedef TOctreeSdf<TriLinearAndTriCubicInterpolation> MyOctree;
+        return new MyOctree(mesh, box, depth, startDepth, terminationRule.value(), terminationRuleParams, initAlgorithm.value(), numThreads);
+    }
+    else if(interpolationMethod == "trilinear2")
+    {
+        typedef TOctreeSdf<TriLinearWithTriCubicInterpolation> MyOctree;
         return new MyOctree(mesh, box, depth, startDepth, terminationRule.value(), terminationRuleParams, initAlgorithm.value(), numThreads);
     }
     else

@@ -19,7 +19,9 @@ public:
     {
         GRID,
         TRILINEAR_OCTREE,
+        TRILINEAR_OCTREE2,
         TRICUBIC_OCTREE,
+        HYBRID_OCTREE,
         EXACT_OCTREE,
         NONE
     };

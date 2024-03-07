@@ -122,6 +122,8 @@ public:
 					break;
 				case SdfFunction::SdfFormat::TRICUBIC_OCTREE:
 				case SdfFunction::SdfFormat::TRILINEAR_OCTREE:
+				case SdfFunction::SdfFormat::TRILINEAR_OCTREE2:
+				case SdfFunction::SdfFormat::HYBRID_OCTREE:
 					mSdfFormat = SdfFormat::OCTREE;
 					octreeSdf = std::move(*reinterpret_cast<std::unique_ptr<IOctreeSdf>*>(&sdfFunc));
 					sdfBB = octreeSdf->getGridBoundingBox();

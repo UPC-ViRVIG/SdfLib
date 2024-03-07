@@ -61,6 +61,7 @@ private:
     unsigned int mRenderTexture;
     glm::ivec2 mRenderTextureSize;
     unsigned int mOctreeSSBO;
+    unsigned int mOctreeValuesSSBO;
     unsigned int mOctreeTricubicSSBO;
 
     unsigned int mPixelToViewLocation;
@@ -79,10 +80,12 @@ private:
     unsigned int mMaxShadowIterationsLocation;
     unsigned int mEpsilonLocation;
 
-    float mEpsilon = 0.0001f;
-    float mEpsilon10000 = 0.0001f * 10000;
+    //float mEpsilon = 0.0001f;
+    float mEpsilon = 0.0017031f;
+    // float mEpsilon10000 = 0.0001f * 10000;
+    float mEpsilon10000 = 0.0017031f * 10000;
 
-    int mMaxIterations = 700;
+    int mMaxIterations = 4096;
     int mMaxShadowIterations = 64;
 
     bool mUseAO = false;

@@ -28,10 +28,20 @@ bool SdfFunction::saveToFile(const std::string& outputPath)
         archive(format);
         archive(*reinterpret_cast<TOctreeSdf<TriLinearInterpolation>*>(this));
     }
+    else if(format == SdfFormat::TRILINEAR_OCTREE2)
+    {
+        archive(format);
+        archive(*reinterpret_cast<TOctreeSdf<TriLinearWithTriCubicInterpolation>*>(this));
+    }
     else if(format == SdfFormat::TRICUBIC_OCTREE)
     {
         archive(format);
         archive(*reinterpret_cast<TOctreeSdf<TriCubicInterpolation>*>(this));
+    }
+    else if(format == SdfFormat::HYBRID_OCTREE)
+    {
+        archive(format);
+        archive(*reinterpret_cast<TOctreeSdf<TriLinearAndTriCubicInterpolation>*>(this));
     }
     else if(format == SdfFormat::EXACT_OCTREE)
     {
@@ -71,9 +81,21 @@ std::unique_ptr<SdfFunction> SdfFunction::loadFromFile(const std::string& inputP
         archive(*obj);
         return obj;
     }
+    else if(format == SdfFormat::TRILINEAR_OCTREE2)
+    {
+        std::unique_ptr<TOctreeSdf<TriLinearWithTriCubicInterpolation>> obj(new TOctreeSdf<TriLinearWithTriCubicInterpolation>());
+        archive(*obj);
+        return obj;
+    }
     else if(format == SdfFormat::TRICUBIC_OCTREE)
     {
         std::unique_ptr<TOctreeSdf<TriCubicInterpolation>> obj(new TOctreeSdf<TriCubicInterpolation>());
+        archive(*obj);
+        return obj;
+    }
+    else if(format == SdfFormat::HYBRID_OCTREE)
+    {
+        std::unique_ptr<TOctreeSdf<TriLinearAndTriCubicInterpolation>> obj(new TOctreeSdf<TriLinearAndTriCubicInterpolation>());
         archive(*obj);
         return obj;
     }

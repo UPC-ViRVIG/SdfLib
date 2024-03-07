@@ -13,6 +13,8 @@ private:
 	int mFpsTarget = 240;
 	void drawGui();
 	bool mShowGUI = false;
+
+	uint32_t lastFPSsIdx;
 };
 
 #endif

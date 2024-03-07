@@ -7,6 +7,7 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <backends/imgui_impl_glfw.h>
 #include <ImGuizmo.h>
+#include <iostream>
 
 
 void MainLoop::drawGui()
@@ -29,6 +30,11 @@ void MainLoop::drawGui()
 		ImGui::End();
 	}
 
+	if(Window::getCurrentWindow().isKeyPressed(GLFW_KEY_T))
+	{
+		lastFPSsIdx = 0;
+	}
+
 	return;
 }
 
@@ -46,13 +52,15 @@ void MainLoop::start(Scene& scene, std::string name)
 
 	Window::setCurrentWindow(&window);
 
-	// window.disableVerticalSync();
+	window.disableVerticalSync();
 
 	scene.start();
 
-	while (!window.shouldClose()) {
-		fpsTimer.start();
+	std::vector<float> lastFPSs(2000);
+	lastFPSsIdx = lastFPSs.size();
+	fpsTimer.start();
 
+	while (!window.shouldClose()) {
 		if (mFpsTarget > 0) glfwPollEvents();
 		else glfwWaitEvents();
 
@@ -84,6 +92,27 @@ void MainLoop::start(Scene& scene, std::string name)
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		window.swapBuffers();
+		
+		if(lastFPSsIdx < lastFPSs.size())
+		{
+			lastFPSs[lastFPSsIdx++] = 1000.0f * fpsTimer.getElapsedSeconds();
+			if(lastFPSsIdx >= lastFPSs.size())
+			{
+				// Calculate mean and variance
+				float mean = 0.0f;
+				for(float v : lastFPSs) mean += v;
+				mean = mean / static_cast<float>(lastFPSs.size());
+				
+				float std = 0.0f;
+				for(float v : lastFPSs) std += (v - mean) * (v - mean);
+				std = glm::sqrt(std / static_cast<float>(lastFPSs.size()));
+
+				// std::cout << mean << ", " << std << std::endl;
+				std::cout << mean << std::endl;
+			}
+		}
+		fpsTimer.start();
+
 
 		/*
 		int millisecondsPerFrame = 1000 / mFpsTarget;

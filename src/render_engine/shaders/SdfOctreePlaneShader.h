@@ -78,10 +78,12 @@ private:
         {
         case sdflib::IOctreeSdf::TRILINEAR_OCTREE:
             return "#define USE_TRILINEAR_INTERPOLATION\n\n";
-            break;
         case sdflib::IOctreeSdf::TRICUBIC_OCTREE:
             return "#define USE_TRICUBIC_INTERPOLATION\n\n";
-            break;
+        case sdflib::IOctreeSdf::TRILINEAR_OCTREE2:
+            return "#define USE_TRILINEAR_INTERPOLATION\n\n";
+        case sdflib::IOctreeSdf::HYBRID_OCTREE:
+            return "#define USE_TRILINEAR_INTERPOLATION\n\n";
         default:
             assert(false);
             break;

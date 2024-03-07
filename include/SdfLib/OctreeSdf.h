@@ -199,9 +199,19 @@ SdfFunction::SdfFormat TOctreeSdf<TriLinearInterpolation>::getFormat() const
     return SdfFunction::SdfFormat::TRILINEAR_OCTREE;
 }
 
+SdfFunction::SdfFormat TOctreeSdf<TriLinearWithTriCubicInterpolation>::getFormat() const
+{
+    return SdfFunction::SdfFormat::TRILINEAR_OCTREE2;
+}
+
 SdfFunction::SdfFormat TOctreeSdf<TriCubicInterpolation>::getFormat() const
 {
     return SdfFunction::SdfFormat::TRICUBIC_OCTREE;
+}
+
+SdfFunction::SdfFormat TOctreeSdf<TriLinearAndTriCubicInterpolation>::getFormat() const
+{
+    return SdfFunction::SdfFormat::HYBRID_OCTREE;
 }
 
 typedef TOctreeSdf<> OctreeSdf;
