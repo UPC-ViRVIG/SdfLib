@@ -176,11 +176,13 @@ private:
     void reduceTree();
 };
 
+template<>
 SdfFunction::SdfFormat TOctreeSdf<TriLinearInterpolation>::getFormat() const
 {
     return SdfFunction::SdfFormat::TRILINEAR_OCTREE;
 }
 
+template<>
 SdfFunction::SdfFormat TOctreeSdf<TriCubicInterpolation>::getFormat() const
 {
     return SdfFunction::SdfFormat::TRICUBIC_OCTREE;
@@ -267,6 +269,11 @@ float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample, glm::vec3& 
 template<typename InterpolationMethod>
 typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMethod>::getLeaf(glm::vec3 sample, glm::vec3& leafPos, float& leafSize) const
 {
+    auto roundFloat = [](float a) -> uint32_t
+    {
+        return (a >= 0.5f) ? 1 : 0;
+    };
+    
     glm::vec3 fracPart = (sample - mBox.min) / mStartGridCellSize;
     glm::ivec3 startArrayPos = glm::floor(fracPart);
     fracPart = glm::fract(fracPart);
