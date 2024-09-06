@@ -193,7 +193,7 @@ If you are using the exact method algorithm for a publication, please cite the p
 If you are using the approximated method algorithm for a publication, please cite the paper:
 
 ```
-@inproceedings{appoxSDF,
+@article{appoxSDF,
   title={Adaptive approximation of signed distance fields through piecewise continuous interpolation},
   author={Eduard Pujol and Antonio Chica},
   booktitle={},
