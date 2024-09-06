@@ -181,12 +181,14 @@ If you are using the exact method algorithm for a publication, please cite the p
 
 ```
 @article{triangleInfluence,
-  title={Triangle influence supersets for fast distance computation},
-  author={Eduard Pujol and Antonio Chica},
-  booktitle={},
-  doi = {},
+  title = {Triangle Influence Supersets for Fast Distance Computation},
+  author = {Pujol, Eduard and Chica, Antonio},
   journal = {Computer Graphics Forum},
-  year = {2023}
+  volume = {42},
+  number = {6},
+  pages = {e14861},
+  year = {2023},
+  doi = {https://doi.org/10.1111/cgf.14861},Ç
 }
 ```
 
@@ -196,9 +198,10 @@ If you are using the approximated method algorithm for a publication, please cit
 @article{appoxSDF,
   title={Adaptive approximation of signed distance fields through piecewise continuous interpolation},
   author={Eduard Pujol and Antonio Chica},
-  booktitle={},
-  doi = {},
-  publisher = {},
-  year = {}
+  journal = {Computers & Graphics},
+  volume = {114},
+  pages = {337-346},
+  year = {2023},
+  doi = {https://doi.org/10.1016/j.cag.2023.06.020}
 }
 ```
