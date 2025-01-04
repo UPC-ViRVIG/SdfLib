@@ -93,7 +93,7 @@ inline void getNeighboursVectorInUniformGrid(uint32_t outChildId, glm::ivec3 cur
 
 template<typename InterpolationMethod>
 template<typename TrianglesInfluenceStrategy>
-void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
+inline void TOctreeSdf<InterpolationMethod>::initOctreeWithContinuity(const Mesh& mesh, uint32_t startDepth, uint32_t maxDepth,
                                                                TerminationRule terminationRule,
                                                                TerminationRuleParams terminationRuleParams)
 {

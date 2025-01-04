@@ -177,13 +177,13 @@ private:
 };
 
 template<>
-SdfFunction::SdfFormat TOctreeSdf<TriLinearInterpolation>::getFormat() const
+inline SdfFunction::SdfFormat TOctreeSdf<TriLinearInterpolation>::getFormat() const
 {
     return SdfFunction::SdfFormat::TRILINEAR_OCTREE;
 }
 
 template<>
-SdfFunction::SdfFormat TOctreeSdf<TriCubicInterpolation>::getFormat() const
+inline SdfFunction::SdfFormat TOctreeSdf<TriCubicInterpolation>::getFormat() const
 {
     return SdfFunction::SdfFormat::TRICUBIC_OCTREE;
 }
@@ -192,7 +192,7 @@ typedef TOctreeSdf<> OctreeSdf;
 
 // --- Public method definition --- //
 template<typename InterpolationMethod>
-float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample) const
+inline float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample) const
 {
     auto roundFloat = [](float a) -> uint32_t
     {
@@ -230,7 +230,7 @@ float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample) const
 }
 
 template<typename InterpolationMethod>
-float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
+inline float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample, glm::vec3& outGradient) const
 {
     auto roundFloat = [](float a) -> uint32_t
     {
@@ -267,7 +267,7 @@ float TOctreeSdf<InterpolationMethod>::getDistance(glm::vec3 sample, glm::vec3& 
 }
 
 template<typename InterpolationMethod>
-typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMethod>::getLeaf(glm::vec3 sample, glm::vec3& leafPos, float& leafSize) const
+inline typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMethod>::getLeaf(glm::vec3 sample, glm::vec3& leafPos, float& leafSize) const
 {
     auto roundFloat = [](float a) -> uint32_t
     {
@@ -302,7 +302,7 @@ typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMet
 }
 
 template<typename InterpolationMethod>
-typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMethod>::getGridNode(glm::vec3 sample, glm::vec3& nodePos, float& nodeSize) const
+inline typename TOctreeSdf<InterpolationMethod>::OctreeNode TOctreeSdf<InterpolationMethod>::getGridNode(glm::vec3 sample, glm::vec3& nodePos, float& nodeSize) const
 {
     glm::vec3 fracPart = (sample - mBox.min) / mStartGridCellSize;
     glm::ivec3 startArrayPos = glm::floor(fracPart);
@@ -395,7 +395,7 @@ void TOctreeSdf<InterpolationMethod>::computeMinBorderValue()
 }
 
 template<typename InterpolationMethod>
-void TOctreeSdf<InterpolationMethod>::reduceTree()
+inline void TOctreeSdf<InterpolationMethod>::reduceTree()
 {
     std::vector<TOctreeSdf::OctreeNode> octreeTmp = mOctreeData;
     uint32_t currentIndex = mStartGridSize * mStartGridSize * mStartGridSize;
