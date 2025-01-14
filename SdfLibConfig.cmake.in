@@ -1,0 +1,10 @@
+# Include dependency macro support
+include(CMakeFindDependencyMacro)
+
+# Loop over each dependency and call find_dependency
+foreach(DEPENDENCY @SDFLIB_DEPENDENCIES@)
+    find_dependency(${DEPENDENCY} CONFIG)
+endforeach()
+
+# Include the auto-generated targets file
+include("${CMAKE_CURRENT_LIST_DIR}/SdfLibTargets.cmake")

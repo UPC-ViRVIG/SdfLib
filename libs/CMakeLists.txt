@@ -139,7 +139,7 @@ if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
 
 # icg
 add_library(icg INTERFACE)
-target_include_directories(icg INTERFACE InteractiveComputerGraphics)
+target_include_directories(icg INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/InteractiveComputerGraphics> $<INSTALL_INTERFACE:include>)
 
 if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
 	# glfw

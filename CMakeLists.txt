@@ -59,7 +59,7 @@ add_library(${PROJECT_NAME} STATIC  ${SOURCE_FILES} ${HEADER_FILES} ${PUBLIC_HEA
                                     ${SDF_SOURCE_FILES} ${SDF_HEADER_FILES}
                                     ${UTILS_SOURCE_FILES} ${UTILS_HEADER_FILES})
 
-target_include_directories(${PROJECT_NAME} PUBLIC include/)
+target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/> $<INSTALL_INTERFACE:include>)
 target_include_directories(${PROJECT_NAME} PRIVATE src/)
 
 # Add shaders
@@ -236,3 +236,49 @@ if(SDFLIB_BUILD_DEBUG_APPS)
     # target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME} CGAL::CGAL OpenVDB::openvdb)
     target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME})
 endif()
+
+
+set(SDFLIB_DEPENDENCIES glm spdlog cereal)
+
+if(SDFLIB_USE_ASSIMP)
+    list(APPEND SDFLIB_DEPENDENCIES assimp)
+endif()
+
+if(SDFLIB_USE_ENOKI)
+    list(APPEND SDFLIB_DEPENDENCIES enoki eigen fcpw)
+endif()
+
+# TODO: Add more dependencies here by condition
+
+# Generate a custom configuration file with find_dependency calls
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/SdfLibConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/SdfLibConfig.cmake"
+    @ONLY
+)
+
+# Install the library and auto-generate the targets file
+install(TARGETS ${PROJECT_NAME} icg EXPORT ${PROJECT_NAME}Targets
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+)
+
+# Install the generated export file for targets
+install(EXPORT ${PROJECT_NAME}Targets
+    FILE ${PROJECT_NAME}Targets.cmake
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION share/sdflib
+)
+
+# Install the custom configuration file
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/SdfLibConfig.cmake"
+    DESTINATION share/sdflib
+)
+
+install(
+    DIRECTORY "include/"    # Trailing slash is important to copy only the contents
+    DESTINATION include     # Destination folder in the install directory
+    FILES_MATCHING
+    PATTERN "*.h"           # Match header files
+)
