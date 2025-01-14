@@ -237,18 +237,21 @@ if(SDFLIB_BUILD_DEBUG_APPS)
     target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME})
 endif()
 
+if(SDFLIB_USE_SYSTEM_GLM)
+    list(APPEND SDFLIB_DEPENDENCIES glm)
+endif()
 
-set(SDFLIB_DEPENDENCIES glm spdlog cereal)
+if(SDFLIB_USE_SYSTEM_SPDLOG)
+    list(APPEND SDFLIB_DEPENDENCIES spdlog)
+endif()
 
-if(SDFLIB_USE_ASSIMP)
+if(SDFLIB_USE_SYSTEM_CEREAL)
+    list(APPEND SDFLIB_DEPENDENCIES cereal)
+endif()
+
+if(SDFLIB_USE_SYSTEM_ASSIMP)
     list(APPEND SDFLIB_DEPENDENCIES assimp)
 endif()
-
-if(SDFLIB_USE_ENOKI)
-    list(APPEND SDFLIB_DEPENDENCIES enoki eigen fcpw)
-endif()
-
-# TODO: Add more dependencies here by condition
 
 # Generate a custom configuration file with find_dependency calls
 configure_file(
@@ -258,7 +261,7 @@ configure_file(
 )
 
 # Install the library and auto-generate the targets file
-install(TARGETS ${PROJECT_NAME} icg EXPORT ${PROJECT_NAME}Targets
+install(TARGETS ${PROJECT_NAME} icg ${OTHER_TARGETS} EXPORT ${PROJECT_NAME}Targets
     RUNTIME DESTINATION bin
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
