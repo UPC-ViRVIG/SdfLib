@@ -1,6 +1,11 @@
 # Include dependency macro support
 include(CMakeFindDependencyMacro)
 
+if("@SDFLIB_USE_OPENMP@")
+    find_dependency(OpenMP)
+    find_dependency(Threads)
+endif()
+
 # Loop over each dependency and call find_dependency
 foreach(DEPENDENCY @SDFLIB_DEPENDENCIES@)
     find_dependency(${DEPENDENCY} CONFIG)
