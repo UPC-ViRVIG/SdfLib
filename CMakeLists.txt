@@ -237,22 +237,6 @@ if(SDFLIB_BUILD_DEBUG_APPS)
     target_link_libraries(ImageQueryTime PUBLIC ${PROJECT_NAME})
 endif()
 
-if(SDFLIB_USE_SYSTEM_GLM)
-    list(APPEND SDFLIB_DEPENDENCIES glm)
-endif()
-
-if(SDFLIB_USE_SYSTEM_SPDLOG)
-    list(APPEND SDFLIB_DEPENDENCIES spdlog)
-endif()
-
-if(SDFLIB_USE_SYSTEM_CEREAL)
-    list(APPEND SDFLIB_DEPENDENCIES cereal)
-endif()
-
-if(SDFLIB_USE_SYSTEM_ASSIMP)
-    list(APPEND SDFLIB_DEPENDENCIES assimp)
-endif()
-
 # Generate a custom configuration file with find_dependency calls
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/SdfLibConfig.cmake.in"
