@@ -1,9 +1,11 @@
 # Include dependency macro support
 include(CMakeFindDependencyMacro)
 
+# for using spdlog
+find_dependency(Threads)
+
 if("@SDFLIB_USE_OPENMP@")
     find_dependency(OpenMP)
-    find_dependency(Threads)
 endif()
 
 if("@SDFLIB_USE_SYSTEM_GLM@")
