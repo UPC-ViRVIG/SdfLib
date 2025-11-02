@@ -62,7 +62,7 @@ if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
 if(NOT SDFLIB_USE_SYSTEM_SPDLOG)
 	FetchContent_Declare(spdlog_lib
 	  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-	  GIT_TAG eb3220622e73a4889eee355ffa37972b3cac3df5 # 1.9.2
+	  GIT_TAG 6fa36017cfd5731d617e1a934f0e5ea9c4445b13 # 1.15.3
 	)
 
 	FetchContent_GetProperties(spdlog_lib)
